@@ -68,11 +68,24 @@ namespace MWRender
             osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D;
             texture->setSourceFormat(GL_RGBA);
             texture->setInternalFormat(GL_RGBA16F);
+#ifdef __EMSCRIPTEN__
+            // WebGL2: RGBA16F requires an explicit FLOAT/HALF_FLOAT source type (the default
+            // UNSIGNED_BYTE is an invalid combination -> the texture never allocates and the
+            // ripples FBO draws fail every frame with "attachment has zero size").
+            // CLAMP_TO_BORDER is also not in ES 3.00 core; edge clamp with the shader's own
+            // coordinate clipping is equivalent here.
+            texture->setSourceType(GL_FLOAT);
+            texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture::LINEAR);
+            texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture::LINEAR);
+            texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+            texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+#else
             texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture::LINEAR);
             texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture::LINEAR);
             texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_BORDER);
             texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_BORDER);
             texture->setBorderColor(osg::Vec4(0, 0, 0, 0));
+#endif
             texture->setTextureSize(sRTTSize, sRTTSize);
 
             mTextures[i] = texture;

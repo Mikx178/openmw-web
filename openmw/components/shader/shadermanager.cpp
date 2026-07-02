@@ -187,8 +187,30 @@ namespace
         source = std::regex_replace(source, std::regex("\\btexture2D\\b"), "texture");
         source = std::regex_replace(source, std::regex("\\btextureCubeLod\\b"), "textureLod");
         source = std::regex_replace(source, std::regex("\\btextureCube\\b"), "texture");
-        source = std::regex_replace(source, std::regex("\\bshadow2DProj\\b"), "textureProj");
-        source = std::regex_replace(source, std::regex("\\bshadow2D\\b"), "texture");
+        // textureSize2D (EXT_gpu_shader4) -> ES 3.00 textureSize; shaders assign the result to
+        // a vec2, so wrap the ivec2 return in a vec2() conversion (ES has no implicit int->float).
+        if (source.find("textureSize2D") != std::string::npos)
+        {
+            source = std::regex_replace(source, std::regex("\\btextureSize2D\\b"), "omw_textureSize2D");
+            prelude += "vec2 omw_textureSize2D(highp sampler2D s, int lod) { return "
+                       "vec2(textureSize(s, lod)); }\n";
+        }
+
+        // Desktop GLSL shadow2D*() return vec4 (shaders do `.r` on the result); the ES 3.00
+        // equivalents textureProj/texture on a sampler2DShadow return a plain float, so a
+        // direct rename breaks compilation ("field selection on float"). Wrap instead.
+        if (source.find("shadow2DProj") != std::string::npos)
+        {
+            source = std::regex_replace(source, std::regex("\\bshadow2DProj\\b"), "omw_shadow2DProj");
+            prelude += "vec4 omw_shadow2DProj(highp sampler2DShadow s, highp vec4 c) { return "
+                       "vec4(textureProj(s, c)); }\n";
+        }
+        if (std::regex_search(source, std::regex("\\bshadow2D\\b")))
+        {
+            source = std::regex_replace(source, std::regex("\\bshadow2D\\b"), "omw_shadow2D");
+            prelude += "vec4 omw_shadow2D(highp sampler2DShadow s, highp vec3 c) { return "
+                       "vec4(texture(s, c)); }\n";
+        }
 
         // Line-based fixups (std::regex on large merged sources risks catastrophic backtracking):
         // - ES disallows uniform initializers ("uniform float x = 1.0;" -> "uniform float x;")

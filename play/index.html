@@ -141,6 +141,9 @@
    preRun: [function(){
      try {
        ENV.HOME='/home/web_user'; ENV.USER='player'; ENV.LOGNAME='player';
+       // ?nomw boots the free example-suite: enable its compat shims (chargen auto-confirm,
+       // +10h daytime start). NEVER set for retail Morrowind — the engine stays 1:1 stock.
+       if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)) ENV.OPENMW_EXAMPLE_SUITE='1';
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
        ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
@@ -167,7 +170,10 @@
          // set in the head IIFE, so JS and SDL agree on the size (no resize war / FBO thrash).
          var rW = (typeof window!=='undefined' && window.__renderW) || 1280;
          var rH = (typeof window!=='undefined' && window.__renderH) || 720;
-         FS.writeFile('/home/web_user/.config/openmw/settings.cfg',
+         // IMPORTANT: OpenMW loads user settings from <last active config dir>/settings.cfg.
+         // In this build the only config dir is '/' (where openmw.cfg lives), NOT the XDG
+         // path — write the file to BOTH so the engine actually reads it.
+         var settingsCfg =
            '[Video]\n' +
            'resolution x = ' + rW + '\n' +
            'resolution y = ' + rH + '\n' +
@@ -176,15 +182,27 @@
            'viewing distance = 5120.0\n' +
            'small feature culling pixel size = 4.0\n' +
            '[Water]\n' +
-           'reflection detail = 0\n' +
-           'rtt size = 256\n' +
+           'shader = true\n' +                     // real water shader (reflections/refractions)
+           'reflection detail = 2\n' +             // 2 = reflect statics+terrain (0 disabled it)
+           'refraction = true\n' +
+           'rtt size = 512\n' +
            'small feature culling pixel size = 30.0\n' +
+           '[Shadows]\n' +
+           'enable shadows = true\n' +             // WebGL2 depth-texture shadow maps
+           'shadow map resolution = 1024\n' +
+           'actor shadows = true\n' +
+           'player shadows = true\n' +
+           'object shadows = false\n' +            // biggest perf cost; leave off by default
+           'terrain shadows = true\n' +
+           'maximum shadow map distance = 4096\n' +
            '[Cells]\n' +
            'preload cell cache max = 14\n' +
            '[Game]\n' +
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
-           'max lights = 8\n');                    // fewer dynamic lights per object -> faster shading
+           'max lights = 8\n';                     // fewer dynamic lights per object -> faster shading
+         FS.writeFile('/settings.cfg', settingsCfg);                              // <- the one the engine READS
+         FS.writeFile('/home/web_user/.config/openmw/settings.cfg', settingsCfg); // XDG path (kept for safety)
          append('[cfg] render resolution ' + rW + 'x' + rH);
        } catch(e){ append('[settings err] '+e,'err'); }
        FS.mkdirTree('/userdata');
@@ -275,12 +293,12 @@
          .then(function(){ return grab('mwdata/Bloodmoon.bsa').then(writeRaw('/mwdata/Bloodmoon.bsa')); })
          .then(function(){ append('[mw] Bloodmoon sounds (28MB)…'); return grab('mwdata/mwbmsound.tar').then(untarInto('bm-sound')); })
          .then(function(){
-           // Videos DISABLED BY DEFAULT (?vid to opt in): OpenMW's VideoPlayer spawns decode
-           // threads the main thread waits on -> futex deadlock at boot under emscripten
-           // (menu_background.bik auto-plays as the animated menu background). Root-caused
-           // 2026-07-01: with videos present boot hung right after font loading; without, the
-           // game boots to title at ~265fps. Missing videos are skipped gracefully by the engine.
-           if (!/[?&]vid\b/.test(location.search)){ append('[mw] videos skipped (deadlock; use ?vid to test)'); window.__noMovies = true; return; }
+           // Videos ON BY DEFAULT (?novid to opt out). Playback is cooperative under
+           // emscripten (WindowManager::playVideo starts the decode pthreads and returns;
+           // Engine::frame drives updateVideoPlayback each tick) — the old blocking-loop
+           // futex deadlock is fixed. The original .bik files play in-engine via the native
+           // Bink decoder (FFmpeg --enable-decoder=bink); nothing is transcoded.
+           if (/[?&]novid\b/.test(location.search)){ append('[mw] videos skipped (?novid)'); window.__noMovies = true; return; }
            append('[mw] videos (40MB, played on the fly)…'); return grab('mwdata/mwvideo.tar').then(untarInto('video'));
          })
          .then(function(){

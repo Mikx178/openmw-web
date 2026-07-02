@@ -552,7 +552,16 @@ MWShadowTechnique::ShadowData::ShadowData(MWShadowTechnique::ViewDependentData* 
     }
     else
     {
+#ifdef __EMSCRIPTEN__
+        // WebGL2 rejects unsized depth internal formats (texImage2D INVALID_ENUM -> the
+        // shadow map is never allocated -> no shadows). Use a sized format + explicit
+        // source format/type.
+        _texture->setInternalFormat(GL_DEPTH_COMPONENT24);
+        _texture->setSourceFormat(GL_DEPTH_COMPONENT);
+        _texture->setSourceType(GL_UNSIGNED_INT);
+#else
         _texture->setInternalFormat(GL_DEPTH_COMPONENT);
+#endif
         _texture->setShadowComparison(true);
         _texture->setShadowTextureMode(osg::Texture2D::LUMINANCE);
     }

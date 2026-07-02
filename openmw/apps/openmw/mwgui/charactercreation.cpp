@@ -1,5 +1,7 @@
 #include "charactercreation.hpp"
 
+#include <cstdlib>
+
 #include <MyGUI_ITexture.h>
 
 #include <components/debug/debuglog.hpp>
@@ -155,8 +157,13 @@ namespace MWGui
             // and relying on a GUI click to finish chargen is unreliable when the browser tab is
             // backgrounded and the main loop is heavily throttled. onReviewDialogDone ignores its
             // argument; it just removes the dialog and pops the GUI mode.
-            onReviewDialogDone(nullptr);
-            return;
+            // Gated to the example suite (OPENMW_EXAMPLE_SUITE set by the harness for ?nomw):
+            // retail Morrowind keeps the full race/class/birthsign review — 1:1 behavior.
+            if (getenv("OPENMW_EXAMPLE_SUITE") != nullptr)
+            {
+                onReviewDialogDone(nullptr);
+                return;
+            }
 #endif
             mReviewDialog->onFrame(duration);
         }

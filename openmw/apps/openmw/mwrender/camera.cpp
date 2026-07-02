@@ -1,5 +1,7 @@
 #include "camera.hpp"
 
+#include <cstdlib>
+
 #include <osg/Camera>
 
 #include <components/misc/mathutil.hpp>
@@ -56,11 +58,12 @@ namespace MWRender
         , mCamera(camera)
         , mAnimation(nullptr)
 #ifdef __EMSCRIPTEN__
-        // Default to third-person: the example-suite first-person body mesh renders as a black
-        // full-body blob (it lacks a proper hands-only 1st-person skin), whereas third-person
-        // shows a correct character. Users can still toggle to first person with Tab.
-        , mFirstPersonView(false)
-        , mMode(Mode::ThirdPerson)
+        // Example suite only (OPENMW_EXAMPLE_SUITE): default to third-person — the suite's
+        // first-person body mesh renders as a black full-body blob (it has no proper hands-only
+        // 1st-person skin). Retail Morrowind keeps the stock first-person default (1:1).
+        // Users can still toggle the view as usual.
+        , mFirstPersonView(getenv("OPENMW_EXAMPLE_SUITE") == nullptr)
+        , mMode(getenv("OPENMW_EXAMPLE_SUITE") == nullptr ? Mode::FirstPerson : Mode::ThirdPerson)
 #else
         , mFirstPersonView(true)
         , mMode(Mode::FirstPerson)

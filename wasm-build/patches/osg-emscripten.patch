@@ -12,10 +12,32 @@ index 1eb0658..c0e6913 100644
  #endif
  }
 diff --git a/src/osg/FrameBufferObject.cpp b/src/osg/FrameBufferObject.cpp
-index c3988e0..f41825b 100644
+index c3988e0..e8a0358 100644
 --- a/src/osg/FrameBufferObject.cpp
 +++ b/src/osg/FrameBufferObject.cpp
-@@ -754,6 +754,43 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+@@ -126,6 +126,21 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
+         // bind and configure
+         ext->glBindRenderbuffer(GL_RENDERBUFFER_EXT, objectID);
+ 
++#ifdef __EMSCRIPTEN__
++        // WebGL2 rejects UNSIZED renderbuffer internal formats (GL_INVALID_ENUM); the
++        // renderbuffer then stays 0x0 and every draw into its FBO fails with
++        // "Framebuffer is incomplete: Attachment has zero size". Promote to sized formats.
++        switch (_internalFormat)
++        {
++            case GL_RGB: const_cast<RenderBuffer*>(this)->_internalFormat = GL_RGB8; break;
++            case GL_RGBA: const_cast<RenderBuffer*>(this)->_internalFormat = GL_RGBA8; break;
++            case GL_DEPTH_COMPONENT: const_cast<RenderBuffer*>(this)->_internalFormat = GL_DEPTH_COMPONENT24; break;
++            case 0x84F9 /*GL_DEPTH_STENCIL*/: const_cast<RenderBuffer*>(this)->_internalFormat = 0x88F0 /*GL_DEPTH24_STENCIL8*/; break;
++            case 0x1901 /*GL_STENCIL_INDEX*/: const_cast<RenderBuffer*>(this)->_internalFormat = 0x8D48 /*GL_STENCIL_INDEX8*/; break;
++            default: break;
++        }
++#endif
++
+         // framebuffer_multisample_coverage specification requires that coverage
+         // samples must be >= color samples.
+         if (_samples < _colorSamples)
+@@ -754,6 +769,43 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
                  OSG_WARN <<"Warning: FrameBufferObject: could not set draw buffers, glDrawBuffers is not supported!" << std::endl;
              }
          }
@@ -59,7 +81,7 @@ index c3988e0..f41825b 100644
      }
  
      if (dirtyAttachmentList)
-@@ -766,8 +803,17 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+@@ -766,8 +818,17 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
                  case(Camera::PACKED_DEPTH_STENCIL_BUFFER):
                      if (ext->isPackedDepthStencilSupported)
                      {
@@ -78,7 +100,7 @@ index c3988e0..f41825b 100644
                      else
                      {
 diff --git a/src/osg/GLExtensions.cpp b/src/osg/GLExtensions.cpp
-index 478b503..bdcc04e 100644
+index 478b503..05fe5f6 100644
 --- a/src/osg/GLExtensions.cpp
 +++ b/src/osg/GLExtensions.cpp
 @@ -851,6 +851,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
@@ -95,7 +117,21 @@ index 478b503..bdcc04e 100644
      isTextureCompressionPVRTC2BPPSupported = validContext && isGLExtensionSupported(contextID,"GL_IMG_texture_compression_pvrtc");
      isTextureCompressionPVRTC4BPPSupported = isTextureCompressionPVRTC2BPPSupported;//covered by same extension
      isTextureCompressionETCSupported = validContext && isGLExtensionSupported(contextID,"GL_OES_compressed_ETC1_RGB8_texture");
-@@ -1132,7 +1139,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+@@ -878,6 +885,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+     preferGenerateMipmapSGISForPowerOfTwo = (radeonHardwareDetected||fireGLHardwareDetected) ? false : true;
+     isTextureMultisampledSupported = validContext && (isGLExtensionSupported(contextID,"GL_ARB_texture_multisample"));
+     isShadowSupported = validContext && (OSG_GL3_FEATURES || isGLExtensionSupported(contextID,"GL_ARB_shadow"));
++#ifdef __EMSCRIPTEN__
++    // WebGL2/GLES3 has depth-texture compare (GL_TEXTURE_COMPARE_MODE) in CORE but exposes no
++    // GL_ARB_shadow extension string, so the probe above fails. Without this, Texture.cpp never
++    // applies COMPARE_REF_TO_TEXTURE to shadow maps -> every sampler2DShadow lookup raises
++    // "Mismatch between texture format and sampler type" and the draw is dropped.
++    if (validContext) isShadowSupported = true;
++#endif
+     isShadowAmbientSupported = validContext && (isGLExtensionSupported(contextID,"GL_ARB_shadow_ambient"));
+     isClientStorageSupported = validContext && (isGLExtensionSupported(contextID,"GL_APPLE_client_storage"));
+     isNonPowerOfTwoTextureMipMappedSupported = validContext && (builtInSupport || isGLExtensionSupported(contextID, "GL_OES_texture_npot") || isGLExtensionOrVersionSupported(contextID, "GL_ARB_texture_non_power_of_two", 2.0));
+@@ -1132,7 +1146,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
      isPackedDepthStencilSupported = validContext &&
                                      (OSG_GL3_FEATURES ||
                                       (isGLExtensionSupported(contextID, "GL_EXT_packed_depth_stencil")) ||

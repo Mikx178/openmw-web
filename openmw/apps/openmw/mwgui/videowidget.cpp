@@ -69,6 +69,20 @@ namespace MWGui
 
     bool VideoWidget::update()
     {
+#ifdef __EMSCRIPTEN__
+        // Cooperative playback skips the first-frame wait in VideoPlayer::playVideo, so the
+        // texture may not exist yet when playVideo returns — attach it on the tick it lands.
+        if (!mTexture)
+        {
+            osg::ref_ptr<osg::Texture2D> texture = mPlayer->getVideoTexture();
+            if (texture)
+            {
+                mTexture = std::make_unique<MyGUIPlatform::OSGTexture>(texture);
+                setRenderItemTexture(mTexture.get());
+                getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f, 1.f, 1.f));
+            }
+        }
+#endif
         return mPlayer->update();
     }
 

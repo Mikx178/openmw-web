@@ -227,6 +227,22 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
 
     mEnvironment.setFrameDuration(frametime);
 
+#ifdef __EMSCRIPTEN__
+    // Cooperative video playback: WindowManager::playVideo returns immediately on this
+    // platform (its native nested render loop would deadlock the browser main thread).
+    // While a video is up, replace the game frame with the minimal video frame the native
+    // loop would run — input + video decode + GUI render. Game simulation stays paused,
+    // matching native playVideo semantics.
+    if (mWindowManager->isPlayingVideo())
+    {
+        mWindowManager->updateVideoPlayback(frametime);
+        mViewer->eventTraversal();
+        mViewer->updateTraversal();
+        mViewer->renderingTraversals();
+        return true;
+    }
+#endif
+
     try
     {
         // update input
@@ -1184,7 +1200,10 @@ void OMW::Engine::go()
         // Jump to mid-morning so the world is immediately lit and visible on boot. (chargen is
         // auto-confirmed in charactercreation.cpp; together this drops the player straight into
         // a visible, playable daytime world without any throttle-dependent GUI interaction.)
-        if (mStateManager->getState() == MWState::StateManager::State_Running)
+        // Gated to the example suite only (OPENMW_EXAMPLE_SUITE set by the harness for ?nomw):
+        // retail Morrowind must keep its authored start time — 1:1 behavior.
+        if (getenv("OPENMW_EXAMPLE_SUITE") != nullptr
+            && mStateManager->getState() == MWState::StateManager::State_Running)
         {
             mWorld->advanceTime(10.0);
         }

@@ -95,6 +95,17 @@ namespace SceneUtil
         fakeShadowMapTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
         fakeShadowMapTexture->setShadowComparison(true);
         fakeShadowMapTexture->setShadowCompareFunc(osg::Texture::ShadowCompareFunc::ALWAYS);
+#ifdef __EMSCRIPTEN__
+        // WebGL2 needs a SIZED depth internal format (unsized GL_DEPTH_COMPONENT + GL_FLOAT is
+        // an invalid texImage2D combination) and non-mipmap filtering (depth textures cannot
+        // generate mipmaps; image-based OSG textures default to a mipmapped MIN_FILTER).
+        static_cast<osg::Texture2D*>(fakeShadowMapTexture.get())->setInternalFormat(GL_DEPTH_COMPONENT32F);
+        fakeShadowMapTexture->setSourceFormat(GL_DEPTH_COMPONENT);
+        fakeShadowMapTexture->setSourceType(GL_FLOAT);
+        fakeShadowMapTexture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::NEAREST);
+        fakeShadowMapTexture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::NEAREST);
+        fakeShadowMapTexture->setUseHardwareMipMapGeneration(false);
+#endif
         for (unsigned int i = mShadowSettings->getBaseShadowTextureUnit();
              i < mShadowSettings->getBaseShadowTextureUnit() + mShadowSettings->getNumShadowMapsPerLight(); ++i)
         {

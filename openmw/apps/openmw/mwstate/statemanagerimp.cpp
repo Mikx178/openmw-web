@@ -2,6 +2,10 @@
 
 #include <filesystem>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <SDL_clipboard.h>
 
 #include <components/debug/debuglog.hpp>
@@ -341,6 +345,21 @@ void MWState::StateManager::saveGame(std::string_view description, const Slot* s
 
         Settings::saves().mCharacter.set(Files::pathToUnicodeString(slot->mPath.parent_path().filename()));
         mLastSavegame = slot->mPath;
+
+#ifdef __EMSCRIPTEN__
+        // The save landed in MEMFS-backed IDBFS (/userdata); flush it to IndexedDB NOW so a
+        // crash/close right after saving cannot lose it (the JS harness only syncs on a timer).
+        EM_ASM({
+            try
+            {
+                if (typeof FS !== 'undefined' && FS.syncfs)
+                    FS.syncfs(false, function() {});
+            }
+            catch (e)
+            {
+            }
+        });
+#endif
 
         const auto finish = std::chrono::steady_clock::now();
 

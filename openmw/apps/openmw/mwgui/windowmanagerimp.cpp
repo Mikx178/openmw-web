@@ -2129,6 +2129,17 @@ namespace MWGui
             MWBase::Environment::get().getSoundManager()->pauseSounds(
                 MWSound::VideoPlayback, ~MWSound::Type::Movie & MWSound::Type::Mask);
 
+#ifdef __EMSCRIPTEN__
+        // Cooperative playback: a nested blocking loop here would stall the browser main
+        // thread (the render loop is driven externally by the JS frame pump). Save the
+        // restore-state and return; Engine::frame() calls updateVideoPlayback() every tick
+        // until the video finishes, then teardown runs there.
+        mVideoPlaying = true;
+        mVideoOldKeyFocus = oldKeyFocus;
+        mVideoCursorWasVisible = cursorWasVisible;
+        return;
+#endif
+
         Misc::FrameRateLimiter frameRateLimiter
             = Misc::makeFrameRateLimiter(MWBase::Environment::get().getFrameRateLimit());
         while (mVideoWidget->update() && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
@@ -2173,6 +2184,34 @@ namespace MWGui
 
         mVideoBackground->setVisible(false);
     }
+
+#ifdef __EMSCRIPTEN__
+    void WindowManager::updateVideoPlayback(float dt)
+    {
+        if (!mVideoPlaying)
+            return;
+
+        MWBase::Environment::get().getInputManager()->update(dt, true, false);
+
+        // The first video frame can arrive a few ticks after playVideo (the decode threads
+        // fill in asynchronously) — keep the widget sized to the (possibly late) dimensions.
+        MyGUI::IntSize screenSize = MyGUI::RenderManager::getInstance().getViewSize();
+        sizeVideo(screenSize.width, screenSize.height);
+
+        if (mVideoWidget->update() && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
+            return; // still playing; Engine::frame renders the GUI this tick
+
+        // Finished (or skipped): same teardown as the native blocking loop.
+        mVideoWidget->stop();
+        MWBase::Environment::get().getSoundManager()->resumeSounds(MWSound::VideoPlayback);
+        setKeyFocusWidget(mVideoOldKeyFocus);
+        mVideoOldKeyFocus = nullptr;
+        setCursorVisible(mVideoCursorWasVisible);
+        updateVisible();
+        mVideoBackground->setVisible(false);
+        mVideoPlaying = false;
+    }
+#endif
 
     void WindowManager::sizeVideo(int screenWidth, int screenHeight)
     {
