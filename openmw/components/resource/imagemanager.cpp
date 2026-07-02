@@ -13,11 +13,7 @@
 
 #ifdef OSG_LIBRARY_STATIC
 // This list of plugins should match with the list in the top-level CMakelists.txt.
-#ifndef __EMSCRIPTEN__
-// osgdb_png is not built for the wasm target; registering it would call a missing
-// symbol at static-init (hard abort under wasm-EH where calls are direct).
 USE_OSGPLUGIN(png)
-#endif
 USE_OSGPLUGIN(tga)
 USE_OSGPLUGIN(dds)
 USE_OSGPLUGIN(jpeg)

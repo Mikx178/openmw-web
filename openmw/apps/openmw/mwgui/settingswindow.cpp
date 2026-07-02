@@ -233,7 +233,6 @@ namespace MWGui
         , mCurrentPage(static_cast<size_t>(-1))
         , mCfgMgr(cfgMgr)
     {
-        Log(Debug::Info) << "EMSET ctor body start (layout loaded)";
         const bool terrain = Settings::terrain().mDistantTerrain;
         const std::string_view widgetName = terrain ? "RenderingDistanceSlider" : "LargeRenderingDistanceSlider";
         MyGUI::Widget* unusedSlider;
@@ -241,7 +240,6 @@ namespace MWGui
         unusedSlider->setVisible(false);
 
         configureWidgets(mMainWidget, true);
-        Log(Debug::Info) << "EMSET configureWidgets done";
 
         setTitle("#{OMWEngine:SettingsWindow}");
 
@@ -329,11 +327,9 @@ namespace MWGui
         mGmstOverridesL10n->eventMouseButtonClick
             += MyGUI::newDelegate(this, &SettingsWindow::onGmstOverridesL10nChanged);
 
-        Log(Debug::Info) << "EMSET getWidgets done";
         computeMinimumWindowSize();
 
         center();
-        Log(Debug::Info) << "EMSET center done";
 
         mResetControlsButton->eventMouseButtonClick
             += MyGUI::newDelegate(this, &SettingsWindow::onResetDefaultBindings);
@@ -363,7 +359,6 @@ namespace MWGui
                 mResolutionList->addItem(str, resolution);
         }
         highlightCurrentResolution();
-        Log(Debug::Info) << "EMSET resolution done";
 
         mTextureFilteringButton->setCaptionWithReplacing(
             textureFilteringToStr(Settings::general().mTextureMipmap, Settings::general().mTextureMinFilter));
@@ -416,7 +411,6 @@ namespace MWGui
             }
         }
 
-        Log(Debug::Info) << "EMSET l10n iteration done";
         std::sort(availableLanguages.begin(), availableLanguages.end());
 
         std::vector<std::string> currentLocales = Settings::general().mPreferredLocales;

@@ -204,6 +204,15 @@ namespace DetourNavigator
 
         void wait(WaitConditionType waitConditionType, Loading::Listener* listener);
 
+        // Process up to maxJobs pending jobs synchronously on the calling thread. Never blocks.
+        // Used when the updater runs with zero worker threads (e.g. on the web/emscripten,
+        // where the browser main thread must not wait on worker threads).
+        void processJobsSync(std::size_t maxJobs);
+
+        // Like processJobsSync but bounded by wall-time instead of job count, so a large
+        // exterior cell load (hundreds of navmesh tiles) can't freeze the browser main thread.
+        void processJobsSyncTimeBudget(std::chrono::steady_clock::duration budget);
+
         void stop();
 
         AsyncNavMeshUpdaterStats getStats() const;
@@ -235,6 +244,8 @@ namespace DetourNavigator
         std::atomic_size_t mPostedCount{ 0 };
 
         void process() noexcept;
+
+        void runJob(JobIt job) noexcept;
 
         JobStatus processJob(Job& job);
 

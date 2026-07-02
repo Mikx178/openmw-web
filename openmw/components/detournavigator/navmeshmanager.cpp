@@ -8,6 +8,8 @@
 #include "settingsutils.hpp"
 #include "waitconditiontype.hpp"
 
+#include <chrono>
+
 #include <components/debug/debuglog.hpp>
 #include <components/esm/util.hpp>
 

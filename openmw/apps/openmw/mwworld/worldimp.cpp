@@ -235,10 +235,25 @@ namespace MWWorld
         mPhysics = std::make_unique<MWPhysics::PhysicsSystem>(mResourceSystem, rootNode);
 
 #ifdef __EMSCRIPTEN__
-        // The async navmesh updater + its SQLite navmesh.db writer thread proxy heavy FS writes
-        // to the main thread on the web, starving the render loop. Use the stub navigator (no
-        // background threads / DB) so the world renders; only AI pathfinding is disabled.
-        mNavigator = DetourNavigator::makeNavigatorStub();
+        // Web: use the REAL navigator so AI pathfinding works, with ONE background updater
+        // pthread (like async physics — exterior tile generation is far too heavy for the main
+        // thread; a bulk drain there froze the tab for tens of seconds). The main thread never
+        // waits on it: wait() is a no-op under emscripten. The navmesh.db SQLite cache stays off
+        // (its writer thread proxies heavy FS writes to the main thread, starving the render
+        // loop). Overridden in code so settings.cfg/defaults.bin stay untouched.
+        if (Settings::navigator().mEnable)
+        {
+            auto navigatorSettings = DetourNavigator::makeSettingsFromSettingsManager(maxRecastLogLevel);
+            navigatorSettings.mRecast.mSwimHeightScale = mSwimHeightScale;
+            navigatorSettings.mAsyncNavMeshUpdaterThreads = 1;
+            navigatorSettings.mEnableNavMeshDiskCache = false;
+            navigatorSettings.mWriteToNavMeshDb = false;
+            mNavigator = DetourNavigator::makeNavigator(navigatorSettings, mUserDataPath);
+        }
+        else
+        {
+            mNavigator = DetourNavigator::makeNavigatorStub();
+        }
 #else
         if (Settings::navigator().mEnable)
         {

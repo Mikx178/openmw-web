@@ -337,6 +337,17 @@ namespace MWRender
         {
             osg::State* state = renderInfo.getState();
 
+#ifdef __EMSCRIPTEN__
+            // WebGL2: the per-FBO depth-clear dance (FBO_FirstPerson / FBO_OpaqueDepth apply +
+            // glClear) raises GL_INVALID_OPERATION every frame (log spam; the FBO formats aren't
+            // blit/clear-compatible under GLES3). Post-processing is disabled here, so just draw
+            // the first-person bin with the depth-write state applied. Worst case the viewmodel
+            // can clip into very-close geometry; that's preferable to per-frame GL errors.
+            state->applyAttribute(mDepth);
+            bin->drawImplementation(renderInfo, previous);
+            return;
+#endif
+
             PostProcessor* postProcessor = static_cast<PostProcessor*>(renderInfo.getCurrentCamera()->getUserData());
 
             state->applyAttribute(mDepth);

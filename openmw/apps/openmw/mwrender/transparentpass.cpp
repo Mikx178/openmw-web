@@ -13,12 +13,6 @@
 #include <components/stereo/multiview.hpp>
 #include <components/stereo/stereomanager.hpp>
 
-#ifdef __EMSCRIPTEN__
-// emscripten's getProcAddress returns null for some GLES3 core functions that OSG
-// looks up (e.g. glBlitFramebuffer), so call the statically-linked symbol directly.
-extern "C" void glBlitFramebuffer(int, int, int, int, int, int, int, int, unsigned int, unsigned int);
-#endif
-
 #include "vismask.hpp"
 
 namespace MWRender
@@ -54,6 +48,16 @@ namespace MWRender
     void TransparentDepthBinCallback::drawImplementation(
         osgUtil::RenderBin* bin, osg::RenderInfo& renderInfo, osgUtil::RenderLeaf*& previous)
     {
+#ifdef __EMSCRIPTEN__
+        // WebGL2: the depth-buffer glBlitFramebuffer between the scene FBO and the opaque-depth
+        // FBO raises GL_INVALID_OPERATION every frame (spamming the log AND corrupting the depth
+        // buffer -> geometry z-fights / disappears). The opaque-depth texture only feeds
+        // post-processing (disabled here), so just draw the bin normally and skip the depth
+        // copy dance entirely. This fixes both the spam and the render corruption.
+        bin->drawImplementation(renderInfo, previous);
+        return;
+#endif
+
         osg::State& state = *renderInfo.getState();
         osg::GLExtensions* ext = state.get<osg::GLExtensions>();
 
@@ -98,13 +102,8 @@ namespace MWRender
         else
         {
             opaqueFbo->apply(state, osg::FrameBufferObject::DRAW_FRAMEBUFFER);
-#ifdef __EMSCRIPTEN__
-            glBlitFramebuffer(0, 0, tex->getTextureWidth(), tex->getTextureHeight(), 0, 0, tex->getTextureWidth(),
-                tex->getTextureHeight(), GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-#else
             ext->glBlitFramebuffer(0, 0, tex->getTextureWidth(), tex->getTextureHeight(), 0, 0, tex->getTextureWidth(),
                 tex->getTextureHeight(), GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-#endif
         }
 
         msaaFbo ? msaaFbo->apply(state, osg::FrameBufferObject::DRAW_FRAMEBUFFER)

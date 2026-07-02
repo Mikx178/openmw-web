@@ -82,6 +82,11 @@
 #include "mwworld/class.hpp"
 #include "mwworld/datetimemanager.hpp"
 #include "mwworld/worldimp.hpp"
+#include "mwworld/actionteleport.hpp"
+#include "mwworld/globals.hpp"
+
+#include <components/esm/util.hpp>
+#include <components/esm3/loadcell.hpp>
 
 #include "mwrender/vismask.hpp"
 #include "mwrender/camera.hpp"
@@ -934,9 +939,7 @@ void OMW::Engine::prepareEngine()
     // No background-thread data loading on the web: spinning the main thread on a
     // std::async future deadlocks/stalls against worker->main GL proxying. Load
     // synchronously on the main thread instead (blocks during load, then proceeds).
-    Log(Debug::Info) << "EMLOAD start synchronous loadData";
     mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), &asyncListener);
-    Log(Debug::Info) << "EMLOAD loadData done";
 #else
     auto dataLoading = std::async(std::launch::async,
         [&] { mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), &asyncListener); });
@@ -950,15 +953,11 @@ void OMW::Engine::prepareEngine()
     listener->loadingOff();
 
     mWorld->init(mMaxRecastLogLevel, mViewer, std::move(rootNode), mWorkQueue.get(), *mUnrefQueue);
-    Log(Debug::Info) << "EMSTEP world.init done";
     mEnvironment.setWorldScene(mWorld->getWorldScene());
     mWorld->setupPlayer();
-    Log(Debug::Info) << "EMSTEP setupPlayer done";
     mWorld->setRandomSeed(mRandomSeed);
     mWindowManager->initUI();
-    Log(Debug::Info) << "EMSTEP initUI done";
     mLuaManager->initPostLoad();
-    Log(Debug::Info) << "EMSTEP initPostLoad done";
 
     // scripts
     if (mCompileAll)
@@ -1058,6 +1057,33 @@ extern "C" EMSCRIPTEN_KEEPALIVE int omw_debug_activate()
         MWBase::Environment::get().getWindowManager()->pushGuiMode(MWGui::GM_Dialogue, target);
     return npcCount;
 }
+
+// Debug: set the in-game hour (0-24) — e.g. 12 = noon. For verifying time-of-day rendering.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_debug_sethour(float hour)
+{
+    // Same path the vanilla console/scripts use: set the GameHour global.
+    MWBase::Environment::get().getWorld()->setGlobalFloat(MWWorld::Globals::sGameHour, hour);
+}
+
+// Debug: teleport the player to an exterior cell (like the console "COE x y"). Triggers a full
+// exterior worldspace load — used to repro/validate the navmesh cell-load path from JS.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_debug_coe(int x, int y)
+{
+    MWBase::World* world = MWBase::Environment::get().getWorld();
+    MWWorld::Ptr player = world->getPlayerPtr();
+    if (player.isEmpty())
+        return;
+    ESM::Position pos;
+    const osg::Vec2f posFromIndex
+        = ESM::indexToPosition(ESM::ExteriorCellLocation(x, y, ESM::Cell::sDefaultWorldspaceId), true);
+    pos.pos[0] = posFromIndex.x();
+    pos.pos[1] = posFromIndex.y();
+    pos.pos[2] = 0;
+    pos.rot[0] = pos.rot[1] = pos.rot[2] = 0;
+    MWWorld::ActionTeleport(ESM::RefId::esm3ExteriorCell(x, y), pos, false).execute(player);
+    player = world->getPlayerPtr();
+    world->adjustPosition(player, false);
+}
 #endif
 
 // Initialise and enter main loop.
@@ -1152,9 +1178,7 @@ void OMW::Engine::go()
     }
     else
     {
-        Log(Debug::Info) << "EMSTEP newGame start";
         mStateManager->newGame(!mNewGame);
-        Log(Debug::Info) << "EMSTEP newGame done";
 #ifdef __EMSCRIPTEN__
         // The example-suite starts at midnight, so the freshly-loaded world is pitch black.
         // Jump to mid-morning so the world is immediately lit and visible on boot. (chargen is
@@ -1163,7 +1187,6 @@ void OMW::Engine::go()
         if (mStateManager->getState() == MWState::StateManager::State_Running)
         {
             mWorld->advanceTime(10.0);
-            Log(Debug::Info) << "EMSTEP advanced to daytime";
         }
 #endif
     }
@@ -1198,7 +1221,6 @@ void OMW::Engine::go()
             if (firstTick)
             {
                 firstTick = false;
-                Log(Debug::Info) << "EMTICK first call - main loop is running";
             }
             if (self->mViewer->done() || self->mStateManager->hasQuitRequest())
             {
@@ -1230,7 +1252,6 @@ void OMW::Engine::go()
         maxSimulationInterval };
     g_emTick = &EmscriptenLoop::tick;
     g_emArg = loop;
-    Log(Debug::Info) << "EMLOOP registered (pump-driven), state=" << static_cast<int>(mStateManager->getState());
     // SINGLE frame driver: the MessageChannel pump in index.html calls omw_pump_frame()
     // (-> this tick). The pump paces itself with requestAnimationFrame while the tab is
     // visible (vsync-aligned) and free-runs unthrottled when hidden. We deliberately do NOT

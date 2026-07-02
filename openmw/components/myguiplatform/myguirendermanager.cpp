@@ -10,6 +10,7 @@
 
 #include <osgGA/GUIEventHandler>
 
+#include <components/debug/debuglog.hpp>
 #include <components/resource/imagemanager.hpp>
 #include <components/sceneutil/nodecallback.hpp>
 #include <components/shader/shadermanager.hpp>
@@ -139,8 +140,9 @@ namespace MyGUIPlatform
 
 #ifdef __EMSCRIPTEN__
                     // WebGL2/GLES3 has no fixed-function client arrays. Submit via generic
-                    // vertex attributes matching OSG's vertex-attribute aliasing, which gui.vert
-                    // uses after GLES transpilation: osg_Vertex=0, osg_Color=3, osg_MultiTexCoord0=8.
+                    // vertex attributes at the locations OSG's vertex-attribute aliasing assigned
+                    // (resolved at runtime above via state->get*Alias()._location), which gui.vert
+                    // uses after GLES transpilation.
                     glEnableVertexAttribArray(emPosLoc);
                     glVertexAttribPointer(
                         emPosLoc, 3, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex), reinterpret_cast<char*>(0));
@@ -158,12 +160,26 @@ namespace MyGUIPlatform
                 }
                 else
                 {
+#ifdef __EMSCRIPTEN__
+                    // WebGL2 has no client-side vertex arrays: a non-zero attrib pointer requires a
+                    // bound VBO. VBO support is forced on this platform, so this path should never be
+                    // hit — if it ever is, skip the batch loudly instead of silently drawing garbage.
+                    Log(Debug::Error) << "MyGUI render: no GL buffer object for batch; skipping "
+                                      << batch.mVertexCount << " vertices (unsupported on WebGL2)";
+                    if (batch.mStateSet)
+                    {
+                        state->popStateSet();
+                        state->apply();
+                    }
+                    continue;
+#else
                     glVertexPointer(3, GL_FLOAT, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()));
                     glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()) + 12);
                     glTexCoordPointer(2, GL_FLOAT, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()) + 16);
+#endif
                 }
 
                 glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(batch.mVertexCount));

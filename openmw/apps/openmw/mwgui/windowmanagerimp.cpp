@@ -334,9 +334,7 @@ namespace MWGui
         auto map = std::make_unique<MapWindow>(mCustomMarkers, mDragAndDrop.get(), mLocalMapRender.get(), mWorkQueue);
         mMap = map.get();
         mWindows.push_back(std::move(map));
-        Log(Debug::Info) << "EMUI before renderGlobalMap";
         mMap->renderGlobalMap();
-        Log(Debug::Info) << "EMUI after renderGlobalMap";
         trackWindow(mMap, makeMapWindowSettingValues());
 
         auto statsWindow = std::make_unique<StatsWindow>(mDragAndDrop.get());
@@ -344,10 +342,8 @@ namespace MWGui
         mWindows.push_back(std::move(statsWindow));
         trackWindow(mStatsWindow, makeStatsWindowSettingValues());
 
-        Log(Debug::Info) << "EMUI before InventoryWindow";
         auto inventoryWindow = std::make_unique<InventoryWindow>(
             *mDragAndDrop, *mItemTransfer, mViewer->getSceneData()->asGroup(), mResourceSystem);
-        Log(Debug::Info) << "EMUI after InventoryWindow";
         mInventoryWindow = inventoryWindow.get();
         mWindows.push_back(std::move(inventoryWindow));
 
@@ -367,7 +363,6 @@ namespace MWGui
 
         auto console = std::make_unique<Console>(w, h, mConsoleOnlyScripts, mCfgMgr);
         mConsole = console.get();
-        Log(Debug::Info) << "EMUI after Console";
         mWindows.push_back(std::move(console));
         trackWindow(mConsole, makeConsoleWindowSettingValues());
 
@@ -403,32 +398,26 @@ namespace MWGui
 
         auto hud = std::make_unique<HUD>(mCustomMarkers, mDragAndDrop.get(), mLocalMapRender.get());
         mHud = hud.get();
-        Log(Debug::Info) << "EMUI after HUD";
         mWindows.push_back(std::move(hud));
 
         mToolTips = std::make_unique<ToolTips>();
 
-        Log(Debug::Info) << "EMUI before ScrollWindow";
         auto scrollWindow = std::make_unique<ScrollWindow>();
         mScrollWindow = scrollWindow.get();
         mWindows.push_back(std::move(scrollWindow));
         mGuiModeStates[GM_Scroll] = GuiModeState(mScrollWindow);
 
-        Log(Debug::Info) << "EMUI before BookWindow";
         auto bookWindow = std::make_unique<BookWindow>();
         mBookWindow = bookWindow.get();
         mWindows.push_back(std::move(bookWindow));
         mGuiModeStates[GM_Book] = GuiModeState(mBookWindow);
 
-        Log(Debug::Info) << "EMUI before CountDialog";
         auto countDialog = std::make_unique<CountDialog>();
         mCountDialog = countDialog.get();
         mWindows.push_back(std::move(countDialog));
 
-        Log(Debug::Info) << "EMUI before SettingsWindow";
         auto settingsWindow = std::make_unique<SettingsWindow>(mCfgMgr);
         mSettingsWindow = settingsWindow.get();
-        Log(Debug::Info) << "EMUI after Settings";
         mWindows.push_back(std::move(settingsWindow));
         trackWindow(mSettingsWindow, makeSettingsWindowSettingValues());
 
@@ -559,7 +548,6 @@ namespace MWGui
             if (!id.empty())
                 mLuaIdToWindow.emplace(id, window.get());
         }
-        Log(Debug::Info) << "EMUI initUI body complete";
     }
 
     void WindowManager::setNewGame(bool newgame)

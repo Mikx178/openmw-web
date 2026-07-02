@@ -116,7 +116,10 @@
    // FBOs repeatedly and froze the engine). CSS (#canvas is 100vw/100vh) scales the capped
    // render up to fill the window. Perf lever: window.__maxPixels (set before load).
    var w = window.innerWidth || 1280, h = window.innerHeight || 720;
-   var budget = window.__maxPixels || 1500000;
+   // 4MP default covers up to ~2560x1440 natively (no blurry CSS upscale, GUI sized correctly).
+   // The engine now has the headroom for it (wasm-EH + SIMD landed ~4.4ms/frame at 1.2MP).
+   // Still overridable via window.__maxPixels for slower machines.
+   var budget = window.__maxPixels || 4000000;
    var scale = Math.min(1, Math.sqrt(budget / (w * h)));
    window.__renderW = Math.max(320, Math.round(w * scale));
    window.__renderH = Math.max(240, Math.round(h * scale));

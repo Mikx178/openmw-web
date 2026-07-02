@@ -20,6 +20,8 @@
 
 #include <algorithm>
 #include <format>
+#include <chrono>
+#include <limits>
 #include <optional>
 #include <set>
 #include <tuple>
@@ -349,6 +351,16 @@ namespace DetourNavigator
 
     void AsyncNavMeshUpdater::wait(WaitConditionType waitConditionType, Loading::Listener* listener)
     {
+#ifdef __EMSCRIPTEN__
+        // Web: navmesh generation runs on ONE background pthread; the browser main thread must
+        // never block on it (condition-variable waits deadlock the event loop) and must not run
+        // tile generation itself (exterior tiles take 50-200ms each; a bulk drain froze the tab).
+        // So: don't wait at all. The worker fills tiles nearest-to-player first; AI simply lacks
+        // paths for distant tiles for a few seconds after a cell change (it tolerates that).
+        (void)waitConditionType;
+        (void)listener;
+        return;
+#endif
         switch (waitConditionType)
         {
             case WaitConditionType::requiredTilesPresent:
@@ -455,49 +467,87 @@ namespace DetourNavigator
         while (!mShouldStop)
         {
             if (JobIt job = getNextJob(); job != mJobs.end())
-            {
-                try
-                {
-                    const JobStatus status = processJob(*job);
-                    Log(Debug::Debug) << "Processed job " << job->mId << " with status=" << status
-                                      << " changeType=" << job->mChangeType;
-                    switch (status)
-                    {
-                        case JobStatus::Done:
-                            unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
-                            if (job->mGeneratedNavMeshData != nullptr)
-                                mDbWorker->enqueueJob(job);
-                            else
-                                removeJob(job);
-                            break;
-                        case JobStatus::Fail:
-                            unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
-                            removeJob(job);
-                            break;
-                        case JobStatus::MemoryCacheMiss:
-                        {
-                            mDbWorker->enqueueJob(job);
-                            break;
-                        }
-                    }
-                }
-                catch (const std::exception& e)
-                {
-                    Log(Debug::Warning) << "Failed to process navmesh job " << job->mId
-                                        << " for worldspace=" << job->mWorldspace << " agent=" << job->mAgentBounds
-                                        << " changedTile=(" << job->mChangedTile << ")"
-                                        << " changeType=" << job->mChangeType
-                                        << " by thread=" << std::this_thread::get_id() << ": " << e.what();
-                    unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
-                    removeJob(job);
-                }
-            }
+                runJob(job);
             else
-            {
                 cleanupLastUpdates();
-            }
         }
         Log(Debug::Debug) << "Stop navigator jobs processing by thread=" << std::this_thread::get_id();
+    }
+
+    void AsyncNavMeshUpdater::runJob(JobIt job) noexcept
+    {
+        try
+        {
+            const JobStatus status = processJob(*job);
+            Log(Debug::Debug) << "Processed job " << job->mId << " with status=" << status
+                              << " changeType=" << job->mChangeType;
+            switch (status)
+            {
+                case JobStatus::Done:
+                    unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
+                    // mDbWorker is null when the navmesh disk cache is disabled (always so under
+                    // emscripten). Without a DB writer there is nowhere to enqueue generated data,
+                    // so just finish the job — dereferencing a null mDbWorker would corrupt/hang.
+                    if (job->mGeneratedNavMeshData != nullptr && mDbWorker != nullptr)
+                        mDbWorker->enqueueJob(job);
+                    else
+                        removeJob(job);
+                    break;
+                case JobStatus::Fail:
+                    unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
+                    removeJob(job);
+                    break;
+                case JobStatus::MemoryCacheMiss:
+                {
+                    if (mDbWorker != nullptr)
+                        mDbWorker->enqueueJob(job);
+                    else
+                        removeJob(job); // no DB to consult — drop the job instead of leaking/looping
+                    break;
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            Log(Debug::Warning) << "Failed to process navmesh job " << job->mId
+                                << " for worldspace=" << job->mWorldspace << " agent=" << job->mAgentBounds
+                                << " changedTile=(" << job->mChangedTile << ")"
+                                << " changeType=" << job->mChangeType << " by thread=" << std::this_thread::get_id()
+                                << ": " << e.what();
+            unlockTile(job->mId, job->mAgentBounds, job->mChangedTile);
+            removeJob(job);
+        }
+    }
+
+    void AsyncNavMeshUpdater::processJobsSync(std::size_t maxJobs)
+    {
+        for (std::size_t i = 0; i < maxJobs; ++i)
+        {
+            const JobIt job = getNextJob();
+            if (job == mJobs.end())
+            {
+                cleanupLastUpdates();
+                break;
+            }
+            runJob(job);
+        }
+    }
+
+    void AsyncNavMeshUpdater::processJobsSyncTimeBudget(std::chrono::steady_clock::duration budget)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + budget;
+        for (;;)
+        {
+            const JobIt job = getNextJob();
+            if (job == mJobs.end())
+            {
+                cleanupLastUpdates();
+                break;
+            }
+            runJob(job);
+            if (std::chrono::steady_clock::now() >= deadline)
+                break;
+        }
     }
 
     JobStatus AsyncNavMeshUpdater::processJob(Job& job)
@@ -705,6 +755,8 @@ namespace DetourNavigator
             return shouldStop || mWaiting.hasJob();
         };
 
+        // (Runs on the background updater thread — a bounded CV wait is fine there, including
+        // under emscripten. The browser main thread never calls this.)
         if (!mHasJob.wait_for(lock, std::chrono::milliseconds(10), hasJob))
         {
             if (mJobs.empty())
