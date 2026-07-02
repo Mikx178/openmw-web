@@ -1,0 +1,357 @@
+<!doctype html><html><head><meta charset="utf-8"><title>OpenMW — Morrowind</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+ /* Windowless: the canvas fills the entire browser viewport; its drawing buffer is driven
+    from window.innerWidth/Height in JS so the render resolution always matches the window. */
+ #canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;border:0;outline:none;background:#000}
+ /* Debug log kept in the DOM (readable via devtools console / eval) but hidden;
+    press the ` (backtick) key to toggle it. */
+ #log{position:fixed;left:0;bottom:0;width:100%;max-height:40%;box-sizing:border-box;z-index:10;
+      display:none;overflow:auto;margin:0;padding:6px 10px;white-space:pre-wrap;
+      background:rgba(10,10,15,.85);color:#a6e3a1;font:11px/1.35 ui-monospace,Menlo,monospace}
+ #log.show{display:block}
+ .err{color:#f38ba8}
+ /* Always-visible compact status: FPS + latest phase. Toggle full log with backtick (`). */
+ #hud{position:fixed;top:0;left:0;z-index:11;padding:3px 9px;cursor:pointer;max-width:100vw;
+      overflow:hidden;white-space:pre;background:rgba(10,10,15,.72);color:#89b4fa;
+      font:11px/1.35 ui-monospace,Menlo,monospace;text-shadow:0 1px 2px #000;user-select:none}
+ #hud:hover{background:rgba(20,20,30,.9)}
+</style></head>
+<body>
+<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+<div id="hud">☰ starting…</div>
+<div id="log">booting…</div>
+<script>
+ // ?wasmdbg: introspect what the glue passes to WebAssembly.instantiate (debug the env-import error)
+ if (/[?&]wasmdbg\b/.test(location.search)) (function(){
+   var oi = WebAssembly.instantiate.bind(WebAssembly);
+   WebAssembly.instantiate = function(bufOrMod, imports){
+     try {
+       console.log('[wasmdbg] instantiate called; imports type:', typeof imports,
+         '| keys:', imports ? Object.keys(imports).join(',') : '(none)',
+         '| env type:', imports && typeof imports.env,
+         '| env keys:', imports && imports.env ? Object.keys(imports.env).length : -1,
+         '| memory:', imports && imports.env && String(imports.env.memory));
+     } catch(e){ console.log('[wasmdbg] introspect err', e); }
+     return oi(bufOrMod, imports);
+   };
+   var os = WebAssembly.instantiateStreaming && WebAssembly.instantiateStreaming.bind(WebAssembly);
+   if (os) WebAssembly.instantiateStreaming = function(src, imports){
+     try { console.log('[wasmdbg] instantiateStreaming; env type:', imports && typeof imports.env, '| env keys:', imports && imports.env ? Object.keys(imports.env).length : -1); } catch(e){}
+     return os(src, imports);
+   };
+ })();
+ // A2: force the discrete GPU on dual-GPU machines + lower present latency. Emscripten creates
+ // the WebGL2 context without a powerPreference (Chrome may pick the integrated GPU). Wrap
+ // getContext (installed BEFORE openmw.js loads) to inject the hints into the webgl2 attributes.
+ (function(){
+   var orig = HTMLCanvasElement.prototype.getContext;
+   HTMLCanvasElement.prototype.getContext = function(type, attrs){
+     if ((type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') && !window.__NO_GPU_HINT && !/[?&]noopt\b/.test(location.search)){
+       attrs = attrs || {};
+       if (attrs.powerPreference == null) attrs.powerPreference = 'high-performance';
+       // desynchronized disabled — suspected first-frame hang in headless preview.
+     }
+     return orig.call(this, type, attrs);
+   };
+ })();
+ const logEl = document.getElementById('log');
+ let started = false;
+ // Web Audio contexts start "suspended" until a user gesture. OpenMW opens the OpenAL
+ // device fine, but nothing is audible until we resume. Track every AudioContext the
+ // engine creates and resume them all on the first click/keypress.
+ (function(){
+   const audioCtxs = [];
+   ['AudioContext','webkitAudioContext'].forEach(function(k){
+     const Orig = window[k];
+     if (!Orig) return;
+     window[k] = function(){ const c = new Orig(...arguments); audioCtxs.push(c); return c; };
+     window[k].prototype = Orig.prototype;
+   });
+   function resumeAll(){ audioCtxs.forEach(function(c){ if(c.state==='suspended') c.resume(); }); }
+   ['pointerdown','keydown','touchstart','click'].forEach(function(ev){
+     window.addEventListener(ev, resumeAll, {capture:true});
+   });
+ })();
+ const hudEl = document.getElementById('hud');
+ let lastMsg = 'booting…';
+ function append(t, cls){ if(!started){logEl.textContent='';started=true;}
+   const s=document.createElement('span'); if(cls)s.className=cls; s.textContent=t+"\n"; logEl.appendChild(s);
+   logEl.scrollTop=logEl.scrollHeight;
+   lastMsg = String(t).slice(0, 90);
+   // keep the DOM log from growing unbounded
+   while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild); }
+ // Log is hidden by default so it doesn't cover the screen. Open/close it by CLICKING the
+ // status bar (top-left) or pressing ` (backtick). Clicking the status bar again closes it.
+ function toggleLog(){ logEl.classList.toggle('show'); }
+ hudEl.addEventListener('click', toggleLog);
+ window.addEventListener('keydown', function(e){ if (e.key === '`') toggleLog(); });
+ // Live status HUD + periodic console logging so you can SEE what's happening / the FPS.
+ (function(){
+   let lastFps = -1, tick = 0;
+   setInterval(function(){
+     const fps = (window.__fps|0), ms = (window.__frameMs||0);
+     const running = !!(window.Module && window.Module._omw_pump_frame);
+     const open = logEl.classList.contains('show');
+     hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
+     // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
+     tick++;
+     if (running && (fps !== lastFps || tick % 8 === 0)){
+       console.log('[status] fps='+fps+' frameMs='+ms+' | '+lastMsg);
+       lastFps = fps;
+     }
+   }, 500);
+ })();
+
+ // --- Windowless full-viewport rendering: keep the canvas DRAWING BUFFER matched to the
+ // browser window so OpenMW renders at exactly the window resolution and fills it. OpenMW's
+ // SDL2 window is SDL_WINDOW_RESIZABLE and fires SDL_WINDOWEVENT_SIZE_CHANGED -> windowResized()
+ // (resizes viewport + FBOs + GUI) whenever the canvas size changes, so we just drive the size. ---
+ (function(){
+   var canvas = document.getElementById('canvas');
+   // Compute a capped RENDER resolution from the window + a pixel budget, ONCE. OpenMW creates
+   // its SDL window at [Video] resolution x/y (written from these in preRun), so the canvas
+   // drawing buffer matches what SDL expects — NO JS<->SDL resize war (that war recreated the
+   // FBOs repeatedly and froze the engine). CSS (#canvas is 100vw/100vh) scales the capped
+   // render up to fill the window. Perf lever: window.__maxPixels (set before load).
+   var w = window.innerWidth || 1280, h = window.innerHeight || 720;
+   var budget = window.__maxPixels || 1500000;
+   var scale = Math.min(1, Math.sqrt(budget / (w * h)));
+   window.__renderW = Math.max(320, Math.round(w * scale));
+   window.__renderH = Math.max(240, Math.round(h * scale));
+   // Set the drawing buffer once so it's correct even before SDL_CreateWindow; matches the
+   // resolution we write to settings.cfg, so nothing ever fights over it afterward.
+   canvas.width = window.__renderW; canvas.height = window.__renderH;
+   // Double-click toggles true browser fullscreen (requires a user gesture).
+   canvas.addEventListener('dblclick', function(){
+     if (!document.fullscreenElement && !document.webkitFullscreenElement){
+       (canvas.requestFullscreen || canvas.webkitRequestFullscreen || function(){}).call(canvas);
+     } else { (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document); }
+   });
+   canvas.addEventListener('pointerdown', function(){ canvas.focus(); });
+   window.addEventListener('load', function(){ canvas.focus(); });
+ })();
+ var Module = {
+   canvas: document.getElementById('canvas'),
+   arguments: [],
+   preRun: [function(){
+     try {
+       ENV.HOME='/home/web_user'; ENV.USER='player'; ENV.LOGNAME='player';
+       // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
+       if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
+       ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
+       ENV.OPENMW_DONT_PRECOMPILE='1'; // no off-GL-thread VBO precompile (proxies to null thread)
+       // A1: disable OSG's per-frame glGetError() check. Default is ONCE_PER_FRAME, and glGetError
+       // is a hard GPU sync (flush+wait) in WebGL — a per-frame stall. OFF => NEVER_CHECK_GL_ERRORS.
+       // Also stops the residual "invalid enumerant after RenderBin::draw" warning at its checkpoint.
+       if (!/[?&]noopt\b/.test(location.search)) ENV.OSG_GL_ERROR_CHECKING='OFF';
+       // NOTE: OPENMW_DECOMPRESS_TEXTURES removed — OSG now reports S3TC support (GLExtensions
+       // patch), so DXT textures upload COMPRESSED via glCompressedTexImage2D (no CPU decompress).
+       ENV.XDG_CONFIG_HOME='/home/web_user/.config';
+       ENV.XDG_DATA_HOME='/home/web_user/.local/share';
+       ENV.XDG_CACHE_HOME='/home/web_user/.cache';
+       FS.mkdirTree('/home/web_user/.config/openmw');
+       FS.mkdirTree('/home/web_user/.local/share/openmw');
+       FS.mkdirTree('/home/web_user/.cache/openmw');
+       // Performance-tuned settings (merged over defaults). Biggest levers for the WASM build:
+       //  - viewing distance: fewer cells/objects culled+drawn (default 7168)
+       //  - water reflection detail 0 + small rtt: water no longer re-renders the whole scene
+       //  - larger small-feature-culling: skip tiny distant objects
+       // All tunable; raise for fidelity, lower for FPS.
+       try {
+         // OpenMW creates its SDL window at this resolution -> matches the canvas drawing buffer
+         // set in the head IIFE, so JS and SDL agree on the size (no resize war / FBO thrash).
+         var rW = (typeof window!=='undefined' && window.__renderW) || 1280;
+         var rH = (typeof window!=='undefined' && window.__renderH) || 720;
+         FS.writeFile('/home/web_user/.config/openmw/settings.cfg',
+           '[Video]\n' +
+           'resolution x = ' + rW + '\n' +
+           'resolution y = ' + rH + '\n' +
+           'window mode = 2\n' +                   // 2 = windowed (canvas); CSS scales it to fill
+           '[Camera]\n' +
+           'viewing distance = 5120.0\n' +
+           'small feature culling pixel size = 4.0\n' +
+           '[Water]\n' +
+           'reflection detail = 0\n' +
+           'rtt size = 256\n' +
+           'small feature culling pixel size = 30.0\n' +
+           '[Cells]\n' +
+           'preload cell cache max = 14\n' +
+           '[Game]\n' +
+           'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
+           '[Shaders]\n' +
+           'max lights = 8\n');                    // fewer dynamic lights per object -> faster shading
+         append('[cfg] render resolution ' + rW + 'x' + rH);
+       } catch(e){ append('[settings err] '+e,'err'); }
+       FS.mkdirTree('/userdata');
+       // Persist saves/config across reloads: mount IndexedDB-backed IDBFS at /userdata
+       // and load its contents before the engine starts (via a run dependency so boot waits).
+       try {
+         var IDBFS = FS.filesystems.IDBFS;
+         if (IDBFS) {
+           FS.mount(IDBFS, {}, '/userdata');
+           addRunDependency('idbfs-load');
+           FS.syncfs(true, function(err){
+             if (err) append('[idbfs load err] '+err,'err'); else append('[idbfs] loaded persistent /userdata');
+             // Create the data-local dir (openmw.cfg data-local=/userdata/data) AFTER the IDBFS
+             // mount+load — creating it before the mount would be hidden by the mount. Persist it.
+             try { FS.mkdirTree('/userdata/data'); FS.syncfs(false, function(){}); } catch(e){}
+             removeRunDependency('idbfs-load');
+           });
+           // Flush game saves back to IndexedDB periodically and on unload.
+           window.__omwSync = function(){ try { FS.syncfs(false, function(){}); } catch(e){} };
+           setInterval(window.__omwSync, 15000);
+           window.addEventListener('beforeunload', window.__omwSync);
+         } else {
+           append('[idbfs] not available — saves will NOT persist across reloads','err');
+         }
+       } catch(e){ append('[idbfs mount err] '+e,'err'); }
+
+       // --- Load REAL Morrowind data at runtime (esm + bsa + loose audio tar) ---
+       // Fetched SEQUENTIALLY (not Promise.all) so peak JS-heap stays low, into MEMFS under
+       // /mwdata, then the preloaded openmw.cfg is rewritten to load Morrowind. Boot waits.
+       try {
+         // Diagnostic: ?nomw skips the 817MB Morrowind load and boots the tiny preloaded
+         // example-suite instead — lets a light load verify the render path (S3TC/SIMD/resize).
+         if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)){ append('[mw] SKIPPED (nomw) — booting example-suite'); throw {__skip:1}; }
+         FS.mkdirTree('/mwdata');
+         addRunDependency('mw-data');
+         // Minimal ustar extractor: writes each entry under destPrefix into MEMFS.
+         function untar(buf, destPrefix){
+           var u8 = new Uint8Array(buf), off = 0, n = 0;
+           function str(o,len){ var s=''; for(var i=0;i<len;i++){ var c=u8[o+i]; if(c===0) break; s+=String.fromCharCode(c);} return s; }
+           while (off + 512 <= u8.length){
+             var name = str(off,100);
+             if (name === ''){ off += 512; continue; } // zero/pad block
+             var prefix = str(off+345,155);
+             var full = prefix ? prefix + '/' + name : name;
+             var size = parseInt(str(off+124,12).trim(),8) || 0;
+             var type = u8[off+156];
+             off += 512;
+             // Skip macOS AppleDouble junk (._name) + __MACOSX so OpenMW doesn't try to load them.
+             var base = full.substring(full.lastIndexOf('/') + 1);
+             if (base.indexOf('._') === 0 || full.indexOf('__MACOSX') !== -1){ off += Math.ceil(size/512)*512; continue; }
+             var path = destPrefix + full;
+             if (type === 53){ try { FS.mkdirTree(path); } catch(e){} }        // '5' dir
+             else if (type === 48 || type === 0){                              // '0'/'\0' file
+               var dir = path.substring(0, path.lastIndexOf('/'));
+               try { FS.mkdirTree(dir); } catch(e){}
+               try { FS.writeFile(path, u8.subarray(off, off+size)); n++; } catch(e){}
+             }
+             off += Math.ceil(size/512) * 512;
+           }
+           return n;
+         }
+         // Cache-API-backed fetch: downloads once, then persists across reloads (survives the
+         // dev server's no-cache headers, which cache.put ignores). Falls back to plain fetch.
+         function grab(url){
+           if (!self.caches) return fetch(url).then(function(r){ if(!r.ok) throw url+' HTTP '+r.status; return r.arrayBuffer(); });
+           return caches.open('mwdata-v1').then(function(cache){
+             return cache.match(url).then(function(hit){
+               if (hit){ append('[mw] cache hit '+url); return hit.arrayBuffer(); }
+               return fetch(url).then(function(r){
+                 if(!r.ok) throw url+' HTTP '+r.status;
+                 return cache.put(url, r.clone()).then(function(){ return r.arrayBuffer(); },
+                                                        function(){ return r.arrayBuffer(); });
+               });
+             });
+           });
+         }
+         function writeRaw(dest){ return function(b){ FS.writeFile(dest, new Uint8Array(b)); return b.byteLength; }; }
+         function untarInto(label){ return function(b){ var c = untar(b, '/mwdata/'); append('[mw] '+label+': extracted '+c+' files'); }; }
+         append('[mw] loading Morrowind (cached after first run)…');
+         grab('mwdata/Morrowind.esm').then(writeRaw('/mwdata/Morrowind.esm'))
+         .then(function(){ append('[mw] esm ok; bsa (310MB)…'); return grab('mwdata/Morrowind.bsa').then(writeRaw('/mwdata/Morrowind.bsa')); })
+         .then(function(){ append('[mw] bsa ok; sound+music (81MB)…'); return grab('mwdata/mwaudio.tar').then(untarInto('audio')); })
+         .then(function(){ append('[mw] voice (111MB)…'); return grab('mwdata/mwvoice.tar').then(untarInto('voice')); })
+         .then(function(){ append('[mw] splash+fonts (33MB)…'); return grab('mwdata/mwextra.tar').then(untarInto('extra')); })
+         .then(function(){ append('[mw] Tribunal (65MB)…'); return grab('mwdata/Tribunal.esm').then(writeRaw('/mwdata/Tribunal.esm')); })
+         .then(function(){ return grab('mwdata/Tribunal.bsa').then(writeRaw('/mwdata/Tribunal.bsa')); })
+         .then(function(){ append('[mw] Bloodmoon (121MB)…'); return grab('mwdata/Bloodmoon.esm').then(writeRaw('/mwdata/Bloodmoon.esm')); })
+         .then(function(){ return grab('mwdata/Bloodmoon.bsa').then(writeRaw('/mwdata/Bloodmoon.bsa')); })
+         .then(function(){ append('[mw] Bloodmoon sounds (28MB)…'); return grab('mwdata/mwbmsound.tar').then(untarInto('bm-sound')); })
+         .then(function(){
+           // Videos DISABLED BY DEFAULT (?vid to opt in): OpenMW's VideoPlayer spawns decode
+           // threads the main thread waits on -> futex deadlock at boot under emscripten
+           // (menu_background.bik auto-plays as the animated menu background). Root-caused
+           // 2026-07-01: with videos present boot hung right after font loading; without, the
+           // game boots to title at ~265fps. Missing videos are skipped gracefully by the engine.
+           if (!/[?&]vid\b/.test(location.search)){ append('[mw] videos skipped (deadlock; use ?vid to test)'); window.__noMovies = true; return; }
+           append('[mw] videos (40MB, played on the fly)…'); return grab('mwdata/mwvideo.tar').then(untarInto('video'));
+         })
+         .then(function(){
+           // Rewrite openmw.cfg once the preloaded copy is present in MEMFS. Full GOTY load order,
+           // and replace the OpenMW example-suite movie names with Morrowind's real .bik files
+           // (OpenMW decodes Bink natively — no conversion, the originals play as-is).
+           (function waitCfg(){
+             if (FS.analyzePath('/openmw.cfg').exists){
+               var cfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n').filter(function(l){
+                 return !/^content=/.test(l) && !/^data=\/gamedata\s*$/.test(l) && !/^fallback-archive=/.test(l)
+                     && !/^fallback=Movies_/.test(l);
+               });
+               cfg.push('data=/mwdata',
+                        'fallback-archive=Morrowind.bsa', 'fallback-archive=Tribunal.bsa', 'fallback-archive=Bloodmoon.bsa',
+                        'content=Morrowind.esm', 'content=Tribunal.esm', 'content=Bloodmoon.esm');
+               if (!window.__noMovies)
+                 cfg.push('fallback=Movies_Company_Logo,bethesda logo.bik',
+                          'fallback=Movies_Morrowind_Logo,mw_logo.bik',
+                          'fallback=Movies_New_Game,mw_intro.bik');
+               FS.writeFile('/openmw.cfg', cfg.join('\n'));
+               append('[mw] READY -> Morrowind GOTY (base+Tribunal+Bloodmoon, audio+voice+video)');
+               removeRunDependency('mw-data');
+             } else { setTimeout(waitCfg, 25); }
+           })();
+         }).catch(function(e){ append('[mw load err] '+e,'err'); removeRunDependency('mw-data'); });
+       } catch(e){ append('[mw setup err] '+e,'err'); }
+
+       append('[preRun] env + user dirs ready');
+     } catch(e){ append('[preRun error] '+e,'err'); }
+   }],
+   print: (t)=>{ console.log(t); append(t); },
+   printErr: (t)=>{ console.warn(t); append(t,'err'); },
+   onAbort: (w)=>append('ABORT: '+w,'err'),
+   setStatus: (t)=>{ if(t) append('[status] '+t); },
+   onRuntimeInitialized: function(){
+     // Drive the engine frame from a MessageChannel: unlike setTimeout/requestAnimationFrame,
+     // MessageChannel messages are NOT throttled when the tab is hidden/backgrounded, so the
+     // game keeps running (and stays interactive) even in the background. omw_pump_frame() is a
+     // no-op until the C++ main loop registers itself; the engine's own FrameRateLimiter paces it.
+     try {
+       var mc = new MessageChannel();
+       // FPS instrumentation: count real engine frames + per-frame wall time.
+       window.__fps = 0; window.__frameMs = 0;
+       var __frames = 0, __t0 = performance.now(), __accum = 0;
+       // SINGLE frame driver (the engine no longer registers emscripten_set_main_loop):
+       // visible tab -> next tick scheduled via requestAnimationFrame (vsync-aligned, smooth);
+       // hidden tab  -> direct postMessage (unthrottled, game keeps running in background).
+       var scheduled = false;
+       function scheduleNext(){
+         if (scheduled) return; scheduled = true;
+         if (document.hidden) mc.port2.postMessage(0);
+         else requestAnimationFrame(function(){ mc.port2.postMessage(0); });
+       }
+       mc.port1.onmessage = function(){
+         scheduled = false;
+         var a = performance.now();
+         try { if (Module._omw_pump_frame) Module._omw_pump_frame(); } catch(e){}
+         var b = performance.now();
+         __frames++; __accum += (b - a);
+         var dt = b - __t0;
+         if (dt >= 1000){ window.__fps = Math.round(__frames*1000/dt); window.__frameMs = +(__accum/__frames).toFixed(2); __frames = 0; __accum = 0; __t0 = b; }
+         scheduleNext();
+       };
+       // If the tab hides while an rAF-scheduled tick is frozen, take over directly.
+       // (The stale rAF firing later causes at most one harmless extra tick.)
+       document.addEventListener('visibilitychange', function(){
+         if (document.hidden && scheduled) mc.port2.postMessage(0);
+       });
+       mc.port2.postMessage(0);
+       append('[pump] frame pump started (rAF-paced when visible)');
+     } catch(e){ append('[pump error] '+e,'err'); }
+   },
+ };
+ window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); });
+</script>
+<script src="openmw.js"></script>
+</body></html>

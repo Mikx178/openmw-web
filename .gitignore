@@ -1,0 +1,27 @@
+# === Large binary assets & copyrighted game data (kept local only) ===
+source-mw/
+archive/
+content/
+fsroot/gamedata/
+fsroot/*.dat
+play/mwdata/
+
+# === Dependency source caches (huge; fetched by the build) ===
+deps/
+
+# === Build directories / generated artifacts ===
+build-wasm/
+*.wasm
+*.data
+*.bsa
+*.tar
+*.7z
+*.zip
+*.cab
+*.bak
+
+# === Preserved upstream OpenMW git dir (local backup, not for this repo) ===
+openmw/.git-upstream/
+
+# === OS / editor cruft ===
+.DS_Store
