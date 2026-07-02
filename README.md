@@ -19,6 +19,10 @@ caches, and build artifacts — are intentionally excluded via
 |------|---------|
 | `openmw/` | OpenMW engine source (upstream + local WASM changes) |
 | `configure-openmw.sh` | Emscripten/CMake configure step for the WASM build |
+| `wasm-build/link-openmw.sh` | **Canonical final link step** (runtime flags + preload FS) |
+| `wasm-build/build-osg.sh` | OpenSceneGraph→WASM configure/build (the hardest dep) |
+| `wasm-build/x11_stubs.c` | Signature-exact X11 no-op stubs osgViewer links against |
+| `wasm-build/patches/osg-emscripten.patch` | All OSG source fixes for WebGL2/emscripten |
 | `play/` | Browser front-end: `index.html`, `openmw.js` loader, `server.py` dev server |
 | `fsroot/` | Virtual filesystem config + test game data mounted into the WASM runtime |
 
@@ -30,21 +34,49 @@ caches, and build artifacts — are intentionally excluded via
 
 ## Building
 
-Requires **Emscripten** (built against 6.0.1), **CMake**, and **Ninja**, plus the
-cross-compiled dependency stack under `deps/wasm` (not in this repo).
+Requires **Emscripten 6.0.1** (Homebrew paths assumed; adjust `EMSDK_BIN`), **CMake**,
+and **Ninja**, plus the cross-compiled dependency stack under `deps/wasm` (not in this
+repo — see *Dependency stack* below).
 
 ```bash
-# 1. Configure (paths in the script are absolute — adjust ROOT for your machine)
+export ROOT=$PWD                      # repo root
+
+# 1. Configure (compiles fine from CMake; final LINK is done out-of-band in step 3)
 ./configure-openmw.sh
 
-# 2. Build
-ninja -C build-wasm
+# 2. Compile everything
+ninja -C build-wasm components openmw-lib
 
-# 3. Stage the outputs into play/ (openmw.js, openmw.wasm, openmw.data)
+# 3. Link with the runtime flags (WebGL2, pthreads, preload FS, IDBFS...)
+./wasm-build/link-openmw.sh
+
+# 4. Deploy
+cp build-wasm/openmw.js build-wasm/openmw.wasm build-wasm/openmw.data play/
 ```
 
-> Note: `configure-openmw.sh` currently hard-codes `ROOT=/Users/mstavridis/Downloads/CS-Web`
-> and Homebrew Emscripten paths. Update these for a different environment.
+Build gotchas (why the link is scripted, learned the hard way):
+
+- `main.cpp.o` is passed directly on the link line; `ninja components openmw-lib`
+  does **not** rebuild it (the script does).
+- The whole stack uses `-fwasm-exceptions` (legacy wasm EH). Do **not** add `-flto`
+  (wasm-ld crashes / miscompiles boot) or `-sWASM_LEGACY_EXCEPTIONS=0`.
+- Hand-built deps must be compiled `-pthread`; ICU uses the sysroot `-mt` variants.
+- Killing the link mid-run leaves a mismatched `openmw.js`/`openmw.wasm` pair —
+  verify both mtimes match before deploying.
+
+### Dependency stack
+
+All deps are cross-compiled to static libs in `deps/wasm/lib` (+ headers in
+`deps/wasm/include`): OSG 3.6.5, Bullet (double-precision), MyGUI, FFmpeg 5
+(with `--enable-decoder=bink,binkaudio`), Boost (program_options+iostreams),
+Lua 5.4, LZ4, RecastNavigation. SDL2/FreeType/HarfBuzz/png/jpeg/zlib/ogg/vorbis
+come from emscripten ports at link time; OpenAL is emscripten's built-in.
+
+OSG is the hardest one and is fully scripted: apply
+`wasm-build/patches/osg-emscripten.patch` to an `OpenSceneGraph-3.6.5` checkout at
+`deps/src/osg`, then run `./wasm-build/build-osg.sh`. The patch carries critical
+fixes — most importantly the RTT `drawBuffers` fix in `FrameBufferObject.cpp`
+(without it every render-to-texture camera silently discards its color output).
 
 ## Running
 

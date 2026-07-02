@@ -1,0 +1,413 @@
+diff --git a/src/osg/Fog.cpp b/src/osg/Fog.cpp
+index 1eb0658..c0e6913 100644
+--- a/src/osg/Fog.cpp
++++ b/src/osg/Fog.cpp
+@@ -67,7 +67,7 @@ void Fog::apply(State& state) const
+             glFogf(GL_FOG_DISTANCE_MODE_NV, GL_EYE_PLANE_ABSOLUTE_NV);
+     }
+ 
+-#else
++#elif !defined(__EMSCRIPTEN__)
+     OSG_NOTICE<<"Warning: Fog::apply(State&) - not supported."<<std::endl;
+ #endif
+ }
+diff --git a/src/osg/FrameBufferObject.cpp b/src/osg/FrameBufferObject.cpp
+index c3988e0..f41825b 100644
+--- a/src/osg/FrameBufferObject.cpp
++++ b/src/osg/FrameBufferObject.cpp
+@@ -754,6 +754,43 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+                 OSG_WARN <<"Warning: FrameBufferObject: could not set draw buffers, glDrawBuffers is not supported!" << std::endl;
+             }
+         }
++#ifdef __EMSCRIPTEN__
++        else
++        {
++            // WebGL2: a depth/stencil-only FBO (no color attachment) keeps the default draw
++            // buffer of GL_COLOR_ATTACHMENT0, which has no attachment here -> any clear/draw
++            // raises GL_INVALID_OPERATION (seen as "invalid value after DepthClearCallback").
++            // Explicitly disable color output for color-less FBOs.
++            //
++            // IMPORTANT: _drawBuffers is only populated for MRT-style Camera::COLOR_BUFFER0..15
++            // attachments (see updateDrawBuffers()). A plain Camera::COLOR_BUFFER attachment
++            // (every RTTNode camera: character preview, localmap, water, sky RTT) leaves
++            // _drawBuffers EMPTY yet DOES have a color attachment at GL_COLOR_ATTACHMENT0.
++            // Unconditionally emitting GL_NONE here silently discarded ALL color writes for
++            // those FBOs (geometry rasterized, depth wrote, but the texture stayed blank —
++            // e.g. the black chargen race-selection "Appearance" preview). Only disable color
++            // output when the FBO truly has no color attachment.
++            bool hasColorAttachment = false;
++            for (AttachmentMap::const_iterator i=_attachments.begin(); i!=_attachments.end(); ++i)
++            {
++                if (i->first == Camera::COLOR_BUFFER
++                    || (i->first >= Camera::COLOR_BUFFER0 && i->first <= Camera::COLOR_BUFFER15))
++                {
++                    hasColorAttachment = true;
++                    break;
++                }
++            }
++            const GLenum buf = hasColorAttachment ? GL_COLOR_ATTACHMENT0_EXT : GL_NONE;
++            GLExtensions *gl2e = state.get<GLExtensions>();
++            if (gl2e && gl2e->glDrawBuffers)
++            {
++                gl2e->glDrawBuffers(1, &buf);
++            }
++            // Also set the read buffer accordingly: an implicit read/resolve against the
++            // (unattached) GL_COLOR_ATTACHMENT0 of a color-less FBO raises GL_INVALID_OPERATION.
++            state.glReadBuffer(buf);
++        }
++#endif
+     }
+ 
+     if (dirtyAttachmentList)
+@@ -766,8 +803,17 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+                 case(Camera::PACKED_DEPTH_STENCIL_BUFFER):
+                     if (ext->isPackedDepthStencilSupported)
+                     {
++#ifdef __EMSCRIPTEN__
++                        // WebGL2 requires a packed DEPTH24_STENCIL8 attachment to use the single
++                        // combined GL_DEPTH_STENCIL_ATTACHMENT (0x821A) point. Attaching the same
++                        // buffer to GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT separately (the
++                        // desktop/GLES path) yields GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT (0x8CD6),
++                        // which silently breaks every scene FBO (only the sky/GUI then draw).
++                        fa.attach(state, target, 0x821A /*GL_DEPTH_STENCIL_ATTACHMENT*/, ext);
++#else
+                         fa.attach(state, target, GL_DEPTH_ATTACHMENT_EXT, ext);
+                         fa.attach(state, target, GL_STENCIL_ATTACHMENT_EXT, ext);
++#endif
+                     }
+                     else
+                     {
+diff --git a/src/osg/GLExtensions.cpp b/src/osg/GLExtensions.cpp
+index 478b503..bdcc04e 100644
+--- a/src/osg/GLExtensions.cpp
++++ b/src/osg/GLExtensions.cpp
+@@ -851,6 +851,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+     isTextureSwizzleSupported = validContext && isGLExtensionSupported(contextID,"GL_ARB_texture_swizzle");
+     isTextureCompressionARBSupported = validContext && (builtInSupport || isGLExtensionOrVersionSupported(contextID,"GL_ARB_texture_compression", 1.3f));
+     isTextureCompressionS3TCSupported = validContext && (isGLExtensionSupported(contextID,"GL_EXT_texture_compression_s3tc") || isGLExtensionSupported(contextID, "GL_S3_s3tc"));
++#ifdef __EMSCRIPTEN__
++    // WebGL2 exposes S3TC as WEBGL_compressed_texture_s3tc (not the GL_EXT_ name OSG checks),
++    // and emscripten auto-enables available extensions. Force-enable so OpenMW uploads DXT
++    // textures COMPRESSED (glCompressedTexImage2D) instead of CPU-decompressing every texture to
++    // RGBA — 4x less texture memory + upload bandwidth + no per-texture CPU decompress at load.
++    if (validContext) isTextureCompressionS3TCSupported = true;
++#endif
+     isTextureCompressionPVRTC2BPPSupported = validContext && isGLExtensionSupported(contextID,"GL_IMG_texture_compression_pvrtc");
+     isTextureCompressionPVRTC4BPPSupported = isTextureCompressionPVRTC2BPPSupported;//covered by same extension
+     isTextureCompressionETCSupported = validContext && isGLExtensionSupported(contextID,"GL_OES_compressed_ETC1_RGB8_texture");
+@@ -1132,7 +1139,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+     isPackedDepthStencilSupported = validContext &&
+                                     (OSG_GL3_FEATURES ||
+                                      (isGLExtensionSupported(contextID, "GL_EXT_packed_depth_stencil")) ||
+-                                     (isGLExtensionSupported(contextID, "GL_OES_packed_depth_stencil")));
++                                     (isGLExtensionSupported(contextID, "GL_OES_packed_depth_stencil"))
++#ifdef __EMSCRIPTEN__
++                                     // WebGL2 / GLES3 has packed depth-stencil as a core
++                                     // feature, not exposed as an extension string.
++                                     || true
++#endif
++                                    );
+ 
+     //subroutine
+     osg::setGLExtensionFuncPtr(glGetSubroutineUniformLocation, "glGetSubroutineUniformLocation", validContext);
+diff --git a/src/osg/Light.cpp b/src/osg/Light.cpp
+index f4cf9ee..eadee76 100644
+--- a/src/osg/Light.cpp
++++ b/src/osg/Light.cpp
+@@ -98,7 +98,7 @@ void Light::apply(State&) const
+     glLightf ( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_CONSTANT_ATTENUATION,  _constant_attenuation );
+     glLightf ( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_LINEAR_ATTENUATION,    _linear_attenuation );
+     glLightf ( (GLenum)((int)GL_LIGHT0 + _lightnum), GL_QUADRATIC_ATTENUATION, _quadratic_attenuation );
+-#else
++#elif !defined(__EMSCRIPTEN__)
+     OSG_NOTICE<<"Warning: Light::apply(State&) - not supported."<<std::endl;
+ #endif
+ }
+diff --git a/src/osg/Material.cpp b/src/osg/Material.cpp
+index 8385809..8c6820d 100644
+--- a/src/osg/Material.cpp
++++ b/src/osg/Material.cpp
+@@ -443,8 +443,11 @@ void Material::apply(State&) const
+ #else
+ void Material::apply(State& state) const
+ {
++#ifndef __EMSCRIPTEN__
+     OSG_NOTICE<<"Warning: Material::apply(State&) - not supported."<<std::endl;
+-
++#endif
++    // Keep state.Color(): under emscripten it sets the osg_Color vertex-attrib constant
++    // (used by GUI / unlit / vertex-colour geometry). Only the warning is suppressed.
+     state.Color(_diffuseFront.r(), _diffuseFront.g(), _diffuseFront.b(), _diffuseFront.a());
+ }
+ #endif
+diff --git a/src/osg/PolygonMode.cpp b/src/osg/PolygonMode.cpp
+index 35db675..96fe35d 100644
+--- a/src/osg/PolygonMode.cpp
++++ b/src/osg/PolygonMode.cpp
+@@ -82,7 +82,7 @@ void PolygonMode::apply(State&) const
+             OSG_NOTICE << "Warning: PolygonMode::apply(State&) - only GL_FRONT_AND_BACK is supported." << std::endl;
+         #endif
+     }
+-#else
++#elif !defined(__EMSCRIPTEN__)
+     OSG_NOTICE << "Warning: PolygonMode::apply(State&) - is not supported." << std::endl;
+ #endif
+ }
+diff --git a/src/osg/State.cpp b/src/osg/State.cpp
+index 5cd5b3e..50ca7b0 100644
+--- a/src/osg/State.cpp
++++ b/src/osg/State.cpp
+@@ -108,6 +108,17 @@ State::State():
+ #if OSG_GL3_FEATURES
+     _forceVertexBufferObject = true;
+     _forceVertexArrayObject = true;
++#elif defined(__EMSCRIPTEN__)
++    // WebGL2 has VBOs + VAOs as core features. Force VAOs on: a VAO caches the per-draw vertex
++    // attribute binding (glVertexAttribPointer/enable), so replaying it is one call instead of
++    // N — cutting the JS<->wasm<->ANGLE round-trips that dominate WebGL per-draw CPU cost.
++    // (Retest: the earlier "VAO hang" was actually the menu_background.bik video deadlock.)
++    // CRITICAL: a VAO can ONLY reference buffer-backed attributes in WebGL2/GLES3 core; if VBOs
++    // aren't also forced, OSG binds client-side arrays and the VAO captures garbage attribute
++    // offsets -> geometry renders as floating/scrambled fragments. Force BOTH (as OSG_GL3_FEATURES
++    // does). WebGL2 forbids client vertex arrays anyway, so VBOs must always be on here.
++    _forceVertexBufferObject = true;
++    _forceVertexArrayObject = true;
+ #else
+     _forceVertexBufferObject = false;
+     _forceVertexArrayObject = false;
+@@ -198,6 +209,11 @@ void State::initializeExtensionProcs()
+     _isFogCoordSupported = osg::isGLExtensionSupported(_contextID,"GL_EXT_fog_coord");
+     _isVertexBufferObjectSupported = OSG_GLES2_FEATURES || OSG_GLES3_FEATURES || OSG_GL3_FEATURES || osg::isGLExtensionSupported(_contextID,"GL_ARB_vertex_buffer_object");
+     _isVertexArrayObjectSupported = _glExtensions->isVAOSupported;
++#ifdef __EMSCRIPTEN__
++    // WebGL2 exposes VAOs as core (glGenVertexArrays available) but not via the desktop/OES
++    // extension strings OSG probes, so isVAOSupported can read false. Force it (like S3TC/packed-DS).
++    _isVertexArrayObjectSupported = true;
++#endif
+ 
+     const DisplaySettings* ds = getDisplaySettings() ? getDisplaySettings() : osg::DisplaySettings::instance().get();
+ 
+@@ -295,6 +311,60 @@ void State::initializeExtensionProcs()
+     #else
+         setModeValidity(GL_POINT_SPRITE_ARB, pointSpriteModeValid);
+     #endif
++
++    #ifdef __EMSCRIPTEN__
++        // These fixed-function enums aren't in the GLES headers; define their classic GL values.
++        #ifndef GL_FOG
++        #define GL_FOG 0x0B60
++        #endif
++        #ifndef GL_POINT_SMOOTH
++        #define GL_POINT_SMOOTH 0x0B10
++        #endif
++        #ifndef GL_LINE_SMOOTH
++        #define GL_LINE_SMOOTH 0x0B20
++        #endif
++        #ifndef GL_COLOR_MATERIAL
++        #define GL_COLOR_MATERIAL 0x0B57
++        #endif
++        #ifndef GL_DEPTH_CLAMP
++        #define GL_DEPTH_CLAMP 0x864F
++        #endif
++        #ifndef GL_CLIP_PLANE0
++        #define GL_CLIP_PLANE0 0x3000
++        #endif
++        // WebGL2 has no fixed-function enable modes, but OpenMW/OSG statesets still carry
++        // vestigial setMode(GL_FOG/GL_LIGHTING/...) calls (rendering is shader-based). Each
++        // reaches glEnable(mode) -> GL_INVALID_ENUM every frame, flooding the log and
++        // poisoning checkGLErrors for later (real) operations. Mark them invalid so
++        // applyMode() skips the glEnable/glDisable entirely.
++        setModeValidity(GL_FOG,            false); // 0x0B60
++        setModeValidity(GL_LIGHTING,       false); // 0x0B50
++        setModeValidity(GL_NORMALIZE,      false); // 0x0BA1
++        setModeValidity(GL_RESCALE_NORMAL, false); // 0x803A
++        setModeValidity(GL_ALPHA_TEST,     false); // 0x0BC0
++        setModeValidity(GL_POINT_SMOOTH,   false); // 0x0B10
++        setModeValidity(GL_LINE_SMOOTH,    false); // 0x0B20
++        setModeValidity(GL_COLOR_MATERIAL, false); // 0x0B57
++        // GL_DEPTH_CLAMP (desktop GL 3.3, no WebGL2/GLES3 equivalent) is set ON by the shadow-
++        // casting stateset (mwshadowtechnique) -> glEnable(0x864F) -> GL_INVALID_ENUM once at
++        // startup (the shadow PRE_RENDER pass), mis-attributed to a later checkpoint.
++        setModeValidity(GL_DEPTH_CLAMP,    false); // 0x864F
++        // GL_CLIP_PLANE0: no clip planes in WebGL2/GLES3. sky.cpp sets it OFF on the sky
++        // RenderBin (first bin drawn) -> glDisable(0x3000) -> GL_INVALID_ENUM once at startup;
++        // water.cpp's reflection clip plane hits the same enable. Neutralize engine-wide.
++        setModeValidity(GL_CLIP_PLANE0,    false); // 0x3000
++
++        // GL_TEXTURE_2D is a per-texture-unit fixed-function enable (ES1/desktop only).
++        // WebGL2 has no glEnable(GL_TEXTURE_2D); each setTextureMode(unit,GL_TEXTURE_2D,..)
++        // reaches glEnable/glDisable -> GL_INVALID_ENUM. Mark it invalid per unit so
++        // applyModeOnTexUnit() (which honors ms.valid) skips it. Texture binding/sampling
++        // is unaffected (shader-based).
++        #ifndef GL_TEXTURE_2D
++        #define GL_TEXTURE_2D 0x0DE1
++        #endif
++        for (unsigned int emUnit = 0; emUnit < 16; ++emUnit)
++            getOrCreateTextureModeMap(emUnit)[GL_TEXTURE_2D].valid = false;
++    #endif
+     }
+ 
+ 
+diff --git a/src/osg/TexMat.cpp b/src/osg/TexMat.cpp
+index a869b46..11b8fa1 100644
+--- a/src/osg/TexMat.cpp
++++ b/src/osg/TexMat.cpp
+@@ -43,7 +43,7 @@ void TexMat::apply(State& state) const
+     }
+ 
+     glMatrixMode( GL_MODELVIEW );
+-#else
++#elif !defined(__EMSCRIPTEN__)
+     OSG_NOTICE<<"Warning: TexMat::apply(State&) - not supported."<<std::endl;
+ #endif
+ }
+diff --git a/src/osg/Texture.cpp b/src/osg/Texture.cpp
+index 2d3375f..0999584 100644
+--- a/src/osg/Texture.cpp
++++ b/src/osg/Texture.cpp
+@@ -1956,6 +1956,11 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+     glTexParameteri( target, GL_TEXTURE_MAG_FILTER, _mag_filter);
+ 
+     // Art: I think anisotropic filtering is not supported by the integer textures
++#ifndef __EMSCRIPTEN__
++    // GL_TEXTURE_MAX_ANISOTROPY_EXT: WebGL2 reports EXT_texture_filter_anisotropic in the
++    // extension string (so isTextureFilterAnisotropicSupported is true) but the pname is only
++    // accepted after the extension object is explicitly enabled via getExtension(), which OSG
++    // never does — so this raises GL_INVALID_ENUM on every dirty texture apply. Skip it.
+     if (extensions->isTextureFilterAnisotropicSupported &&
+         _internalFormatType != SIGNED_INTEGER && _internalFormatType != UNSIGNED_INTEGER)
+     {
+@@ -1970,8 +1975,15 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+         // by gl.h (or via glext.h) or by include/osg/Texture.
+         glTexParameteriv(target, GL_TEXTURE_SWIZZLE_RGBA, _swizzle.ptr());
+     }
++#endif
+ 
+-    if (extensions->isTextureBorderClampSupported)
++    // WebGL2/GLES3 has no texture border clamp (GL_TEXTURE_BORDER_COLOR); OSG detects it from the
++    // extension string but the pname is rejected -> GL_INVALID_ENUM on every texture apply.
++    if (extensions->isTextureBorderClampSupported
++#ifdef __EMSCRIPTEN__
++        && false
++#endif
++    )
+     {
+ 
+         #ifndef GL_TEXTURE_BORDER_COLOR
+@@ -2026,7 +2038,11 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+         glTexParameterf(target, GL_TEXTURE_MAX_LOD, _maxlod);
+     }
+ 
++#ifndef __EMSCRIPTEN__
++    // GL_TEXTURE_LOD_BIAS is not a valid glTexParameter pname in WebGL2/GLES3 (it is a
++    // desktop-GL feature); calling it raises GL_INVALID_ENUM on every texture apply.
+     glTexParameterf(target, GL_TEXTURE_LOD_BIAS, _lodbias);
++#endif
+ 
+     getTextureParameterDirty(state.getContextID()) = false;
+ 
+diff --git a/src/osg/Texture2D.cpp b/src/osg/Texture2D.cpp
+index 2aac8b2..0eca56f 100644
+--- a/src/osg/Texture2D.cpp
++++ b/src/osg/Texture2D.cpp
+@@ -19,6 +19,32 @@
+ 
+ using namespace osg;
+ 
++#ifdef __EMSCRIPTEN__
++namespace
++{
++    // WebGL2/GLES3: glTexImage2D's source 'format' argument must be an unsized *base*
++    // format (GL_RGBA, GL_RGB, GL_RED, ...). For an image-less RTT texture OSG passes the
++    // (possibly sized) _internalFormat as the source format, which WebGL2 rejects
++    // (e.g. GL_RGBA8 is not a valid source format) -> texture stays undefined and its FBO
++    // is incomplete (0x8cd6). Map a sized/base internal format to a valid base source format.
++    GLenum baseSourceFormatES(GLenum internalFormat)
++    {
++        // Only the sized *color* formats used for image-less RTTs need remapping; depth/float
++        // RTTs set _sourceFormat/_sourceType explicitly so they never reach here. Base formats
++        // (GL_RGBA/GL_RGB/...) are already valid source formats and pass through unchanged.
++        switch (internalFormat)
++        {
++            case GL_RGBA8: case GL_SRGB8_ALPHA8:
++                return GL_RGBA;
++            case GL_RGB8: case GL_SRGB8:
++                return GL_RGB;
++            default:
++                return internalFormat;
++        }
++    }
++}
++#endif
++
+ Texture2D::Texture2D():
+             _textureWidth(0),
+             _textureHeight(0),
+@@ -312,12 +338,17 @@ void Texture2D::apply(State& state) const
+          else
+          {
+              GLenum internalFormat = _sourceFormat ? _sourceFormat : _internalFormat;
++#ifdef __EMSCRIPTEN__
++             GLenum sourceFormat = _sourceFormat ? _sourceFormat : baseSourceFormatES(_internalFormat);
++#else
++             GLenum sourceFormat = internalFormat;
++#endif
+              textureObject = generateAndAssignTextureObject(contextID, GL_TEXTURE_2D, _numMipmapLevels, internalFormat, _textureWidth, _textureHeight, 1, _borderWidth);
+              textureObject->bind();
+              applyTexParameters(GL_TEXTURE_2D, state);
+              glTexImage2D( GL_TEXTURE_2D, 0, _internalFormat,
+                       _textureWidth, _textureHeight, _borderWidth,
+-                      internalFormat,
++                      sourceFormat,
+                       _sourceType ? _sourceType : GL_UNSIGNED_BYTE,
+                       0);
+         }
+@@ -503,7 +534,11 @@ void Texture2D::allocateMipmap(State& state) const
+ 
+             glTexImage2D( GL_TEXTURE_2D, k, _internalFormat,
+                      width, height, _borderWidth,
++#ifdef __EMSCRIPTEN__
++                     _sourceFormat ? _sourceFormat : baseSourceFormatES(_internalFormat),
++#else
+                      _sourceFormat ? _sourceFormat : _internalFormat,
++#endif
+                      _sourceType ? _sourceType : GL_UNSIGNED_BYTE, NULL);
+ 
+             width >>= 1;
+diff --git a/src/osgUtil/RenderStage.cpp b/src/osgUtil/RenderStage.cpp
+index d8300d2..51abdeb 100644
+--- a/src/osgUtil/RenderStage.cpp
++++ b/src/osgUtil/RenderStage.cpp
+@@ -529,7 +529,18 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
+ 
+             if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
+             {
+-                OSG_NOTICE<<"RenderStage::runCameraSetUp(), FBO setup failed, FBO status= 0x"<<std::hex<<status<<std::dec<<std::endl;
++                // Under WebGL2/emscripten the main SceneCam FBO is momentarily incomplete on the
++                // very first setup (before the postprocessor's textures are realized) and self-heals
++                // frame 2 — a harmless transient. Log at INFO there so it doesn't spam the console;
++                // a persistent failure would still show visually (nothing renders).
++#ifdef __EMSCRIPTEN__
++                OSG_INFO
++#else
++                OSG_NOTICE
++#endif
++                    <<"RenderStage::runCameraSetUp(), FBO setup failed, FBO status= 0x"<<std::hex<<status<<std::dec
++                    <<" camera='"<<(_camera.valid()?_camera->getName():std::string("?"))<<"'"
++                    <<" viewport="<<(_viewport.valid()?_viewport->width():-1)<<"x"<<(_viewport.valid()?_viewport->height():-1)<<std::endl;
+ 
+                 fbo_supported = false;
+                 GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
+diff --git a/src/osgUtil/tristripper/include/detail/graph_array.h b/src/osgUtil/tristripper/include/detail/graph_array.h
+index dc1f380..7c4ad76 100644
+--- a/src/osgUtil/tristripper/include/detail/graph_array.h
++++ b/src/osgUtil/tristripper/include/detail/graph_array.h
+@@ -446,7 +446,7 @@ inline void graph_array<N>::swap(graph_type & Right)
+ template <class N>
+ inline void unmark_nodes(graph_array<N> & G)
+ {
+-    std::for_each(G.begin(), G.end(), std::mem_fun_ref(&graph_array<N>::node::unmark));
++    std::for_each(G.begin(), G.end(), [](typename graph_array<N>::node & n){ n.unmark(); });
+ }
+ 
+ 
