@@ -1897,6 +1897,20 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
 
     const ShadowSettings* settings = getShadowedScene()->getShadowSettings();
 
+#ifdef __EMSCRIPTEN__
+    // Stable shadow basis: derive lightSide/lightUp from a FIXED world up-vector (+Z in OpenMW)
+    // so the shadow raster's X/Y axes do NOT rotate with camera yaw. The upstream basis is
+    // view-derived (lightDir ^ frustumCenterLine), which spins the whole shadow map under the
+    // scene as you mouse-look -> severe shadow swim. World-up basis costs a little effective
+    // resolution but keeps shadows still while standing and rotating the camera.
+    {
+        osg::Vec3d worldUp(0.0, 0.0, 1.0);
+        if (std::abs(positionedLight.lightDir * worldUp) > 0.99) // light ~parallel to up (noon sun)
+            worldUp.set(0.0, 1.0, 0.0);
+        lightSide = positionedLight.lightDir ^ worldUp;
+        lightSide.normalize();
+    }
+#else
     double dotProduct_v = positionedLight.lightDir * frustum.frustumCenterLine;
     double gamma_v = acos(dotProduct_v);
     if (gamma_v<osg::DegreesToRadians(settings->getPerspectiveShadowMapCutOffAngle()) || gamma_v>osg::DegreesToRadians(180.0-settings->getPerspectiveShadowMapCutOffAngle()))
@@ -1911,6 +1925,7 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
         lightSide = positionedLight.lightDir ^ frustum.frustumCenterLine;
         lightSide.normalize();
     }
+#endif
 
     osg::Vec3d lightUp = lightSide ^ positionedLight.lightDir;
 
@@ -1973,6 +1988,28 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
         }
         else
         {
+#ifdef __EMSCRIPTEN__
+            // Fixed-size base ortho: fit X/Y to a square that encloses the frustum-corner box so
+            // the ortho SIZE is invariant to camera orientation (keeps the light-clip scale stable
+            // so the per-cascade texel snap below is consistent frame to frame), then snap the
+            // center to whole shadow-map texels to stop sub-texel crawl.
+            {
+                double cx = 0.5 * (xMin + xMax);
+                double cy = 0.5 * (yMin + yMax);
+                double half = 0.5 * osg::maximum(xMax - xMin, yMax - yMin);
+                if (half <= 0.0) half = 1.0;
+                double mapRes = static_cast<double>(settings->getTextureSize().x());
+                if (mapRes < 1.0) mapRes = 1024.0;
+                double texelSize = (2.0 * half) / mapRes;
+                if (texelSize > 0.0)
+                {
+                    cx = std::floor(cx / texelSize) * texelSize;
+                    cy = std::floor(cy / texelSize) * texelSize;
+                }
+                xMin = cx - half; xMax = cx + half;
+                yMin = cy - half; yMax = cy + half;
+            }
+#endif
             projectionMatrix.makeOrtho(xMin,xMax, yMin, yMax,0.0,zMax-zMin);
             viewMatrix.makeLookAt(frustum.center+positionedLight.lightDir*zMin, frustum.center+positionedLight.lightDir*zMax, lightUp);
         }
@@ -2681,6 +2718,29 @@ bool MWShadowTechnique::cropShadowCameraToMainFrustum(Frustum& frustum, osg::Cam
     if (xMin != -1.0 || yMin != -1.0 || zMin != -1.0 ||
         xMax != 1.0 || yMax != 1.0 || zMax != 1.0)
     {
+#ifdef __EMSCRIPTEN__
+        // Stabilize the per-cascade crop: make X/Y a square, invariant extent and snap the crop
+        // center to whole shadow-map texels (in the base light clip space, where texel = 2*half/res)
+        // so the rendered cascade does not swim under camera rotation. With the stable basis above,
+        // this is the decisive fix. Widening the crop only keeps a few extra casters, never clips.
+        {
+            double cx = 0.5 * (xMin + xMax);
+            double cy = 0.5 * (yMin + yMax);
+            double half = 0.5 * osg::maximum(xMax - xMin, yMax - yMin);
+            if (half <= 0.0) half = 1.0;
+            const ShadowSettings* s = getShadowedScene()->getShadowSettings();
+            double mapRes = static_cast<double>(s->getTextureSize().x());
+            if (mapRes < 1.0) mapRes = 1024.0;
+            double texel = (2.0 * half) / mapRes;
+            if (texel > 0.0)
+            {
+                cx = std::floor(cx / texel) * texel;
+                cy = std::floor(cy / texel) * texel;
+            }
+            xMin = cx - half; xMax = cx + half;
+            yMin = cy - half; yMax = cy + half;
+        }
+#endif
         osg::Matrix m;
         m.makeTranslate(osg::Vec3d(-0.5*(xMax + xMin),
                                    -0.5*(yMax + yMin),

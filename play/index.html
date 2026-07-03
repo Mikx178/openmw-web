@@ -476,75 +476,10 @@
          // Diagnostic: ?nomw skips the 817MB Morrowind load and boots the tiny preloaded
          // example-suite instead — lets a light load verify the render path (S3TC/SIMD/resize).
          if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)){
-           append('[mw] SKIPPED (nomw) — booting example-suite');
-           // Demo dressing for the copyright-clean sample: pull extra content (a village
-           // full of NPCs, and any override textures) into the already-preloaded suite VFS,
-           // then append them to /openmw.cfg BEFORE the engine reads it. ?vanilla opts out.
-           if (!/[?&]vanilla\b/.test(location.search)){
-             addRunDependency('suiteplus');
-             (function loadSuitePlus(){
-               // The suite's /openmw.cfg + /gamedata come from the --preload-file package,
-               // which may still be streaming during preRun — poll for it (retail path does
-               // the same), then patch once present.
-               var tries = 0;
-               (function waitCfg(){
-                 if (!FS.analyzePath('/openmw.cfg').exists){
-                   if (++tries > 600){ append('[suite+] openmw.cfg never appeared — skipping','err'); removeRunDependency('suiteplus'); return; }
-                   return setTimeout(waitCfg, 50);
-                 }
-                 // Minimal ustar extractor (self-contained: the MW branch's untar is
-                 // unreachable here — this block throws __skip before it).
-                 function untarSuite(buf, destRoot){
-                   var u8 = new Uint8Array(buf), off = 0;
-                   function s(o,l){ var r=''; for(var i=0;i<l;i++){ var c=u8[o+i]; if(!c) break; r+=String.fromCharCode(c);} return r; }
-                   FS.mkdirTree(destRoot);
-                   while (off + 512 <= u8.length){
-                     var name = s(off,100); if (name===''){ off+=512; continue; }
-                     var sz = parseInt(s(off+124,12).trim(),8)||0;
-                     if (/(^|\/)\._/.test(name) || /__MACOSX/.test(name)){ off += 512 + Math.ceil(sz/512)*512; continue; } // skip macOS junk
-                     var type = String.fromCharCode(u8[off+156]||48);
-                     var path = destRoot + '/' + name.replace(/\/+$/,'');
-                     if (type==='5' || /\/$/.test(name)) { FS.mkdirTree(path); }
-                     else {
-                       var slash = path.lastIndexOf('/'); if (slash>0) FS.mkdirTree(path.slice(0,slash));
-                       FS.writeFile(path, u8.subarray(off+512, off+512+sz));
-                     }
-                     off += 512 + Math.ceil(sz/512)*512;
-                   }
-                 }
-                 // Content files -> /gamedata, appended as content= (AFTER ExampleSuite,
-                 // whose records they reference). Texture pack -> /suiteplus, an override
-                 // VFS root added AFTER data=/gamedata so its files win by filename.
-                 var addons = ['PopulateVillage.omwaddon'];
-                 var chain = Promise.resolve();
-                 addons.forEach(function(fn){
-                   chain = chain.then(function(){
-                     return fetch(fn).then(function(r){ if(!r.ok) throw new Error(fn+' HTTP '+r.status); return r.arrayBuffer(); })
-                       .then(function(buf){ FS.writeFile('/gamedata/'+fn, new Uint8Array(buf)); append('[suite+] '+fn+' ('+buf.byteLength+'b)'); });
-                   });
-                 });
-                 var haveTextures = false;
-                 window.__sp = {step:'start'};
-                 chain = chain.then(function(){
-                   window.__sp.step='fetching-tar';
-                   return fetch('suiteplus.tar').then(function(r){ window.__sp.status=r.status; if(!r.ok) throw new Error('suiteplus.tar HTTP '+r.status); return r.arrayBuffer(); })
-                     .then(function(buf){ window.__sp.bytes=buf.byteLength; window.__sp.step='untarring'; untarSuite(buf, '/suiteplus'); haveTextures = true; window.__sp.step='untarred'; append('[suite+] high-def textures ('+Math.round(buf.byteLength/1048576)+'MB)'); })
-                     .catch(function(e){ window.__sp.err=''+e; window.__sp.step='error'; append('[suite+] textures skipped: '+e,'err'); });  // non-fatal
-                 });
-                 chain.then(function(){
-                   var cfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n');
-                   var lastData = -1, lastContent = -1;
-                   for (var i=0;i<cfg.length;i++){ if(/^data=/.test(cfg[i])) lastData=i; if(/^content=/.test(cfg[i])) lastContent=i; }
-                   if (haveTextures && lastData>=0){ cfg.splice(lastData+1, 0, 'data=/suiteplus'); if (lastContent>lastData) lastContent++; }
-                   var ins = addons.map(function(fn){ return 'content='+fn; });
-                   if (lastContent>=0) cfg.splice(lastContent+1, 0, ins.join('\n')); else cfg = cfg.concat(ins);
-                   FS.writeFile('/openmw.cfg', cfg.join('\n'));
-                   append('[suite+] village + high-def dressing loaded');
-                 }).catch(function(e){ append('[suite+ err] '+e,'err'); })
-                   .then(function(){ removeRunDependency('suiteplus'); });
-               })();
-             })();
-           }
+           // The example-suite demo (village of NPCs, guards, monsters, hi-def CC0 textures
+           // + curated MW dressing) is BAKED into the preloaded /gamedata package + openmw.cfg
+           // by content/suite-enhance/*, so nothing extra is fetched at runtime.
+           append('[mw] SKIPPED (nomw) — booting example-suite demo');
            throw {__skip:1};
          }
          FS.mkdirTree('/mwdata');

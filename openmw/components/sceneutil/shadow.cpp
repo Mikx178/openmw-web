@@ -76,6 +76,14 @@ namespace SceneUtil
 
         mShadowSettings->setMultipleShadowMapHint(osgShadow::ShadowSettings::CASCADED);
 
+#ifdef __EMSCRIPTEN__
+        // Force orthographic shadow projection: the perspective-shadow-map warp is view-dependent
+        // and would re-introduce shadow swim on camera rotation that the stable-basis + texel-snap
+        // changes in mwshadowtechnique.cpp are there to prevent. OpenMW forces the PSM shader define
+        // to 0 anyway, so this only pins the projection to match.
+        mShadowSettings->setShadowMapProjectionHint(osgShadow::ShadowSettings::ORTHOGRAPHIC_SHADOW_MAP);
+#endif
+
         if (settings.mEnableDebugHud)
             mShadowTechnique->enableDebugHUD();
         else
