@@ -223,9 +223,22 @@
        var w = window.innerWidth || 1280, h = window.innerHeight || 720;
        var budget = window.__maxPixels || 4000000;
        var scale = Math.min(1, Math.sqrt(budget / (w * h)));
-       var rw = Math.max(320, Math.round(w * scale)), rh = Math.max(240, Math.round(h * scale));
-       if (rw === canvas.width && rh === canvas.height) return;
-       append('[resize] ' + rw + 'x' + rh);
+       // New NATIVE (100%) render size for the resized window.
+       var nw = Math.max(320, Math.round(w * scale)), nh = Math.max(240, Math.round(h * scale));
+       // Preserve the player's chosen SCALE TIER across the resize: infer the integer divisor
+       // (1=native, 2=50%, 3=33% …) from the current drawing buffer vs. the PREVIOUS native
+       // (window.__renderW). The Options list only offers native/div tiers, so this is exact.
+       var prevNativeW = window.__renderW || nw;
+       var div = Math.max(1, Math.round(prevNativeW / Math.max(1, canvas.width)));
+       // New buffer = new native / div (native kept exact; downscales evened for FBO/codec sanity).
+       var rw = div === 1 ? nw : (Math.round(nw / div) & ~1);
+       var rh = div === 1 ? nh : (Math.round(nh / div) & ~1);
+       rw = Math.max(320, rw); rh = Math.max(240, rh);
+       // Update the native baseline so the Options list (built from __renderW/H) reflects the
+       // resized window on its next open, and the divisor stays inferable on the next resize.
+       window.__renderW = nw; window.__renderH = nh;
+       if (rw === canvas.width && rh === canvas.height) return; // window unchanged -> nothing to do
+       append('[resize] ' + rw + 'x' + rh + ' (1/' + div + ' of ' + nw + 'x' + nh + ')');
        try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[resize err] '+e,'err'); }
      }, 300);
    });
