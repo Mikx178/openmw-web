@@ -9,6 +9,7 @@
 //   --shot-at T:path    screenshot at T seconds into the run (repeatable)
 //   --eval-at T:expr    evaluate JS expression at T seconds (repeatable; result logged)
 //   --click-at T:x,y    dispatch a full mouse click at (x,y) at T seconds (repeatable)
+//   --key-at T:Key      dispatch a key press (e.g. Escape, Enter, a) at T seconds (repeatable)
 //   --inject js-code    script evaluated on every new document BEFORE page scripts run
 //   --console-out path  write full console log to file (default /tmp/omw_cdp_console.log)
 //   --window WxH        browser window size (default 1280x800)
@@ -27,6 +28,7 @@ const endShot = opts('--shot')[0];
 const shotAts = opts('--shot-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), path: s.slice(i + 1) }; });
 const evalAts = opts('--eval-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), expr: s.slice(i + 1) }; });
 const clickAts = opts('--click-at').map(s => { const i = s.indexOf(':'); const [x, y] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), x, y }; });
+const keyAts = opts('--key-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), key: s.slice(i + 1) }; });
 const consoleOut = opts('--console-out')[0] || '/tmp/omw_cdp_console.log';
 const [w, h] = (opts('--window')[0] || '1280x800').split('x').map(Number);
 const useGpu = args.includes('--gpu');
@@ -111,9 +113,23 @@ async function click(x, y) {
   console.log(`[click] ${x},${y}`);
 }
 
+const KEYCODES = { Escape: 27, Enter: 13, Space: 32, Tab: 9 };
+async function key(k) {
+  const code = KEYCODES[k] ?? k.toUpperCase().charCodeAt(0);
+  const base = { key: k.length === 1 ? k : k, code: k.length === 1 ? 'Key' + k.toUpperCase() : k,
+    windowsVirtualKeyCode: code, nativeVirtualKeyCode: code };
+  await send(browserWs, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base }, sessionId);
+  if (k.length === 1) // printable: deliver the character too (text inputs need the char event)
+    await send(browserWs, 'Input.dispatchKeyEvent', { type: 'char', text: k, ...base }, sessionId);
+  await new Promise(r => setTimeout(r, 60));
+  await send(browserWs, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base }, sessionId);
+  console.log(`[key] ${k}`);
+}
+
 const timeline = [
   ...shotAts.map(s => ({ t: s.t, fn: () => screenshot(s.path) })),
   ...clickAts.map(c => ({ t: c.t, fn: () => click(c.x, c.y) })),
+  ...keyAts.map(k => ({ t: k.t, fn: () => key(k.key) })),
   ...evalAts.map(e => ({
     t: e.t, fn: async () => {
       const r = await send(browserWs, 'Runtime.evaluate', { expression: e.expr, returnByValue: true, awaitPromise: true }, sessionId);

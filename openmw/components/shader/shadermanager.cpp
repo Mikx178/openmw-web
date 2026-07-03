@@ -97,7 +97,7 @@ namespace
                 continue;
             }
             bool dropped = false;
-            if (!inConditional() && a != std::string::npos && line.compare(a, 7, "uniform") == 0
+            if (a != std::string::npos && line.compare(a, 7, "uniform") == 0
                 && line.find('{') == std::string::npos)
             {
                 std::size_t semi = line.find(';');
@@ -114,8 +114,24 @@ namespace
                     while (pp > 0 && isIdent(decl[pp - 1]))
                         --pp;
                     std::string name = decl.substr(pp, q - pp);
-                    if (!name.empty() && !seenUniforms.insert(name).second)
-                        dropped = true; // duplicate uniform: drop this line
+                    if (!name.empty())
+                    {
+                        if (!inConditional())
+                        {
+                            // Unconditional declaration: always active. Any duplicate — even one
+                            // inside a later #if branch — is a guaranteed redefinition; drop dups.
+                            if (!seenUniforms.insert(name).second)
+                                dropped = true;
+                        }
+                        else if (seenUniforms.count(name))
+                        {
+                            // Inside a conditional, only drop when an ALWAYS-ACTIVE (unconditional)
+                            // declaration of the same name exists (e.g. `sun` in water.frag vs the
+                            // linked lighting bindings' #if branch). Purely-conditional duplicates
+                            // across mutually-exclusive branches must be kept.
+                            dropped = true;
+                        }
+                    }
                 }
             }
             if (!dropped)
@@ -776,6 +792,50 @@ namespace Shader
         return true;
     }
 
+#ifdef __EMSCRIPTEN__
+    void ShaderManager::mergeLinkedShadersForGLES(std::string& shaderSource,
+        std::vector<std::string>& linkedShaderNames, const DefineMap& defines, osg::Shader::Type type)
+    {
+        // WebGL permits only one shader per pipeline stage, so OpenMW's $link'd shader
+        // objects can't be linked separately (modelToClip()/pointLighting() would be
+        // undefined). Inline their processed source so the stage is a single unit.
+        for (const auto& linkedName : linkedShaderNames)
+        {
+            auto lit = mShaderTemplates.find(linkedName);
+            if (lit == mShaderTemplates.end())
+            {
+                std::ifstream lstream(mPath / linkedName);
+                if (lstream.fail())
+                    continue;
+                std::stringstream lbuf;
+                lbuf << lstream.rdbuf();
+                std::string lsrc = lbuf.str();
+                int fn = 1;
+                std::set<std::filesystem::path> lpaths;
+                if (!addLineDirectivesAfterConditionalBlocks(lsrc)
+                    || !parseIncludes(mPath, lsrc, linkedName, fn, {}, lpaths))
+                    continue;
+                lit = mShaderTemplates.insert(std::make_pair(linkedName, lsrc)).first;
+            }
+            std::string linkedSource = lit->second;
+            std::vector<std::string> nested;
+            if (!createSourceFromTemplate(linkedSource, nested, linkedName, defines))
+                continue;
+            std::size_t v = linkedSource.find("#version");
+            if (v != std::string::npos)
+            {
+                std::size_t e = linkedSource.find('\n', v);
+                linkedSource.erase(v, (e == std::string::npos ? linkedSource.size() : e + 1) - v);
+            }
+            shaderSource += "\n" + linkedSource;
+        }
+        linkedShaderNames.clear();
+        // The merged units share #includes; drop the resulting duplicate definitions.
+        dedupeTopLevelDefinitions(shaderSource);
+        adjustSourceForGLES(shaderSource, type);
+    }
+#endif
+
     osg::ref_ptr<osg::Shader> ShaderManager::getShader(
         std::string templateName, const ShaderManager::DefineMap& defines, std::optional<osg::Shader::Type> type)
     {
@@ -827,43 +887,7 @@ namespace Shader
 
             osg::Shader::Type shaderType = type ? *type : getShaderType(templateName);
 #ifdef __EMSCRIPTEN__
-            // WebGL permits only one shader per pipeline stage, so OpenMW's $link'd shader
-            // objects can't be linked separately (modelToClip()/pointLighting() would be
-            // undefined). Inline their processed source so the stage is a single unit.
-            for (const auto& linkedName : linkedShaderNames)
-            {
-                auto lit = mShaderTemplates.find(linkedName);
-                if (lit == mShaderTemplates.end())
-                {
-                    std::ifstream lstream(mPath / linkedName);
-                    if (lstream.fail())
-                        continue;
-                    std::stringstream lbuf;
-                    lbuf << lstream.rdbuf();
-                    std::string lsrc = lbuf.str();
-                    int fn = 1;
-                    std::set<std::filesystem::path> lpaths;
-                    if (!addLineDirectivesAfterConditionalBlocks(lsrc)
-                        || !parseIncludes(mPath, lsrc, linkedName, fn, {}, lpaths))
-                        continue;
-                    lit = mShaderTemplates.insert(std::make_pair(linkedName, lsrc)).first;
-                }
-                std::string linkedSource = lit->second;
-                std::vector<std::string> nested;
-                if (!createSourceFromTemplate(linkedSource, nested, linkedName, defines))
-                    continue;
-                std::size_t v = linkedSource.find("#version");
-                if (v != std::string::npos)
-                {
-                    std::size_t e = linkedSource.find('\n', v);
-                    linkedSource.erase(v, (e == std::string::npos ? linkedSource.size() : e + 1) - v);
-                }
-                shaderSource += "\n" + linkedSource;
-            }
-            linkedShaderNames.clear();
-            // The merged units share #includes; drop the resulting duplicate definitions.
-            dedupeTopLevelDefinitions(shaderSource);
-            adjustSourceForGLES(shaderSource, shaderType);
+            mergeLinkedShadersForGLES(shaderSource, linkedShaderNames, defines, shaderType);
 #endif
             osg::ref_ptr<osg::Shader> shader(new osg::Shader(shaderType));
             shader->setShaderSource(shaderSource);
@@ -961,39 +985,7 @@ namespace Shader
 #ifdef __EMSCRIPTEN__
             // Same single-shader-per-stage merge as getShader(): inline $link'd shaders so this
             // reprocessing path doesn't recreate the separate (unlinkable in WebGL) shader objects.
-            for (const auto& linkedName : linkedShaderNames)
-            {
-                auto lit = mShaderTemplates.find(linkedName);
-                if (lit == mShaderTemplates.end())
-                {
-                    std::ifstream lstream(mPath / linkedName);
-                    if (lstream.fail())
-                        continue;
-                    std::stringstream lbuf;
-                    lbuf << lstream.rdbuf();
-                    std::string lsrc = lbuf.str();
-                    int fn = 1;
-                    std::set<std::filesystem::path> lpaths;
-                    if (!addLineDirectivesAfterConditionalBlocks(lsrc)
-                        || !parseIncludes(mPath, lsrc, linkedName, fn, {}, lpaths))
-                        continue;
-                    lit = mShaderTemplates.insert(std::make_pair(linkedName, lsrc)).first;
-                }
-                std::string linkedSource = lit->second;
-                std::vector<std::string> nested;
-                if (!createSourceFromTemplate(linkedSource, nested, linkedName, defines))
-                    continue;
-                std::size_t v = linkedSource.find("#version");
-                if (v != std::string::npos)
-                {
-                    std::size_t e = linkedSource.find('\n', v);
-                    linkedSource.erase(v, (e == std::string::npos ? linkedSource.size() : e + 1) - v);
-                }
-                shaderSource += "\n" + linkedSource;
-            }
-            linkedShaderNames.clear();
-            dedupeTopLevelDefinitions(shaderSource);
-            adjustSourceForGLES(shaderSource, shader->getType());
+            mergeLinkedShadersForGLES(shaderSource, linkedShaderNames, defines, shader->getType());
 #endif
             shader->setShaderSource(shaderSource);
 

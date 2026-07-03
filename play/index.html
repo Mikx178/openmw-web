@@ -146,6 +146,9 @@
        if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)) ENV.OPENMW_EXAMPLE_SUITE='1';
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
+       // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
+       // and the HUD status line); ?debuglog restores full Verbose logging.
+       ENV.OPENMW_DEBUG_LEVEL = /[?&]debuglog\b/.test(location.search) ? 'Verbose' : 'Info';
        ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
        ENV.OPENMW_DONT_PRECOMPILE='1'; // no off-GL-thread VBO precompile (proxies to null thread)
        // A1: disable OSG's per-frame glGetError() check. Default is ONCE_PER_FRAME, and glGetError
@@ -281,16 +284,39 @@
          }
          function writeRaw(dest){ return function(b){ FS.writeFile(dest, new Uint8Array(b)); return b.byteLength; }; }
          function untarInto(label){ return function(b){ var c = untar(b, '/mwdata/'); append('[mw] '+label+': extracted '+c+' files'); }; }
+         // ?stream: don't copy the BSAs into memory at all — mount them as lazy range-read
+         // files (emscripten FS.createLazyFile + the server's HTTP Range support). Only the
+         // bytes OpenMW actually touches are fetched/resident: cuts resident memory by the
+         // ~483MB of archives and removes them from the up-front download entirely.
+         var STREAM_BSA = /[?&]stream\b/.test(location.search);
+         if (STREAM_BSA){ try { StreamFS.init(); } catch(e){ append('[mw] streamfs unavailable: '+e, 'err'); STREAM_BSA = false; } }
+         function addBsa(name){
+           if (STREAM_BSA){
+             // Probe the size with a 1-byte range request, then mount the worker-backed
+             // streaming file (see streamfs.js). No archive bytes resident up-front.
+             return fetch('mwdata/' + name, { headers: { Range: 'bytes=0-0' } }).then(function(r){
+               var cr = r.headers.get('Content-Range');
+               var size = cr ? parseInt(cr.split('/')[1], 10) : NaN;
+               if (!size) throw 'no Content-Range for ' + name;
+               StreamFS.mount('/mwdata/' + name, 'mwdata/' + name, size);
+               append('[mw] ' + name + ' mounted streaming (' + Math.round(size/1048576) + 'MB on demand)');
+             }).catch(function(e){
+               append('[mw] stream mount failed for ' + name + ', falling back: ' + e, 'err');
+               return grab('mwdata/' + name).then(writeRaw('/mwdata/' + name));
+             });
+           }
+           return grab('mwdata/' + name).then(writeRaw('/mwdata/' + name));
+         }
          append('[mw] loading Morrowind (cached after first run)…');
          grab('mwdata/Morrowind.esm').then(writeRaw('/mwdata/Morrowind.esm'))
-         .then(function(){ append('[mw] esm ok; bsa (310MB)…'); return grab('mwdata/Morrowind.bsa').then(writeRaw('/mwdata/Morrowind.bsa')); })
+         .then(function(){ append('[mw] esm ok; bsa (310MB)…'); return addBsa('Morrowind.bsa'); })
          .then(function(){ append('[mw] bsa ok; sound+music (81MB)…'); return grab('mwdata/mwaudio.tar').then(untarInto('audio')); })
          .then(function(){ append('[mw] voice (111MB)…'); return grab('mwdata/mwvoice.tar').then(untarInto('voice')); })
          .then(function(){ append('[mw] splash+fonts (33MB)…'); return grab('mwdata/mwextra.tar').then(untarInto('extra')); })
          .then(function(){ append('[mw] Tribunal (65MB)…'); return grab('mwdata/Tribunal.esm').then(writeRaw('/mwdata/Tribunal.esm')); })
-         .then(function(){ return grab('mwdata/Tribunal.bsa').then(writeRaw('/mwdata/Tribunal.bsa')); })
+         .then(function(){ return addBsa('Tribunal.bsa'); })
          .then(function(){ append('[mw] Bloodmoon (121MB)…'); return grab('mwdata/Bloodmoon.esm').then(writeRaw('/mwdata/Bloodmoon.esm')); })
-         .then(function(){ return grab('mwdata/Bloodmoon.bsa').then(writeRaw('/mwdata/Bloodmoon.bsa')); })
+         .then(function(){ return addBsa('Bloodmoon.bsa'); })
          .then(function(){ append('[mw] Bloodmoon sounds (28MB)…'); return grab('mwdata/mwbmsound.tar').then(untarInto('bm-sound')); })
          .then(function(){
            // Videos ON BY DEFAULT (?novid to opt out). Playback is cooperative under
@@ -374,5 +400,6 @@
  };
  window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); });
 </script>
+<script src="streamfs.js"></script>
 <script src="openmw.js"></script>
 </body></html>

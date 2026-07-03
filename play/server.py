@@ -1,10 +1,43 @@
-import http.server, socketserver, os
+import http.server, socketserver, os, re
 PORT = int(os.environ.get('PORT', '8795'))
 
 class H(http.server.SimpleHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
     def send_head(self):
+        # HTTP Range support (python's SimpleHTTPRequestHandler has none) — required for the
+        # ?stream lazy-BSA mode (emscripten FS.createLazyFile reads the archives in chunks).
+        rng = self.headers.get('Range')
+        path = self.translate_path(self.path.split('?', 1)[0])
+        if rng and os.path.isfile(path):
+            m = re.match(r'bytes=(\d*)-(\d*)$', rng.strip())
+            if m and (m.group(1) or m.group(2)):
+                size = os.path.getsize(path)
+                start = int(m.group(1)) if m.group(1) else max(0, size - int(m.group(2)))
+                end = int(m.group(2)) if m.group(1) and m.group(2) else size - 1
+                end = min(end, size - 1)
+                if start <= end:
+                    f = open(path, 'rb')
+                    f.seek(start)
+                    self.send_response(206)
+                    self.send_header('Content-Type', self.guess_type(path))
+                    self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, size))
+                    self.send_header('Content-Length', str(end - start + 1))
+                    self.send_header('Accept-Ranges', 'bytes')
+                    self.end_headers()
+                    # SimpleHTTPRequestHandler.copyfile would send to EOF; wrap to the range length
+                    class _Ranged:
+                        def __init__(self, fp, n): self.fp, self.n = fp, n
+                        def read(self, sz=-1):
+                            if self.n <= 0: return b''
+                            sz = self.n if sz < 0 else min(sz, self.n)
+                            d = self.fp.read(sz); self.n -= len(d); return d
+                        def close(self): self.fp.close()
+                    return _Ranged(f, end - start + 1)
+                self.send_response(416)
+                self.send_header('Content-Range', 'bytes */%d' % os.path.getsize(path))
+                self.end_headers()
+                return None
         # Serve a precompressed sibling (<file>.br) when present, fresh, and accepted —
         # roughly halves the first-visit download of the .esm/.wasm/.data payloads.
         # (wasm-build/make_br.sh generates them; the mtime check falls back to the raw

@@ -94,6 +94,15 @@ namespace Shader
             const DefineMap& defines);
         void addLinkedShaders(osg::ref_ptr<osg::Shader> shader, osg::ref_ptr<osg::Program> program);
 
+#ifdef __EMSCRIPTEN__
+        /// WebGL permits only one shader object per pipeline stage, so OpenMW's $link'd shader
+        /// objects can't be linked separately. Inline their processed source into shaderSource
+        /// (clearing linkedShaderNames), dedupe the shared declarations, and run the GLES
+        /// source transform. Used by both getShader() and the setGlobalDefines() reprocess path.
+        void mergeLinkedShadersForGLES(std::string& shaderSource, std::vector<std::string>& linkedShaderNames,
+            const DefineMap& defines, osg::Shader::Type type);
+#endif
+
         std::filesystem::path mPath;
 
         DefineMap mGlobalDefines;

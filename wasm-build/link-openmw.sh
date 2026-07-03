@@ -51,7 +51,8 @@ ninja apps/openmw/CMakeFiles/openmw.dir/main.cpp.o
   -sALLOW_MEMORY_GROWTH=1 -sMAX_WEBGL_VERSION=2 -sMIN_WEBGL_VERSION=2 -sFULL_ES3=1 \
   -sEXIT_RUNTIME=0 -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=1610612736 \
   -sASSERTIONS=0 -sMALLOC=mimalloc \
-  --profiling-funcs \
+  -sENVIRONMENT=web,worker \
+  ${OMW_PROFILING:+--profiling-funcs} \
   -Wl,--whole-archive \
     "$LIB/libosgdb_bmp.a" "$LIB/libosgdb_dds.a" "$LIB/libosgdb_freetype.a" \
     "$LIB/libosgdb_jpeg.a" "$LIB/libosgdb_osg.a" "$LIB/libosgdb_png.a" \
