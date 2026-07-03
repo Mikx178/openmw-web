@@ -123,7 +123,11 @@ namespace MWRender
         , mVFS(vfs)
         , mUsePostProcessing(Settings::postProcessing().mEnabled)
 #ifdef __EMSCRIPTEN__
-        // Multisample renderbuffers call GL functions that are null in WebGL2 here.
+        // MSAA stays OFF on the web. Enabling it (multisampled COLOR_BUFFER0 + blitFramebuffer
+        // resolve) raises no GL error, but the self-test showed it renders the 3D scene BLACK —
+        // the multisampled depth resolve does not compose correctly with this build's reverse-Z
+        // depth (only the GUI survives). Proper web MSAA needs a reverse-Z-aware resolve (separate
+        // effort); until then force 0 so users can't pick a black-screen AA in Options.
         , mSamples(0)
 #else
         , mSamples(Settings::video().mAntialiasing)

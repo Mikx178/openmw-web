@@ -60,7 +60,15 @@
            && attrs.powerPreference == null) attrs.powerPreference = 'high-performance';
        // desynchronized disabled — suspected first-frame hang in headless preview.
      }
-     return orig.call(this, type, attrs);
+     var ctx = orig.call(this, type, attrs);
+     // Enable EXT_texture_filter_anisotropic on the context: WebGL2 reports it in the extension
+     // string (so OSG thinks it's usable) but the GL_TEXTURE_MAX_ANISOTROPY_EXT pname is only
+     // ACCEPTED after getExtension() is called on the context — otherwise glTexParameterf raises
+     // GL_INVALID_ENUM. Calling it here lets the OSG anisotropy path work (see Texture.cpp).
+     if (ctx && (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl')) {
+       try { ctx.getExtension('EXT_texture_filter_anisotropic'); } catch (e) {}
+     }
+     return ctx;
    };
  })();
  const logEl = document.getElementById('log');
@@ -385,9 +393,16 @@
            'resolution x = ' + rW + '\n' +
            'resolution y = ' + rH + '\n' +
            'window mode = 2\n' +                   // 2 = windowed (canvas); CSS scales it to fill
+           // ?aa=N (QA) sets [Video] antialiasing so scene MSAA can be exercised headlessly
+           // (default off = 1:1 with desktop). Normal play leaves AA to the Options menu.
+           (/[?&]aa=(\d+)/.test(location.search) ? 'antialiasing = ' + RegExp.$1 + '\n' : '') +
            '[Camera]\n' +
-           'viewing distance = 5120.0\n' +
-           'small feature culling pixel size = 4.0\n' +
+           'viewing distance = 8192.0\n' +        // reach the valley mountain-backdrop ring (~4000u)
+           'small feature culling pixel size = 3.0\n' +
+           '[Terrain]\n' +
+           'object paging = true\n' +
+           'object paging active grid = true\n' +
+           'object paging min size = 0.005\n' +   // render/merge the distant backdrop rocks + trees
            '[Water]\n' +
            'shader = true\n' +                     // real water shader (reflections/refractions)
            'reflection detail = 2\n' +             // 2 = reflect statics+terrain (0 disabled it)
