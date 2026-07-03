@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of openmw-wasm (GPU skinning for the WebGL/Emscripten build).
 #ifndef LIB_SKINNING
 #define LIB_SKINNING
 

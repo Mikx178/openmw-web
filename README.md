@@ -190,7 +190,9 @@ The full license text is in [`LICENSE`](LICENSE).
 - **Front-end and tooling** in this repo (`play/`, `wasm-build/`, `fsroot/`
   config, scripts) is released under the same GPLv3.
 - Bundled dependencies keep their own licenses (OSG, Bullet, MyGUI, FFmpeg,
-  Boost, Lua, SDL2, and the rest); see their respective source trees.
+  Boost, Lua, SDL2, and the rest); see
+  [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md) and their respective
+  source trees.
 
 ### Game data and trademarks
 
