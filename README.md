@@ -12,7 +12,9 @@ The `openmw/` tree is based on upstream
 `bc1d9c97a3881bb961a0b74e6e49bbba772b86a1` (recorded in
 [`.openmw-base-commit.txt`](.openmw-base-commit.txt)) with local modifications for
 the WASM target (GLES/WebGL2 shader port, threading and main-loop changes, GPU
-skinning, a streaming virtual filesystem, and more).
+skinning, a streaming virtual filesystem, and more). See
+[`WASM_ADAPTATIONS.md`](WASM_ADAPTATIONS.md) for a full engineering writeup of how a
+native desktop engine was made to run in a browser tab.
 
 ## Playing
 

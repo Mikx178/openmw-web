@@ -8,6 +8,10 @@ W32=$SR/lib/wasm32-emscripten
 BOOST=$ROOT/deps/src/boost_1_85_0
 
 export MYGUI_HOME="$DW"
+# NOTE: CMAKE_EXE_LINKER_FLAGS below only affects CMake's own compile/link test executables. The
+# final openmw.{js,wasm} is linked out-of-band by wasm-build/link-openmw.sh (authoritative). Keep
+# INITIAL_MEMORY (1.5 GB) and ASSERTIONS (off) here in sync with that script so a stray cmake-driven
+# link can't clobber them with different values.
 emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
   -DMYGUI_STATIC=ON -DUSE_LUAJIT=OFF -DOSG_STATIC=ON -DOPENMW_USE_SYSTEM_OSG=ON -DOSGPlugins_LIB_DIR=/Users/mstavridis/Downloads/CS-Web/deps/wasm/lib -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
   -DSDL2_DIR="$DW/lib/cmake/SDL2" \
@@ -30,7 +34,7 @@ emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
   -DLUA_MATH_LIBRARY="$DW/lib/libopenal_stub.a" \
   -DLZ4_LIBRARY="$DW/lib/liblz4.a" -DLZ4_INCLUDE_DIR="$DW/include" \
   -DOPENAL_LIBRARY="$DW/lib/libopenal_stub.a" -DOPENAL_INCLUDE_DIR="$SR/include/AL" \
-  -DCMAKE_EXE_LINKER_FLAGS="-fexceptions -lopenal --use-port=sdl2 --use-port=freetype --use-port=harfbuzz --use-port=libpng --use-port=libjpeg --use-port=zlib --use-port=ogg --use-port=vorbis -sALLOW_MEMORY_GROWTH=1 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 -sEXIT_RUNTIME=0 -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=1073741824 -sASSERTIONS=1" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fexceptions -lopenal --use-port=sdl2 --use-port=freetype --use-port=harfbuzz --use-port=libpng --use-port=libjpeg --use-port=zlib --use-port=ogg --use-port=vorbis -sALLOW_MEMORY_GROWTH=1 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 -sEXIT_RUNTIME=0 -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=1610612736 -sASSERTIONS=0" \
   -DZLIB_LIBRARY="$W32/libz.a" -DZLIB_INCLUDE_DIR="$SR/include" \
   -DOPENGL_INCLUDE_DIR="$SR/include" \
   -DOPENGL_opengl_LIBRARY="$W32/libGL-getprocaddr.a" \
