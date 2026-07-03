@@ -36,6 +36,12 @@ const moveAts = opts('--move-at').map(s => { const i = s.indexOf(':'); const [dx
 // --reload-at t  — reload the page via CDP Page.reload (bypasses the in-page beforeunload guard,
 // which blocks location.reload() while a game is running). Used to test persistence across a reload.
 const reloadAts = opts('--reload-at').map(s => ({ t: parseFloat(s) }));
+// --start-when EXPR  — before the --*-at timeline starts, poll this JS expression until it is truthy
+// (or --start-timeout seconds elapse). All --*-at times are then measured from that moment, not from
+// page load. Fixes fixed-timing races against the ~800MB asset load (e.g. clicking "New" before the
+// menu exists, or screenshotting before a cell has rendered). Example: --start-when "Module.__omwRunning===1".
+const startWhen = opts('--start-when')[0];
+const startTimeout = parseInt(opts('--start-timeout')[0] || '180', 10);
 const consoleOut = opts('--console-out')[0] || '/tmp/omw_cdp_console.log';
 const [w, h] = (opts('--window')[0] || '1280x800').split('x').map(Number);
 const useGpu = args.includes('--gpu');
@@ -184,6 +190,22 @@ const timeline = [
     }
   })),
 ].sort((a, b) => a.t - b.t);
+
+if (startWhen) {
+  const t0poll = Date.now();
+  let fired = false;
+  while (Date.now() - t0poll < startTimeout * 1000) {
+    try {
+      const r = await send(browserWs, 'Runtime.evaluate',
+        { expression: `!!(${startWhen})`, returnByValue: true, awaitPromise: true }, sessionId);
+      if (r.result?.result?.value === true) { fired = true; break; }
+    } catch { /* context not ready yet */ }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  const waited = ((Date.now() - t0poll) / 1000).toFixed(1);
+  console.log(fired ? `[start-when] fired after ${waited}s: ${startWhen}` : `[start-when] TIMEOUT after ${waited}s: ${startWhen}`);
+  log(`[start-when] ${fired ? 'fired' : 'TIMEOUT'} after ${waited}s: ${startWhen}`);
+}
 
 const start = Date.now();
 for (const item of timeline) {
