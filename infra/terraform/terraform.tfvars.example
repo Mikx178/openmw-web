@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+
+gcp_project = "my-gcp-project-id"
+gcp_region  = "us-central1"      # free-tier region (us-west1 / us-central1 / us-east1)
+gcp_zone    = "us-central1-a"
+
+cloudflare_api_token  = "cf-token-with-zone-dns-cache-and-settings-edit"
+cloudflare_account_id = "your-cloudflare-account-id"
+cloudflare_zone       = "example.com"
+
+domains = {
+  openmw = "play.example.com"
+  app    = "app.example.com"
+}
+
+github_repo = "you/openmw-wasm"

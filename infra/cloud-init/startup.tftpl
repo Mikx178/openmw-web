@@ -1,0 +1,47 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# openmw-wasm VM bootstrap. Provisions the BASE box only; site vhosts + content are
+# delivered afterward by GitHub Actions. openmw_domain=${openmw_domain} app_domain=${app_domain}
+set -euxo pipefail
+
+# --- Swap: 1GB RAM is tight once nginx + a backend + apt run. A 2GB swapfile avoids OOM. ---
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y nginx openssl curl
+
+# --- Self-signed origin cert. Cloudflare SSL mode is "Full" (edge<->origin encrypted,
+#     cert not validated), and the firewall already limits the origin to Cloudflare. ---
+mkdir -p /etc/ssl/openmw
+if [ ! -f /etc/ssl/openmw/origin.crt ]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+    -keyout /etc/ssl/openmw/origin.key -out /etc/ssl/openmw/origin.crt \
+    -subj "/CN=origin"
+fi
+
+# --- Restore the real visitor IP from Cloudflare (so logs/rate-limits see the client). ---
+{
+  echo "# generated at boot from cloudflare.com/ips"
+  for cidr in $(curl -fsSL https://www.cloudflare.com/ips-v4) $(curl -fsSL https://www.cloudflare.com/ips-v6); do
+    echo "set_real_ip_from $cidr;"
+  done
+  echo "real_ip_header CF-Connecting-IP;"
+  echo "real_ip_recursive on;"
+} > /etc/nginx/conf.d/00-cloudflare-realip.conf
+
+# --- Content roots (CI rsyncs into these). A placeholder so the host answers pre-deploy. ---
+mkdir -p /var/www/openmw-wasm/play /var/www/app
+[ -f /var/www/openmw-wasm/play/index.html ] || echo "openmw-wasm: not deployed yet" > /var/www/openmw-wasm/play/index.html
+
+# Drop the stock default site; real vhosts arrive via CI into /etc/nginx/sites-enabled/.
+rm -f /etc/nginx/sites-enabled/default
+
+systemctl enable nginx
+systemctl restart nginx

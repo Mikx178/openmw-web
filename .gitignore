@@ -26,5 +26,12 @@ openmw/.git-upstream/
 # === Local launcher feature-flag config (copy play/.env.example -> play/.env) ===
 play/.env
 
+# === Terraform local state & secrets (infra/) — commit .terraform.lock.hcl, not these ===
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+
 # === OS / editor cruft ===
 .DS_Store

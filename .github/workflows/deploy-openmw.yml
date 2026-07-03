@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Deploy the openmw-wasm static site to the GCP VM through IAP (no public SSH, no JSON keys).
+#
+# The large engine artifacts (openmw.wasm/.data/.js + .br) are gitignored, so this workflow
+# pulls them from a GitHub Release you publish after a local build:
+#     ./wasm-build/link-openmw.sh && ./wasm-build/make_br.sh
+#     cp build-wasm/openmw.{js,wasm,data} play/
+#     gh release create build-YYYYMMDD play/openmw.js play/openmw.wasm play/openmw.data \
+#         play/openmw.js.br play/openmw.wasm.br play/openmw.data.br
+# then run this workflow (it defaults to the latest release).
+
+name: deploy-openmw
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag holding the engine artifacts (blank = latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+env:
+  INSTANCE: openmw-web
+  ZONE: us-central1-a
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch engine artifacts from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          [ -z "$TAG" ] && TAG=$(gh release view --json tagName -q .tagName)
+          gh release download "$TAG" --dir play \
+            --pattern 'openmw.js' --pattern 'openmw.wasm' --pattern 'openmw.data' \
+            --pattern 'openmw.js.br' --pattern 'openmw.wasm.br' --pattern 'openmw.data.br'
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Stage files on the VM (via IAP)
+        run: |
+          # Ship only what the site serves — never mwdata/, .env, server.py, or the *.simd.bak files.
+          tar czf bundle.tgz \
+            -C play launcher.html index.html streamfs.js \
+                    openmw.js openmw.wasm openmw.data \
+                    openmw.js.br openmw.wasm.br openmw.data.br \
+            -C ../infra/nginx openmw-wasm.conf
+          gcloud compute scp bundle.tgz "$INSTANCE:/tmp/bundle.tgz" \
+            --zone "$ZONE" --tunnel-through-iap
+
+      - name: Unpack, install vhost, reload nginx
+        run: |
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --tunnel-through-iap --command '
+            set -e
+            sudo mkdir -p /var/www/openmw-wasm/play
+            tmp=$(mktemp -d)
+            tar xzf /tmp/bundle.tgz -C "$tmp"
+            sudo rsync -a --delete \
+              --exclude openmw-wasm.conf \
+              "$tmp"/ /var/www/openmw-wasm/play/
+            sudo cp "$tmp/openmw-wasm.conf" /etc/nginx/sites-enabled/openmw-wasm.conf
+            sudo nginx -t
+            sudo systemctl reload nginx
+            rm -rf "$tmp" /tmp/bundle.tgz
+          '
