@@ -23,5 +23,8 @@ build-wasm/
 # === Preserved upstream OpenMW git dir (local backup, not for this repo) ===
 openmw/.git-upstream/
 
+# === Local launcher feature-flag config (copy play/.env.example -> play/.env) ===
+play/.env
+
 # === OS / editor cruft ===
 .DS_Store

@@ -33,6 +33,9 @@ const typeAts = opts('--type-at').map(s => { const i = s.indexOf(':'); return { 
 // --move-at t:dx,dy  — relative mouse motion for in-game mouselook (no click). Delivered as a
 // short sweep of mouseMoved events so emscripten SDL sees per-event deltas (turns the camera).
 const moveAts = opts('--move-at').map(s => { const i = s.indexOf(':'); const [dx, dy] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), dx, dy }; });
+// --reload-at t  — reload the page via CDP Page.reload (bypasses the in-page beforeunload guard,
+// which blocks location.reload() while a game is running). Used to test persistence across a reload.
+const reloadAts = opts('--reload-at').map(s => ({ t: parseFloat(s) }));
 const consoleOut = opts('--console-out')[0] || '/tmp/omw_cdp_console.log';
 const [w, h] = (opts('--window')[0] || '1280x800').split('x').map(Number);
 const useGpu = args.includes('--gpu');
@@ -154,6 +157,11 @@ async function move(dx, dy) {
   console.log(`[move] ${dx},${dy}`);
 }
 
+async function reload() {
+  await send(browserWs, 'Page.reload', { ignoreCache: false }, sessionId);
+  console.log('[reload] page reloaded via CDP');
+}
+
 async function type(text) {
   // Every char (incl. space/quote) goes through the single-char path so a `char`
   // event with the literal text is delivered — MyGUI edit boxes need that char event.
@@ -167,6 +175,7 @@ const timeline = [
   ...keyAts.map(k => ({ t: k.t, fn: () => key(k.key) })),
   ...typeAts.map(t => ({ t: t.t, fn: () => type(t.text) })),
   ...moveAts.map(m => ({ t: m.t, fn: () => move(m.dx, m.dy) })),
+  ...reloadAts.map(r => ({ t: r.t, fn: () => reload() })),
   ...evalAts.map(e => ({
     t: e.t, fn: async () => {
       const r = await send(browserWs, 'Runtime.evaluate', { expression: e.expr, returnByValue: true, awaitPromise: true }, sessionId);

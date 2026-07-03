@@ -486,10 +486,109 @@
          }
        } catch(e){ append('[idbfs mount err] '+e,'err'); }
 
+       // --- Data source selection ---
+       // ?src=local: mount the user's OWN Morrowind Data Files folder (picked in
+       // launcher.html, persisted as a FileSystemDirectoryHandle in IndexedDB). Every file
+       // is mounted as a lazy StreamFS node read from disk on demand — nothing is copied.
+       // Otherwise fall through to the sample suite (?nomw) or the server-hosted retail
+       // fetch below.
+       var __srcLocal = /[?&]src=local\b/.test(location.search);
+       if (__srcLocal) mountLocalMorrowind();
+
+       // --- Mount the user-picked Data Files folder (?src=local). Boot waits on 'mw-local'. ---
+       function mountLocalMorrowind(){
+         try { StreamFS.init(); }
+         catch(e){ append('[local] streamfs unavailable: '+e,'err');
+           fatalOverlay('Streaming unavailable', 'Your browser could not start the file streamer (needs cross-origin isolation). Try Chrome/Edge on desktop.'); return; }
+         addRunDependency('mw-local');
+         // Minimal IndexedDB read of the handle stored by launcher.html.
+         function idbGetHandle(){
+           return new Promise(function(res,rej){
+             var r = indexedDB.open('omw-launcher',1);
+             r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains('handles')) r.result.createObjectStore('handles'); };
+             r.onsuccess=function(){ try {
+               var t=r.result.transaction('handles','readonly').objectStore('handles').get('mwdata');
+               t.onsuccess=function(){ res(t.result); }; t.onerror=function(){ rej(t.error); };
+             } catch(e){ rej(e); } };
+             r.onerror=function(){ rej(r.error); };
+           });
+         }
+         function bounce(msg){
+           append('[local] '+msg,'err');
+           fatalOverlay('Pick your Morrowind folder again', msg + ' Returning to the launcher…', false);
+           // Keep 'mw-local' held so the engine stays parked at the loader (no half-boot with
+           // the wrong data) until we navigate back to the launcher.
+           setTimeout(function(){ location.href='launcher.html'; }, 2200);
+         }
+         (async function(){
+           var dir;
+           try { dir = await idbGetHandle(); } catch(e){ return bounce('Could not read the saved folder.'); }
+           if (!dir) return bounce('No folder was remembered.');
+           var perm='prompt';
+           try { perm = await dir.queryPermission({mode:'read'}); } catch(e){}
+           if (perm !== 'granted') return bounce('Read permission is no longer granted.');
+
+           FS.mkdirTree('/mwdata');
+           var count=0, rootFiles=new Map(), hasVideoBik=false;
+           async function walk(handle, prefix){
+             var entries=[];
+             for await (const ent of handle.entries()) entries.push(ent);
+             // Recurse into subdirs first so their FS dirs exist before we mount their files.
+             for (const [name,h] of entries){
+               if (h.kind==='directory'){ var rel = prefix ? prefix+'/'+name : name;
+                 try { FS.mkdirTree('/mwdata/'+rel); } catch(e){}
+                 await walk(h, rel); }
+             }
+             // Mount this dir's files, probing sizes in parallel.
+             await Promise.all(entries.filter(function(e){return e[1].kind==='file';}).map(async function(ent){
+               var name=ent[0], h=ent[1], rel = prefix ? prefix+'/'+name : name;
+               var size=0; try { size=(await h.getFile()).size; } catch(e){ append('[local] cannot read '+rel,'err'); return; }
+               try { StreamFS.mountLocal('/mwdata/'+rel, h, size); count++;
+                 if ((count % 400)===0) append('[local] mounted '+count+' files…'); }
+               catch(e){ append('[local mount err] '+rel+' '+e,'err'); return; }
+               if (!prefix) rootFiles.set(name.toLowerCase(), name);
+               if (prefix && prefix.toLowerCase()==='video' && /\.bik$/i.test(name)) hasVideoBik=true;
+             }));
+           }
+           try { append('[local] scanning your Data Files folder…'); await walk(dir, ''); }
+           catch(e){ return bounce('Failed while reading the folder: '+(e&&e.message||e)); }
+           if (!rootFiles.has('morrowind.esm') || !rootFiles.has('morrowind.bsa'))
+             return bounce('Morrowind.esm / Morrowind.bsa were not found.');
+           append('[local] mounted '+count+' files (streaming from disk)');
+
+           // Build the load order from what's actually present (official masters only).
+           var masters=['morrowind.esm','tribunal.esm','bloodmoon.esm'];
+           var archives=['morrowind.bsa','tribunal.bsa','bloodmoon.bsa'];
+           var content=[], fbarch=[];
+           masters.forEach(function(m){ if(rootFiles.has(m)) content.push(rootFiles.get(m)); });
+           archives.forEach(function(a){ if(rootFiles.has(a)) fbarch.push(rootFiles.get(a)); });
+           var wantMovies = hasVideoBik && !/[?&]novid\b/.test(location.search);
+
+           (function waitCfg(){
+             if (FS.analyzePath('/openmw.cfg').exists){
+               var cfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n').filter(function(l){
+                 return !/^content=/.test(l) && !/^data=\/gamedata\s*$/.test(l) && !/^fallback-archive=/.test(l)
+                     && !/^fallback=Movies_/.test(l);
+               });
+               cfg.push('data=/mwdata', 'config="/userdata/config/openmw"');
+               fbarch.forEach(function(a){ cfg.push('fallback-archive='+a); });
+               content.forEach(function(c){ cfg.push('content='+c); });
+               if (wantMovies)
+                 cfg.push('fallback=Movies_Company_Logo,bethesda logo.bik',
+                          'fallback=Movies_Morrowind_Logo,mw_logo.bik',
+                          'fallback=Movies_New_Game,mw_intro.bik');
+               FS.writeFile('/openmw.cfg', cfg.join('\n'));
+               append('[local] READY -> '+content.join(' + ')+' (your files)');
+               removeRunDependency('mw-local');
+             } else { setTimeout(waitCfg, 25); }
+           })();
+         })().catch(function(e){ bounce('Unexpected error: '+(e&&e.message||e)); });
+       }
+
        // --- Load REAL Morrowind data at runtime (esm + bsa + loose audio tar) ---
        // Fetched SEQUENTIALLY (not Promise.all) so peak JS-heap stays low, into MEMFS under
        // /mwdata, then the preloaded openmw.cfg is rewritten to load Morrowind. Boot waits.
-       try {
+       if (!__srcLocal) try {
          // Diagnostic: ?nomw skips the 817MB Morrowind load and boots the tiny preloaded
          // example-suite instead — lets a light load verify the render path (S3TC/SIMD/resize).
          if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)){
@@ -650,7 +749,7 @@
              } else { setTimeout(waitCfg, 25); }
            })();
          }).catch(function(e){ append('[mw load err] '+e,'err'); removeRunDependency('mw-data'); });
-       } catch(e){ append('[mw setup err] '+e,'err'); }
+       } catch(e){ if(!(e&&e.__skip)) append('[mw setup err] '+e,'err'); }
 
        append('[preRun] env + user dirs ready');
      } catch(e){ append('[preRun error] '+e,'err'); }

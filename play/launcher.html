@@ -1,0 +1,189 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>OpenMW — Choose your data</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+ :root{
+   --bg:#0b0c10; --panel:#14161d; --panel-hi:#1c1f28; --line:#2a2e3a;
+   --ink:#e9e3d0; --muted:#9aa0ad; --gold:#c9a24b; --gold-hi:#e3bd63;
+   --accent:#5a86c9; --err:#f38ba8; --ok:#a6e3a1;
+ }
+ *{box-sizing:border-box}
+ html,body{margin:0;height:100%}
+ body{
+   background:radial-gradient(1200px 700px at 50% -10%, #1a1d27 0%, var(--bg) 60%) fixed;
+   color:var(--ink); font:15px/1.5 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif;
+   display:flex; flex-direction:column; align-items:center; min-height:100%;
+   padding:6vh 20px 40px;
+ }
+ header{text-align:center; margin-bottom:34px; max-width:640px}
+ h1{font:600 30px/1.15 ui-serif,Georgia,serif; letter-spacing:.5px; margin:0 0 8px;
+    color:var(--gold); text-shadow:0 2px 12px rgba(201,162,75,.18)}
+ header p{margin:0; color:var(--muted)}
+ .cards{display:grid; grid-template-columns:1fr 1fr; gap:20px; width:100%; max-width:820px}
+ @media (max-width:680px){ .cards{grid-template-columns:1fr} }
+ .card{
+   background:linear-gradient(180deg,var(--panel-hi),var(--panel));
+   border:1px solid var(--line); border-radius:14px; padding:26px 24px;
+   display:flex; flex-direction:column; gap:12px; text-align:left;
+   transition:border-color .15s, transform .15s, box-shadow .15s;
+ }
+ .card.actionable{cursor:pointer}
+ .card.actionable:hover{border-color:var(--gold); transform:translateY(-2px);
+   box-shadow:0 10px 30px rgba(0,0,0,.35)}
+ .card.disabled{opacity:.5; cursor:not-allowed}
+ .card .icon{font-size:30px; line-height:1}
+ .card h2{margin:0; font:600 19px/1.2 ui-serif,Georgia,serif; color:var(--ink)}
+ .card p{margin:0; color:var(--muted); font-size:14px; flex:1}
+ .card .cta{
+   margin-top:6px; align-self:flex-start; font-weight:600; font-size:14px;
+   color:#171204; background:var(--gold); border:0; border-radius:8px;
+   padding:9px 16px; cursor:pointer;
+ }
+ .card.actionable:hover .cta{background:var(--gold-hi)}
+ .card .cta.ghost{background:transparent; color:var(--gold); border:1px solid var(--gold)}
+ .card .cta:disabled{background:var(--line); color:var(--muted); cursor:not-allowed}
+ .note{margin-top:10px; font-size:13px; min-height:18px}
+ .note.err{color:var(--err)} .note.ok{color:var(--ok)} .note.muted{color:var(--muted)}
+ footer{margin-top:34px; color:var(--muted); font-size:12px; text-align:center; max-width:640px}
+ footer a{color:var(--accent)}
+ .continue{
+   width:100%; max-width:820px; margin-bottom:18px; padding:14px 18px;
+   background:var(--panel); border:1px solid var(--gold); border-radius:12px;
+   display:none; align-items:center; justify-content:space-between; gap:14px;
+ }
+ .continue.show{display:flex}
+ .continue .txt{font-size:14px}
+ .continue .txt b{color:var(--gold)}
+ .continue button{white-space:nowrap}
+</style></head>
+<body>
+<header>
+  <h1>OpenMW in your browser</h1>
+  <p>Choose what to load. Nothing is uploaded anywhere — your files stay on your machine.</p>
+</header>
+
+<!-- Return-visit fast path: shown when a previously-picked folder is remembered. -->
+<div class="continue" id="continue">
+  <div class="txt">Remembered your install: <b id="continue-name">Data Files</b></div>
+  <button class="cta" id="continue-btn">Continue ▸</button>
+</div>
+
+<div class="cards">
+  <div class="card actionable" id="card-sample" role="button" tabindex="0">
+    <div class="icon">🗺️</div>
+    <h2>Play the sample game</h2>
+    <p>A small, freely-distributable demo world that ships with OpenMW — a town of NPCs,
+       guards and monsters. No Morrowind purchase needed. Great for a quick look.</p>
+    <button class="cta" id="sample-btn">Start demo ▸</button>
+  </div>
+
+  <div class="card actionable" id="card-local" role="button" tabindex="0">
+    <div class="icon">📁</div>
+    <h2>Use my Morrowind files</h2>
+    <p>Point to your own <b>Data Files</b> folder from a legal Morrowind install. Files are
+       read straight from disk on demand — no multi-gigabyte upload or copy.</p>
+    <button class="cta" id="local-btn">Choose folder ▸</button>
+    <div class="note muted" id="local-note"></div>
+  </div>
+</div>
+
+<footer>
+  Morrowind game data is not included and is not distributed here — you must supply your own
+  legally-obtained copy. Engine: <a href="https://openmw.org/" target="_blank" rel="noopener">OpenMW</a> (GPLv3).
+  <br>The "use my files" option needs a Chromium browser (Chrome/Edge/Brave) on desktop.
+</footer>
+
+<script>
+ 'use strict';
+ const $ = (id) => document.getElementById(id);
+ const hasFSA = typeof window.showDirectoryPicker === 'function';
+
+ // --- tiny IndexedDB handle store (shared shape with index.html?src=local) ---
+ const DB='omw-launcher', STORE='handles', KEY='mwdata';
+ function idbOpen(){ return new Promise((res,rej)=>{
+   const r=indexedDB.open(DB,1);
+   r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
+   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+ }); }
+ function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{
+   const t=db.transaction(STORE,'readonly').objectStore(STORE).get(key);
+   t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error);
+ })); }
+ function idbSet(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{
+   const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(val,key);
+   tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+ })); }
+
+ // --- sample game ---
+ function playSample(){ location.href='index.html?nomw'; }
+ $('card-sample').addEventListener('click', playSample);
+ $('card-sample').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); playSample(); } });
+
+ // --- own-data helpers ---
+ const note=(msg,cls)=>{ const n=$('local-note'); n.textContent=msg||''; n.className='note '+(cls||'muted'); };
+
+ // Users often pick the install root, not "Data Files" — descend one level if present.
+ async function resolveDataDir(dir){
+   for await (const [name,h] of dir.entries())
+     if (h.kind==='directory' && name.toLowerCase()==='data files') return h;
+   return dir;
+ }
+ async function looksLikeMorrowind(dir){
+   const files=new Set();
+   for await (const [name,h] of dir.entries()) if (h.kind==='file') files.add(name.toLowerCase());
+   return files.has('morrowind.esm') && files.has('morrowind.bsa');
+ }
+
+ async function pickLocal(){
+   if (!hasFSA){ note('Your browser has no folder-picker (File System Access API). Use Chrome, Edge or Brave on desktop.','err'); return; }
+   try {
+     const picked = await window.showDirectoryPicker({ id:'morrowind', mode:'read' });
+     note('Checking folder…');
+     const dir = await resolveDataDir(picked);
+     if (!(await looksLikeMorrowind(dir))){
+       note('That doesn’t look like a Morrowind Data Files folder — it must contain Morrowind.esm and Morrowind.bsa.','err');
+       return;
+     }
+     // Grant read permission while we still hold the user gesture, then remember the handle.
+     if ((await dir.requestPermission({ mode:'read' })) !== 'granted'){
+       note('Read permission was denied.','err'); return;
+     }
+     await idbSet(KEY, dir);
+     note('Found Morrowind — starting…','ok');
+     location.href='index.html?src=local';
+   } catch(e){
+     if (e && e.name==='AbortError') return; // user cancelled the picker
+     note('Could not open that folder: '+(e && e.message || e),'err');
+   }
+ }
+ $('local-btn').addEventListener('click', (e)=>{ e.stopPropagation(); pickLocal(); });
+ $('card-local').addEventListener('click', pickLocal);
+ $('card-local').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pickLocal(); } });
+
+ if (!hasFSA){
+   const card=$('card-local');
+   card.classList.remove('actionable'); card.classList.add('disabled');
+   $('local-btn').disabled=true;
+   note('Needs a Chromium browser (Chrome/Edge/Brave) on desktop.','muted');
+ }
+
+ // --- return-visit fast path ---
+ (async function(){
+   if (!hasFSA) return;
+   let handle; try { handle = await idbGet(KEY); } catch(e){ return; }
+   if (!handle) return;
+   let perm='prompt';
+   try { perm = await handle.queryPermission({ mode:'read' }); } catch(e){ return; }
+   $('continue-name').textContent = handle.name || 'your Data Files';
+   $('continue').classList.add('show');
+   $('continue-btn').addEventListener('click', async ()=>{
+     try {
+       if (perm!=='granted') perm = await handle.requestPermission({ mode:'read' });
+       if (perm!=='granted'){ note('Read permission was denied.','err'); return; }
+       location.href='index.html?src=local';
+     } catch(e){ note('Could not reopen that folder — pick it again.','err'); }
+   });
+ })();
+</script>
+</body></html>

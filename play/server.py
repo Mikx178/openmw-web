@@ -1,10 +1,37 @@
 import http.server, socketserver, os, re
+
+# Load play/.env (KEY=VALUE, # comments) WITHOUT clobbering real env vars, so the launcher
+# flag can live in a git-ignored file next to this server. Env always wins over .env.
+def _load_dotenv(path):
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                os.environ.setdefault(k, v)
+    except OSError:
+        pass
+
+_load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+
 PORT = int(os.environ.get('PORT', '8795'))
+# When set (e.g. OPENMW_LAUNCHER=1 in env or play/.env), the bare site root serves the
+# data-chooser launcher instead of dropping straight into the game. Off = current behavior.
+LAUNCHER = os.environ.get('OPENMW_LAUNCHER', '').strip().lower() not in ('', '0', 'false', 'no')
 
 class H(http.server.SimpleHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
     def send_head(self):
+        # Launcher gate: only the bare root serves the chooser. The match is on the FULL path
+        # incl. query, so anything with a query string — the launcher's own index.html?nomw /
+        # index.html?src=local links, plus dev URLs like ?debug — passes straight through to
+        # the game. Explicit /launcher.html and assets are likewise untouched.
+        if LAUNCHER and self.path in ('/', '/index.html'):
+            self.path = '/launcher.html'
         # HTTP Range support (python's SimpleHTTPRequestHandler has none) — required for the
         # ?stream lazy-BSA mode (emscripten FS.createLazyFile reads the archives in chunks).
         rng = self.headers.get('Range')
