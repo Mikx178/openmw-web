@@ -10,10 +10,15 @@
 #include <MyGUI_ScrollBar.h>
 #include <MyGUI_ScrollView.h>
 #include <MyGUI_TabControl.h>
+#include <MyGUI_TextBox.h>
 #include <MyGUI_UString.h>
 #include <MyGUI_Window.h>
 
 #include <SDL_video.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include <components/debug/debuglog.hpp>
 #include <components/files/configurationmanager.hpp>
@@ -338,9 +343,42 @@ namespace MWGui
         const int screen = Settings::video().mScreen;
         std::vector<std::pair<int, int>> resolutions;
 #ifdef __EMSCRIPTEN__
-        // SDL display queries hang under emscripten; use the configured resolution only.
+        // SDL display queries hang under emscripten, and a canvas has no OS "display modes"
+        // anyway. Synthesize the sensible browser set: the window's native device-pixel size,
+        // scaled tiers of it (75/66/50/33% — same aspect ratio), and the standard desktop modes
+        // that fit inside it. Apply goes through SDL_SetWindowSize, which resizes the canvas
+        // drawing buffer and fires the normal windowResized path.
         (void)screen;
-        resolutions.emplace_back(Settings::video().mResolutionX, Settings::video().mResolutionY);
+        {
+            // clang-format off
+            const int nativeW = EM_ASM_INT({
+                return Math.max(320, Math.round((window.innerWidth || 1280) * (window.devicePixelRatio || 1)));
+            });
+            const int nativeH = EM_ASM_INT({
+                return Math.max(240, Math.round((window.innerHeight || 720) * (window.devicePixelRatio || 1)));
+            });
+            // clang-format on
+            const auto addRes = [&](int w, int h) {
+                w &= ~1; // even dimensions keep FBOs/video codecs happy
+                h &= ~1;
+                if (w >= 640 && h >= 480)
+                    resolutions.emplace_back(w, h);
+            };
+            addRes(nativeW, nativeH);
+            for (const float tier : { 0.75f, 0.66f, 0.5f, 0.33f })
+                addRes(static_cast<int>(nativeW * tier), static_cast<int>(nativeH * tier));
+            // Familiar desktop modes that fit the window (exact aspect labels via getResolutionText).
+            static constexpr std::pair<int, int> standard[] = { { 3840, 2160 }, { 2560, 1440 }, { 1920, 1200 },
+                { 1920, 1080 }, { 1680, 1050 }, { 1600, 900 }, { 1440, 900 }, { 1366, 768 }, { 1280, 800 },
+                { 1280, 720 }, { 1024, 768 }, { 800, 600 } };
+            for (const auto& [w, h] : standard)
+                if (w <= nativeW && h <= nativeH)
+                    addRes(w, h);
+            // Always include the currently-configured resolution so it can be highlighted.
+            addRes(Settings::video().mResolutionX, Settings::video().mResolutionY);
+            std::sort(resolutions.begin(), resolutions.end());
+            resolutions.erase(std::unique(resolutions.begin(), resolutions.end()), resolutions.end());
+        }
 #else
         int numDisplayModes = SDL_GetNumDisplayModes(screen);
         for (int i = 0; i < numDisplayModes; i++)
@@ -388,6 +426,20 @@ namespace MWGui
             windowMode != Settings::WindowMode::Fullscreen && windowMode != Settings::WindowMode::WindowedFullscreen);
 
         mWindowModeHint->setVisible(windowMode == Settings::WindowMode::WindowedFullscreen);
+
+#ifdef __EMSCRIPTEN__
+        // A canvas has no OS window frame, and SDL's fullscreen needs a user gesture the engine
+        // can't supply, so window-mode/border/VSync are meaningless-to-misleading here. Disable
+        // them (the canvas is always "windowed", CSS-scaled to fill; VSync is browser-controlled
+        // via requestAnimationFrame) rather than presenting silent no-ops. Resolution still works.
+        mWindowModeList->setEnabled(false);
+        mWindowBorderButton->setEnabled(false);
+        mVSyncModeList->setEnabled(false);
+        if (auto* hint = mWindowModeHint->castType<MyGUI::TextBox>(false))
+            hint->setCaption(
+                "Browser: always windowed (double-click the canvas for fullscreen). VSync is browser-controlled.");
+        mWindowModeHint->setVisible(true);
+#endif
 
         mKeyboardSwitch->setStateSelected(true);
         mControllerSwitch->setStateSelected(false);

@@ -1020,6 +1020,27 @@ extern "C" EMSCRIPTEN_KEEPALIVE void omw_pump_frame()
     }
 }
 
+// Change the render resolution at runtime (Options -> Video Apply, and the harness's debounced
+// browser-window-resize handler). Goes through SDL so the canvas drawing buffer resizes and
+// SDL_WINDOWEVENT_SIZE_CHANGED fires -> OpenMW::windowResized() resizes viewport/FBOs/GUI —
+// exactly the desktop window-resize path.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_set_resolution(int w, int h)
+{
+    if (w < 320 || h < 240 || w > 16384 || h > 16384)
+        return;
+    SDL_Window* window = SDL_GL_GetCurrentWindow();
+    if (window)
+        SDL_SetWindowSize(window, w, h);
+}
+
+// OS-clipboard -> SDL bridge: the harness's document 'paste' listener pushes the real browser
+// clipboard text here so the in-game Ctrl+V (which reads SDL's internal clipboard) sees it.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_set_clipboard(const char* text)
+{
+    if (text)
+        SDL_SetClipboardText(text);
+}
+
 // Debug: point the camera (yaw/pitch in degrees) so we can verify object rendering without mouse-look.
 extern "C" EMSCRIPTEN_KEEPALIVE void omw_debug_look(float yawDeg, float pitchDeg)
 {
@@ -1236,15 +1257,31 @@ void OMW::Engine::go()
             auto& ctx = *static_cast<EmscriptenLoop*>(arg);
             OMW::Engine* self = ctx.engine;
             MWWorld::DateTimeManager& timeManager = *ctx.timeManager;
-            static bool firstTick = true;
-            if (firstTick)
-            {
-                firstTick = false;
-            }
             if (self->mViewer->done() || self->mStateManager->hasQuitRequest())
             {
+                // Browser-correct quit: a silently-cancelled loop leaves a frozen tab. Sync the
+                // IDBFS state and hand the page a clear end-of-session overlay (__omwOnQuit).
+                // clang-format off
+                EM_ASM({
+                    try { if (typeof FS !== 'undefined' && FS.syncfs) FS.syncfs(false, function(){}); } catch(e){}
+                    try { Module.__omwRunning = 0; } catch(e){}
+                    try { if (window.__omwOnQuit) window.__omwOnQuit(); } catch(e){}
+                });
+                // clang-format on
+                g_emTick = nullptr; // stop future pump ticks
                 emscripten_cancel_main_loop();
                 return;
+            }
+            // Expose "a game is in progress" to the harness: drives the unsaved-progress
+            // tab-close guard (registered only while running, to stay bfcache-friendly).
+            {
+                static int lastRunning = -1;
+                const int running = self->mStateManager->getState() == MWBase::StateManager::State_Running ? 1 : 0;
+                if (running != lastRunning)
+                {
+                    lastRunning = running;
+                    EM_ASM({ Module.__omwRunning = $0; }, running);
+                }
             }
             const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(
                                   std::min(ctx.frameRateLimiter->getLastFrameDuration(), ctx.maxSimulationInterval))

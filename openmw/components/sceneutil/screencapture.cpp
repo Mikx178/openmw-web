@@ -17,6 +17,10 @@
 #include <sstream>
 #include <string>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 namespace
 {
     class ScreenCaptureWorkItem : public SceneUtil::WorkItem
@@ -127,6 +131,34 @@ namespace SceneUtil
         {
             mCallback(Files::pathToUnicodeString(fileName));
             Log(Debug::Info) << mScreenshotPath / fileName << " has been saved";
+#ifdef __EMSCRIPTEN__
+            // A screenshot on IDBFS is invisible to the user; also hand them a real browser
+            // download. JS reads the just-written PNG from the FS and triggers an <a download>.
+            const std::string full = Files::pathToUnicodeString(mScreenshotPath / fileName);
+            const std::string base = Files::pathToUnicodeString(fileName);
+            // clang-format off
+            // NOTE: EM_ASM macros split on top-level commas (only parens protect), so each JS
+            // statement uses its own `var` — no `var a, b` comma-declarations here.
+            MAIN_THREAD_EM_ASM({
+                try
+                {
+                    var path = UTF8ToString($0);
+                    var name = UTF8ToString($1);
+                    var data = FS.readFile(path);
+                    var blob = new Blob([data], { type: 'image/png' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = name;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+                }
+                catch (e) {}
+            }, full.c_str(), base.c_str());
+            // clang-format on
+#endif
         }
     }
 

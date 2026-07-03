@@ -7,6 +7,10 @@
 #include <sstream>
 #include <system_error>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #if !(defined(_MSC_VER) && (_MSC_VER >= 1924)) && !(defined(__GNUC__) && __GNUC__ >= 11) || defined(__clang__)         \
     || defined(__apple_build_version__)
 
@@ -183,6 +187,20 @@ namespace Settings
     {
         SettingsFileParser parser;
         parser.saveSettingsFile(file, mUserSettings);
+#ifdef __EMSCRIPTEN__
+        // The user settings file lives on IDBFS (/userdata/config/openmw); flush to IndexedDB
+        // now so Options-menu changes survive a reload/crash (the JS timer only syncs every 15s).
+        EM_ASM({
+            try
+            {
+                if (typeof FS !== 'undefined' && FS.syncfs)
+                    FS.syncfs(false, function() {});
+            }
+            catch (e)
+            {
+            }
+        });
+#endif
     }
 
     const std::string& Manager::getString(std::string_view setting, std::string_view category)

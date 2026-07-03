@@ -42,15 +42,21 @@
      return os(src, imports);
    };
  })();
- // A2: force the discrete GPU on dual-GPU machines + lower present latency. Emscripten creates
- // the WebGL2 context without a powerPreference (Chrome may pick the integrated GPU). Wrap
- // getContext (installed BEFORE openmw.js loads) to inject the hints into the webgl2 attributes.
+ // Wrap getContext (installed BEFORE openmw.js loads) to fix the WebGL2 context attributes:
+ //  - alpha:false (CORRECTNESS): the default transparent canvas composites the PAGE BACKGROUND
+ //    through any fragment with dst-alpha<1 (halos on particles/weather/GUI edges) and treats
+ //    canvas pixels as premultiplied while OpenMW blends straight alpha (double-darkening).
+ //    Desktop renders to an opaque framebuffer; so must we.
+ //  - powerPreference:'high-performance' (A2): pick the discrete GPU on dual-GPU machines.
  (function(){
    var orig = HTMLCanvasElement.prototype.getContext;
    HTMLCanvasElement.prototype.getContext = function(type, attrs){
-     if ((type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') && !window.__NO_GPU_HINT && !/[?&]noopt\b/.test(location.search)){
+     if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl'){
        attrs = attrs || {};
-       if (attrs.powerPreference == null) attrs.powerPreference = 'high-performance';
+       attrs.alpha = false;                 // opaque canvas — desktop framebuffer semantics
+       attrs.premultipliedAlpha = false;    // moot with alpha:false; explicit for clarity
+       if (!window.__NO_GPU_HINT && !/[?&]noopt\b/.test(location.search)
+           && attrs.powerPreference == null) attrs.powerPreference = 'high-performance';
        // desynchronized disabled — suspected first-frame hang in headless preview.
      }
      return orig.call(this, type, attrs);
@@ -99,6 +105,61 @@
    lastMsg = String(t).slice(0, 90);
    // keep the DOM log from growing unbounded
    while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild); }
+ // Full-screen fatal overlay: aborts, GPU context loss, unsupported browsers. The hidden dev
+ // log is useless to end users — anything fatal must be VISIBLE with a way forward.
+ function fatalOverlay(title, detail, showReload){
+   try {
+     var o = document.createElement('div');
+     o.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(8,8,12,.96);color:#cdd6f4;'
+       + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'
+       + 'font:15px/1.5 ui-monospace,Menlo,monospace;text-align:center;padding:24px';
+     var h = document.createElement('div'); h.style.cssText='font-size:20px;color:#f38ba8'; h.textContent = title;
+     var d = document.createElement('div'); d.style.maxWidth='640px'; d.textContent = detail || '';
+     o.appendChild(h); o.appendChild(d);
+     if (showReload !== false){
+       var b = document.createElement('button');
+       b.textContent = 'Reload';
+       b.style.cssText = 'font:16px ui-monospace,Menlo,monospace;padding:8px 26px;cursor:pointer;'
+         + 'background:#313244;color:#cdd6f4;border:1px solid #585b70;border-radius:6px';
+       b.addEventListener('click', function(){ location.reload(); });
+       o.appendChild(b);
+     }
+     document.body.appendChild(o);
+   } catch(e){}
+ }
+ // Hard requirement check: this build uses pthreads (SharedArrayBuffer), which needs
+ // cross-origin isolation and a capable browser. Fail with a CLEAR message, not a cryptic
+ // instantiation error (Safari/iOS and non-isolated hosts land here).
+ if (!self.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined'){
+   fatalOverlay('Browser not supported',
+     'This build needs SharedArrayBuffer + cross-origin isolation (COOP/COEP headers). '
+     + 'Use a desktop Chrome/Edge/Firefox, and serve via play/server.py or an HTTPS host '
+     + 'sending COOP: same-origin and COEP: require-corp.', false);
+ }
+ // WebGL context loss: OSG/OpenMW has no GPU-resource restore path, so the correct handling
+ // tier is: sync saves, tell the user, reload cleanly (state comes back from IndexedDB).
+ (function(){
+   var canvas = document.getElementById('canvas');
+   canvas.addEventListener('webglcontextlost', function(e){
+     e.preventDefault();
+     try { if (window.__omwSync) window.__omwSync(); } catch(ex){}
+     append('GPU context lost', 'err');
+     fatalOverlay('Graphics context lost',
+       'The browser reset the GPU context (driver reset or resource pressure). '
+       + 'Your saves are safe. Reloading…');
+     setTimeout(function(){ location.reload(); }, 2500);
+   });
+   canvas.addEventListener('webglcontextrestored', function(){ append('GPU context restored'); });
+ })();
+ // Surface unhandled promise rejections + JS errors (previously silent) and auto-open the log
+ // the FIRST time a genuine JS fault occurs — NOT on routine engine warnings (OpenMW routes
+ // Debug::Warning through printErr, which would otherwise pop the log open constantly).
+ var __firstFaultShown = false;
+ function showLogOnce(){ if(!__firstFaultShown){ __firstFaultShown = true; logEl.classList.add('show'); } }
+ window.addEventListener('unhandledrejection', function(e){
+   append('unhandled rejection: ' + (e.reason && e.reason.message || e.reason), 'err');
+   showLogOnce();
+ });
  // Log is hidden by default so it doesn't cover the screen. Open/close it by CLICKING the
  // status bar (top-left) or pressing ` (backtick). Clicking the status bar again closes it.
  function toggleLog(){ logEl.classList.toggle('show'); }
@@ -151,6 +212,95 @@
    });
    canvas.addEventListener('pointerdown', function(){ canvas.focus(); });
    window.addEventListener('load', function(){ canvas.focus(); });
+
+   // --- Live browser-window resize (debounced). The old naive per-interval resize caused an
+   // FBO-recreation storm; a single application ~300ms after the LAST resize event is safe.
+   // Applies through the engine (omw_set_resolution -> SDL_SetWindowSize -> windowResized),
+   // which resizes viewport/FBOs/GUI exactly like a desktop window resize. ---
+   var resizeTimer = null;
+   window.addEventListener('resize', function(){
+     if (resizeTimer) clearTimeout(resizeTimer);
+     resizeTimer = setTimeout(function(){
+       resizeTimer = null;
+       if (!(window.Module && Module._omw_set_resolution)) return; // engine not up yet
+       var w = window.innerWidth || 1280, h = window.innerHeight || 720;
+       var budget = window.__maxPixels || 4000000;
+       var scale = Math.min(1, Math.sqrt(budget / (w * h)));
+       var rw = Math.max(320, Math.round(w * scale)), rh = Math.max(240, Math.round(h * scale));
+       if (rw === canvas.width && rh === canvas.height) return;
+       append('[resize] ' + rw + 'x' + rh);
+       try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[resize err] '+e,'err'); }
+     }, 300);
+   });
+
+   // --- Keyboard capture guards (capture phase, before SDL sees them):
+   //  - Tab must stay in-game (GUI navigation), not move browser focus.
+   //  - Ctrl/Cmd+S is the browser save-page dialog — swallow it (in-game quicksave is F5-free).
+   //  - F5/Ctrl+R reload the page mid-game — block with a hint (use the menu to quit).
+   //  - Ctrl/Cmd+W cannot be blocked by content JS; the dynamic beforeunload guard (below)
+   //    intercepts the actual tab close instead.
+   window.addEventListener('keydown', function(e){
+     var mod = e.ctrlKey || e.metaKey;
+     if (e.key === 'Tab'){ e.preventDefault(); return; }
+     if (mod && (e.key === 's' || e.key === 'S')){ e.preventDefault(); return; }
+     if (e.key === 'F5' || (mod && (e.key === 'r' || e.key === 'R'))){
+       e.preventDefault();
+       append('[guard] page reload blocked — use the in-game menu to exit (or close the tab)');
+       return;
+     }
+     // Focus resilience: typing while the canvas lost focus -> refocus so input reaches the game.
+     if (document.activeElement !== canvas && !e.metaKey && !e.ctrlKey && !e.altKey) canvas.focus();
+   }, {capture:true});
+   canvas.addEventListener('blur', function(){ append('[focus] canvas lost focus — click to resume'); });
+
+   // --- OS clipboard -> game (paste): browser paste events carry the real OS clipboard; push
+   // the text into SDL's internal clipboard so the in-game Ctrl+V that follows reads it.
+   // (Known race: the SDL Ctrl+V keydown can beat this event — a second Ctrl+V is correct.)
+   document.addEventListener('paste', function(e){
+     try {
+       var t = e.clipboardData && e.clipboardData.getData('text/plain');
+       if (t && window.Module && Module.stringToNewUTF8 && Module._omw_set_clipboard){
+         var p = Module.stringToNewUTF8(t);
+         Module._omw_set_clipboard(p);
+         Module._free(p);
+       }
+     } catch(ex){}
+   });
+
+   // --- Pointer-lock helper: cursor warping is impossible in browsers — pointer lock is the
+   // only correct relative-mouse model. If the engine wants relative mode but the lock was
+   // refused (request arrived before a user gesture), re-request it on the next click.
+   canvas.addEventListener('pointerdown', function(){
+     try {
+       if (window.Module && Module.__omwWantsMouseLock && document.pointerLockElement !== canvas)
+         canvas.requestPointerLock();
+     } catch(e){}
+   });
+ })();
+
+ // --- Quit hook (engine calls window.__omwOnQuit after syncing saves): a cancelled main loop
+ // in a frozen tab is hostile UX — show a clear end state instead.
+ window.__omwOnQuit = function(){
+   append('[quit] engine exited');
+   fatalOverlay('Morrowind has exited', 'Your saves are stored in this browser. Reload to play again.');
+ };
+
+ // --- Page lifecycle (bfcache-safe): visibilitychange->hidden is the LAST RELIABLE signal
+ // (esp. iOS Safari, which never fires beforeunload); pagehide covers navigation. A static
+ // beforeunload handler would make the page bfcache-ineligible, so the unsaved-progress guard
+ // is registered ONLY while a game is running (engine flips Module.__omwRunning).
+ document.addEventListener('visibilitychange', function(){
+   if (document.visibilityState === 'hidden' && window.__omwSync) window.__omwSync();
+ });
+ window.addEventListener('pagehide', function(){ if (window.__omwSync) window.__omwSync(); });
+ (function(){
+   var guard = function(e){ e.preventDefault(); e.returnValue = ''; return ''; };
+   var armed = false;
+   setInterval(function(){
+     var running = !!(window.Module && Module.__omwRunning);
+     if (running && !armed){ window.addEventListener('beforeunload', guard); armed = true; }
+     else if (!running && armed){ window.removeEventListener('beforeunload', guard); armed = false; }
+   }, 2000);
  })();
  var Module = {
    canvas: document.getElementById('canvas'),
@@ -175,11 +325,13 @@
        if (!/[?&]noopt\b/.test(location.search)) ENV.OSG_GL_ERROR_CHECKING='OFF';
        // NOTE: OPENMW_DECOMPRESS_TEXTURES removed — OSG now reports S3TC support (GLExtensions
        // patch), so DXT textures upload COMPRESSED via glCompressedTexImage2D (no CPU decompress).
-       ENV.XDG_CONFIG_HOME='/home/web_user/.config';
-       ENV.XDG_DATA_HOME='/home/web_user/.local/share';
+       // USER CONFIG/DATA LIVE ON IDBFS: pointing XDG at the /userdata mount makes the
+       // engine's own writes persistent — Options-menu settings.cfg, keybindings
+       // (input_v3.xml), Lua mod storage (global/player_storage.bin), console history and
+       // screenshots all survive reloads with zero engine changes. (Cache stays in MEMFS.)
+       ENV.XDG_CONFIG_HOME='/userdata/config';
+       ENV.XDG_DATA_HOME='/userdata/data-home';
        ENV.XDG_CACHE_HOME='/home/web_user/.cache';
-       FS.mkdirTree('/home/web_user/.config/openmw');
-       FS.mkdirTree('/home/web_user/.local/share/openmw');
        FS.mkdirTree('/home/web_user/.cache/openmw');
        // Performance-tuned settings (merged over defaults). Biggest levers for the WASM build:
        //  - viewing distance: fewer cells/objects culled+drawn (default 7168)
@@ -222,11 +374,31 @@
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
            'max lights = 8\n';                     // fewer dynamic lights per object -> faster shading
-         FS.writeFile('/settings.cfg', settingsCfg);                              // <- the one the engine READS
-         FS.writeFile('/home/web_user/.config/openmw/settings.cfg', settingsCfg); // XDG path (kept for safety)
+         // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
+         // config dir) as additional defaults and layers the PERSISTENT user settings from
+         // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,
+         // including a chosen resolution, override these and survive reloads. NEVER write
+         // the baseline to the user path (it would clobber the player's saved options).
+         FS.writeFile('/settings.cfg', settingsCfg);
          append('[cfg] render resolution ' + rW + 'x' + rH);
        } catch(e){ append('[settings err] '+e,'err'); }
        FS.mkdirTree('/userdata');
+       // Ask the browser for durable storage: without persist(), IndexedDB (saves, settings)
+       // and the Cache API archive are LRU-evictable under storage pressure.
+       try {
+         if (navigator.storage && navigator.storage.persist)
+           navigator.storage.persist().then(function(granted){
+             append('[storage] persistent storage ' + (granted ? 'GRANTED' : 'not granted (evictable)'));
+           });
+         if (navigator.storage && navigator.storage.estimate)
+           navigator.storage.estimate().then(function(est){
+             var q = Math.round((est.quota||0)/1048576), u = Math.round((est.usage||0)/1048576);
+             append('[storage] quota ' + q + 'MB, used ' + u + 'MB');
+             if (est.quota && est.quota < 1200*1048576)
+               append('[storage] WARNING: quota below ~1.2GB — the data cache may not fit; ' +
+                      'first load will work but re-downloads on each visit', 'err');
+           });
+       } catch(e){}
        // Persist saves/config across reloads: mount IndexedDB-backed IDBFS at /userdata
        // and load its contents before the engine starts (via a run dependency so boot waits).
        try {
@@ -236,15 +408,24 @@
            addRunDependency('idbfs-load');
            FS.syncfs(true, function(err){
              if (err) append('[idbfs load err] '+err,'err'); else append('[idbfs] loaded persistent /userdata');
-             // Create the data-local dir (openmw.cfg data-local=/userdata/data) AFTER the IDBFS
-             // mount+load — creating it before the mount would be hidden by the mount. Persist it.
-             try { FS.mkdirTree('/userdata/data'); FS.syncfs(false, function(){}); } catch(e){}
+             try {
+               // Dirs must be created AFTER the mount+load (before = hidden by the mount).
+               FS.mkdirTree('/userdata/data');            // openmw.cfg data-local
+               FS.mkdirTree('/userdata/config/openmw');   // XDG user config (persistent)
+               FS.mkdirTree('/userdata/data-home/openmw'); // XDG user data: saves/screenshots
+               // Marker openmw.cfg: makes the user config dir an ACTIVE config path, so the
+               // engine both READS user settings from and SAVES them to this IDBFS dir
+               // (settings.cpp uses the last active config dir for the user settings file).
+               if (!FS.analyzePath('/userdata/config/openmw/openmw.cfg').exists)
+                 FS.writeFile('/userdata/config/openmw/openmw.cfg',
+                   '# OpenMW user config dir (persistent, IndexedDB-backed)\n');
+               FS.syncfs(false, function(){});
+             } catch(e){ append('[idbfs setup err] '+e,'err'); }
              removeRunDependency('idbfs-load');
            });
-           // Flush game saves back to IndexedDB periodically and on unload.
+           // Flush game state back to IndexedDB periodically (lifecycle handlers cover exits).
            window.__omwSync = function(){ try { FS.syncfs(false, function(){}); } catch(e){} };
            setInterval(window.__omwSync, 15000);
-           window.addEventListener('beforeunload', window.__omwSync);
          } else {
            append('[idbfs] not available — saves will NOT persist across reloads','err');
          }
@@ -285,17 +466,51 @@
            }
            return n;
          }
-         // Cache-API-backed fetch: downloads once, then persists across reloads (survives the
-         // dev server's no-cache headers, which cache.put ignores). Falls back to plain fetch.
+         // Cache-API-backed fetch with REAL progress: streams the body so the HUD can show
+         // per-file % and cumulative MB (previously a multi-minute blank wait). Downloads once,
+         // then persists across reloads (cache.put ignores the dev server's no-cache headers).
+         // QuotaExceeded on cache.put is non-fatal: skip caching, keep playing.
+         var __dlTotal = 0; // cumulative bytes this session (for the HUD)
+         function fetchStreaming(url){
+           return fetch(url).then(function(r){
+             if(!r.ok) throw url+' HTTP '+r.status;
+             var name = url.split('/').pop();
+             var total = parseInt(r.headers.get('Content-Length')||'0',10);
+             if (!r.body || !r.body.getReader) return r.arrayBuffer().then(function(ab){ return {resp:r, buf:ab}; });
+             var reader = r.body.getReader(), chunks = [], got = 0, lastPct = -10;
+             function pump(){
+               return reader.read().then(function(res){
+                 if (res.done){
+                   var out = new Uint8Array(got), pos = 0;
+                   for (var i=0;i<chunks.length;i++){ out.set(chunks[i], pos); pos += chunks[i].length; }
+                   __dlTotal += got;
+                   return {resp:r, buf:out.buffer};
+                 }
+                 chunks.push(res.value); got += res.value.length;
+                 var pct = total ? Math.floor(got*100/total) : 0;
+                 if (pct >= lastPct + 5){ // update every 5% to keep the log readable
+                   lastPct = pct;
+                   append('[dl] ' + name + ' ' + (total ? pct+'%' : Math.round(got/1048576)+'MB')
+                     + '  (session total ' + Math.round((__dlTotal+got)/1048576) + 'MB)');
+                 }
+                 return pump();
+               });
+             }
+             return pump();
+           });
+         }
          function grab(url){
-           if (!self.caches) return fetch(url).then(function(r){ if(!r.ok) throw url+' HTTP '+r.status; return r.arrayBuffer(); });
+           if (!self.caches) return fetchStreaming(url).then(function(x){ return x.buf; });
            return caches.open('mwdata-v1').then(function(cache){
              return cache.match(url).then(function(hit){
                if (hit){ append('[mw] cache hit '+url); return hit.arrayBuffer(); }
-               return fetch(url).then(function(r){
-                 if(!r.ok) throw url+' HTTP '+r.status;
-                 return cache.put(url, r.clone()).then(function(){ return r.arrayBuffer(); },
-                                                        function(){ return r.arrayBuffer(); });
+               return fetchStreaming(url).then(function(x){
+                 return cache.put(url, new Response(x.buf)).then(
+                   function(){ return x.buf; },
+                   function(e){
+                     append('[cache] put failed (' + (e && e.name) + ') — continuing uncached', 'err');
+                     return x.buf;
+                   });
                });
              });
            });
@@ -356,6 +571,12 @@
                      && !/^fallback=Movies_/.test(l);
                });
                cfg.push('data=/mwdata',
+                        // Make the IDBFS dir an ACTIVE config path so it becomes the engine's
+                        // user-config dir (getUserConfigPath() = last active config path). The
+                        // engine then READS user settings from and WRITES them to this persistent
+                        // dir — Options changes, keybindings, Lua storage survive reloads. The
+                        // baseline /settings.cfg (front of the chain) still applies as defaults.
+                        'config="/userdata/config/openmw"',
                         'fallback-archive=Morrowind.bsa', 'fallback-archive=Tribunal.bsa', 'fallback-archive=Bloodmoon.bsa',
                         'content=Morrowind.esm', 'content=Tribunal.esm', 'content=Bloodmoon.esm');
                if (!window.__noMovies)
@@ -375,7 +596,14 @@
    }],
    print: (t)=>{ console.log(t); append(t); },
    printErr: (t)=>{ console.warn(t); append(t,'err'); },
-   onAbort: (w)=>append('ABORT: '+w,'err'),
+   onAbort: function(w){
+     append('ABORT: '+w,'err');
+     try { if (window.__omwSync) window.__omwSync(); } catch(e){}
+     fatalOverlay('The game hit a fatal error', String(w||'') +
+       (String(w).toLowerCase().indexOf('memory') >= 0
+        ? ' — the browser could not grow WebAssembly memory. Close other tabs/apps and reload.'
+        : ' — your saves are safe. Reloading may fix it.'));
+   },
    setStatus: (t)=>{ if(t) append('[status] '+t); },
    onRuntimeInitialized: function(){
      // Drive the engine frame from a MessageChannel: unlike setTimeout/requestAnimationFrame,
@@ -416,7 +644,7 @@
      } catch(e){ append('[pump error] '+e,'err'); }
    },
  };
- window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); });
+ window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); showLogOnce(); });
 </script>
 <script src="streamfs.js"></script>
 <script src="openmw.js"></script>

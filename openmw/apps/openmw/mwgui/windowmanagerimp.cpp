@@ -22,6 +22,10 @@
 #include <SDL_clipboard.h>
 #include <SDL_keyboard.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <components/debug/debuglog.hpp>
 
 #include <components/esm3/esmreader.hpp>
@@ -2382,7 +2386,26 @@ namespace MWGui
     void WindowManager::onClipboardChanged(std::string_view type, std::string_view data)
     {
         if (type == "Text")
-            SDL_SetClipboardText(MyGUI::TextIterator::getOnlyText(MyGUI::UString(data)).asUTF8().c_str());
+        {
+            const std::string text = MyGUI::TextIterator::getOnlyText(MyGUI::UString(data)).asUTF8();
+            SDL_SetClipboardText(text.c_str());
+#ifdef __EMSCRIPTEN__
+            // Also push to the real OS clipboard. This runs inside the copy gesture, so the
+            // async Clipboard API permission is granted; emscripten's SDL clipboard is otherwise
+            // sandboxed to the tab. (Paste is bridged the other way by index.html's paste listener
+            // -> omw_set_clipboard.)
+            // clang-format off
+            MAIN_THREAD_EM_ASM({
+                try
+                {
+                    if (navigator.clipboard && navigator.clipboard.writeText)
+                        navigator.clipboard.writeText(UTF8ToString($0));
+                }
+                catch (e) {}
+            }, text.c_str());
+            // clang-format on
+#endif
+        }
     }
 
     void WindowManager::onClipboardRequested(std::string_view type, std::string& data)
