@@ -18,11 +18,58 @@
       overflow:hidden;white-space:pre;background:rgba(10,10,15,.72);color:#89b4fa;
       font:11px/1.35 ui-monospace,Menlo,monospace;text-shadow:0 1px 2px #000;user-select:none}
  #hud:hover{background:rgba(20,20,30,.9)}
+ /* --- Themed loading overlay (matches launcher.html: ash + Dwemer bronze + Red Mountain
+    ember). Covers the canvas during download/boot, fades out on the engine's first frame. --- */
+ #loading{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;
+   padding:24px;text-align:center;background:#0c0a09;color:#ece0c6;
+   font:16px/1.6 "Optima","Gill Sans","Gill Sans MT",-apple-system,"Segoe UI",Roboto,sans-serif;
+   transition:opacity .6s ease}
+ #loading.hide{opacity:0;pointer-events:none}
+ #loading::before{content:'';position:absolute;inset:0;pointer-events:none;
+   background:radial-gradient(150% 72% at 50% 132%, rgba(198,90,46,.30), rgba(198,90,46,.05) 34%, transparent 60%),
+     radial-gradient(90% 60% at 50% 134%, rgba(233,180,90,.16), transparent 56%);
+   animation:ldEmber 9s ease-in-out infinite}
+ @keyframes ldEmber{0%,100%{opacity:.82}50%{opacity:1}}
+ #loading .ld-inner{position:relative;width:100%;max-width:440px}
+ #loading .ld-glyph{width:56px;height:56px;margin:0 auto 24px;color:#c69a52;animation:ldSpin 7s linear infinite}
+ #loading .ld-glyph svg{width:100%;height:100%;display:block}
+ @keyframes ldSpin{to{transform:rotate(360deg)}}
+ #loading .ld-title{margin:0 0 10px;font-family:"Hoefler Text","Baskerville","Palatino Linotype",Palatino,Georgia,serif;
+   font-weight:600;font-size:clamp(28px,5vw,40px);letter-spacing:.01em;color:#ece0c6;
+   text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 34px rgba(211,168,78,.10)}
+ #loading .ld-status{margin:0 0 22px;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;
+   font-weight:600;color:#c69a52}
+ #loading .ld-bar{position:relative;height:4px;border-radius:3px;overflow:hidden;background:rgba(138,104,56,.28)}
+ #loading .ld-fill{height:100%;width:0;border-radius:3px;
+   background:linear-gradient(90deg,#8a6838,#d3a84e,#eecb78);transition:width .3s ease}
+ #loading.indet .ld-fill{width:34%;animation:ldSlide 1.25s ease-in-out infinite}
+ @keyframes ldSlide{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
+ #loading .ld-detail{margin-top:13px;min-height:16px;font:12px/1.4 ui-monospace,Menlo,monospace;color:#7c705c}
+ @media (prefers-reduced-motion:reduce){
+   #loading::before,#loading .ld-glyph{animation:none}
+   #loading.indet .ld-fill{animation:none;width:100%}
+ }
 </style></head>
 <body>
 <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
 <div id="hud">☰ starting…</div>
 <div id="log">booting…</div>
+<div id="loading" class="indet">
+  <div class="ld-inner">
+    <div class="ld-glyph" aria-hidden="true">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="24" cy="24" r="17"/>
+        <circle cx="24" cy="24" r="2.2" fill="currentColor" stroke="none"/>
+        <path d="M24 7 27 24 24 41 21 24Z"/>
+        <path d="M7 24 24 21 41 24 24 27Z"/>
+      </svg>
+    </div>
+    <div class="ld-title" id="ld-title">Morrowind</div>
+    <div class="ld-status" id="ld-status">Preparing…</div>
+    <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
+    <div class="ld-detail" id="ld-detail"></div>
+  </div>
+</div>
 <script>
  // ?wasmdbg: introspect what the glue passes to WebAssembly.instantiate (debug the env-import error)
  if (/[?&]wasmdbg\b/.test(location.search)) (function(){
@@ -113,7 +160,44 @@
    logEl.scrollTop=logEl.scrollHeight;
    lastMsg = String(t).slice(0, 90);
    // keep the DOM log from growing unbounded
-   while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild); }
+   while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild);
+   try { if (window.__omwLoading) window.__omwLoading.fromLog(String(t)); } catch(e){} }
+ // Themed loading overlay controller. Driven by setStatus (engine download %), append()
+ // log lines (game-data download / local mount phases), and hidden on the first engine frame.
+ window.__omwLoading = (function(){
+   var el, titleEl, st, fill, det, done=false, inited=false;
+   function E(){
+     if (inited) return el; inited=true;
+     el=document.getElementById('loading'); titleEl=document.getElementById('ld-title');
+     st=document.getElementById('ld-status'); fill=document.getElementById('ld-fill');
+     det=document.getElementById('ld-detail');
+     if (titleEl) titleEl.textContent = /[?&]nomw\b/.test(location.search) ? 'The example world' : 'Morrowind';
+     return el;
+   }
+   function set(pct, label, detail){
+     if (done || !E()) return;
+     if (label) st.textContent = label;
+     if (detail != null) det.textContent = detail;
+     if (typeof pct === 'number'){ el.classList.remove('indet'); fill.style.width = Math.max(0,Math.min(100,pct)) + '%'; }
+     else el.classList.add('indet');
+   }
+   function fromLog(t){
+     var m;
+     if ((m = /^\[dl\]\s+(\S+)\s+(\d+)%/.exec(t)))      set(+m[2], 'Downloading game data', m[1] + ' ' + m[2] + '%');
+     else if (/^\[dl\]/.test(t))                        set(null, 'Downloading game data', t.replace(/^\[dl\]\s*/, ''));
+     else if (/^\[local\] scanning/.test(t))            set(null, 'Reading your Data Files');
+     else if ((m = /^\[local\] mounted (\d+) files/.exec(t))) set(null, 'Reading your Data Files', m[1] + ' files');
+     else if (/^\[(local|mw)\] READY/.test(t))          set(null, 'Entering the world');
+     else if (/SKIPPED \(nomw\)/.test(t))               set(null, 'Loading the example world');
+     else if (/^\[mw\] loading Morrowind/.test(t))      set(null, 'Loading Morrowind');
+   }
+   function finish(){
+     if (done || !E()) return; done=true;
+     el.classList.remove('indet'); fill.style.width='100%'; el.classList.add('hide');
+     setTimeout(function(){ if (el) el.style.display='none'; }, 700);
+   }
+   return { set:set, fromLog:fromLog, done:finish };
+ })();
  // Full-screen fatal overlay: aborts, GPU context loss, unsupported browsers. The hidden dev
  // log is useless to end users — anything fatal must be VISIBLE with a way forward.
  function fatalOverlay(title, detail, showReload){
@@ -180,6 +264,8 @@
    setInterval(function(){
      const fps = (window.__fps|0), ms = (window.__frameMs||0);
      const running = !!(window.Module && window.Module._omw_pump_frame);
+     // Engine is up and pumping frames -> fade the themed loading overlay out.
+     if (running && window.__omwLoading) window.__omwLoading.done();
      const open = logEl.classList.contains('show');
      hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
      // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
@@ -764,7 +850,16 @@
         ? ' — the browser could not grow WebAssembly memory. Close other tabs/apps and reload.'
         : ' — your saves are safe. Reloading may fix it.'));
    },
-   setStatus: (t)=>{ if(t) append('[status] '+t); },
+   setStatus: (t)=>{ if(t){ append('[status] '+t);
+     // Emscripten reports the wasm/.data preload as "Downloading data... (x/y)" — feed the bar.
+     try {
+       var m = /\((\d+)\s*\/\s*(\d+)\)/.exec(t);
+       if (window.__omwLoading){
+         if (m && +m[2] > 0) window.__omwLoading.set(Math.round(+m[1]*100/+m[2]), 'Downloading engine');
+         else window.__omwLoading.set(null, t.replace(/\.\.\.$/, ''));
+       }
+     } catch(e){}
+   } },
    onRuntimeInitialized: function(){
      // Drive the engine frame from a MessageChannel: unlike setTimeout/requestAnimationFrame,
      // MessageChannel messages are NOT throttled when the tab is hidden/backgrounded, so the
