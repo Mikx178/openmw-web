@@ -81,14 +81,63 @@ fixes — most importantly the RTT `drawBuffers` fix in `FrameBufferObject.cpp`
 ## Running
 
 The runtime needs SharedArrayBuffer, so it must be served with cross-origin
-isolation headers. `play/server.py` sets them (COOP/COEP):
+isolation headers. `play/server.py` sets them (COOP/COEP) and also serves the
+precompressed `.br` artifacts and range requests:
 
 ```bash
 cd play
 python3 server.py        # serves on http://localhost:8795 (override with PORT=...)
 ```
 
-Then open the printed URL in a browser that supports WebAssembly threads.
+Then open the printed URL.
+
+### Browser requirement
+
+**Desktop Chrome / Chromium only.** The build relies on features that, in
+practice, only desktop Chrome provides together reliably:
+
+- **SharedArrayBuffer + WebAssembly threads** (the engine runs multi-threaded).
+- **WebGL2 / GLES3** via ANGLE.
+- **`EXT_clip_control`** for the reverse-Z depth buffer (Chrome-only).
+
+Firefox and Safari are **not supported or tested** — several GLES workarounds are
+gated specifically to Chrome's ANGLE behavior. Mobile / touch is out of scope
+(no on-screen controls). Use a recent desktop Chrome or Chromium.
+
+### Hosting on a real server
+
+For production, serve `play/` over **HTTPS** (cross-origin isolation is only
+granted on secure origins; `http://localhost` also counts) and set these headers
+on **every** response so the page is cross-origin isolated:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+Because COEP is `require-corp`, every subresource must also be allowed — either
+same-origin, or served with `Cross-Origin-Resource-Policy: cross-origin` (what
+`server.py` does). Serve the precompressed siblings (`openmw.wasm.br`,
+`openmw.js.br`) with `Content-Encoding: br` when the client accepts it — this
+turns the ~42 MB wasm into ~11 MB over the wire.
+
+nginx example:
+
+```nginx
+location /play/ {
+    add_header Cross-Origin-Opener-Policy   same-origin   always;
+    add_header Cross-Origin-Embedder-Policy require-corp   always;
+    add_header Cross-Origin-Resource-Policy cross-origin   always;
+    gzip_static on;   # or brotli_static on; to serve the .br siblings
+    types { application/wasm wasm; }
+}
+```
+
+On static hosts (Netlify, Cloudflare Pages, GitHub Pages via a proxy, …) set the
+same three headers via the host's headers config (e.g. Netlify `_headers`). The
+first load downloads ~800 MB of Morrowind assets **once** — they are cached in
+the browser (Cache API + IDBFS), so subsequent loads are fast. The in-page HUD
+shows live per-file download progress during that first load.
 
 ## License
 
