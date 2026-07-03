@@ -1,0 +1,10 @@
+# Build context is the repo root, but the image only needs infra/nginx.conf + a few play/
+# files. Allow-list them so Docker doesn't ship the whole engine source tree to the daemon.
+*
+!infra/nginx.conf
+!play/launcher.html
+!play/index.html
+!play/streamfs.js
+!play/openmw.js
+!play/openmw.wasm
+!play/openmw.data

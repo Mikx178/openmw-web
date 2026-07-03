@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Deploy the openmw-wasm static site to the GCP VM through IAP (no public SSH, no JSON keys).
+# Build the openmw-wasm container image and publish it to GHCR. The shared box then pulls it
+# (docker compose pull openmw && up -d), or Watchtower rolls it automatically. The box itself
+# is a manually-managed shared resource and is intentionally NOT touched by this workflow.
 #
-# The large engine artifacts (openmw.wasm/.data/.js + .br) are gitignored, so this workflow
-# pulls them from a GitHub Release you publish after a local build:
+# The large engine artifacts (openmw.wasm/.data/.js) are gitignored, so they're pulled from a
+# GitHub Release published after a local build:
 #     ./wasm-build/link-openmw.sh && ./wasm-build/make_br.sh
 #     cp build-wasm/openmw.{js,wasm,data} play/
-#     gh release create build-YYYYMMDD play/openmw.js play/openmw.wasm play/openmw.data \
-#         play/openmw.js.br play/openmw.wasm.br play/openmw.data.br
-# then run this workflow (it defaults to the latest release).
-
-name: deploy-openmw
+#     gh release create build-YYYYMMDD play/openmw.js play/openmw.wasm play/openmw.data
+name: build-openmw-image
 on:
   workflow_dispatch:
     inputs:
@@ -17,17 +16,15 @@ on:
         description: "Release tag holding the engine artifacts (blank = latest)"
         required: false
         default: ""
+  release:
+    types: [published]
 
 permissions:
   contents: read
-  id-token: write   # required for Workload Identity Federation
-
-env:
-  INSTANCE: openmw-web
-  ZONE: us-central1-a
+  packages: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,42 +34,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ inputs.release_tag }}"
+          [ -z "$TAG" ] && [ "${{ github.event_name }}" = "release" ] && TAG="${{ github.event.release.tag_name }}"
           [ -z "$TAG" ] && TAG=$(gh release view --json tagName -q .tagName)
           gh release download "$TAG" --dir play \
-            --pattern 'openmw.js' --pattern 'openmw.wasm' --pattern 'openmw.data' \
-            --pattern 'openmw.js.br' --pattern 'openmw.wasm.br' --pattern 'openmw.data.br'
+            --pattern 'openmw.js' --pattern 'openmw.wasm' --pattern 'openmw.data'
 
-      - id: auth
-        uses: google-github-actions/auth@v2
+      - uses: docker/login-action@v3
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.DEPLOY_SA }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}   # lowercased automatically
+          tags: |
+            type=raw,value=latest
+            type=sha
 
-      - name: Stage files on the VM (via IAP)
-        run: |
-          # Ship only what the site serves — never mwdata/, .env, server.py, or the *.simd.bak files.
-          tar czf bundle.tgz \
-            -C play launcher.html index.html streamfs.js \
-                    openmw.js openmw.wasm openmw.data \
-                    openmw.js.br openmw.wasm.br openmw.data.br \
-            -C ../infra/nginx openmw-wasm.conf
-          gcloud compute scp bundle.tgz "$INSTANCE:/tmp/bundle.tgz" \
-            --zone "$ZONE" --tunnel-through-iap
-
-      - name: Unpack, install vhost, reload nginx
-        run: |
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --tunnel-through-iap --command '
-            set -e
-            sudo mkdir -p /var/www/openmw-wasm/play
-            tmp=$(mktemp -d)
-            tar xzf /tmp/bundle.tgz -C "$tmp"
-            sudo rsync -a --delete \
-              --exclude openmw-wasm.conf \
-              "$tmp"/ /var/www/openmw-wasm/play/
-            sudo cp "$tmp/openmw-wasm.conf" /etc/nginx/sites-enabled/openmw-wasm.conf
-            sudo nginx -t
-            sudo systemctl reload nginx
-            rm -rf "$tmp" /tmp/bundle.tgz
-          '
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
