@@ -1,18 +1,56 @@
 # openmw-wasm
 
-[OpenMW](https://openmw.org/) (the open-source Morrowind engine) cross-compiled to
-**WebAssembly** and run in the browser via Emscripten.
+**Play Morrowind in your browser.** openmw-wasm is based on the
+[OpenMW](https://openmw.org/) engine (the open-source reimplementation of
+*The Elder Scrolls III: Morrowind*), effectively rebuilt in **WebAssembly** with
+Emscripten so the full engine runs client-side in a desktop browser. No plugins,
+no streaming service. The engine executes locally and reads game data from your
+machine.
 
 The `openmw/` tree is based on upstream
 [`OpenMW/openmw`](https://github.com/OpenMW/openmw) at commit
 `bc1d9c97a3881bb961a0b74e6e49bbba772b86a1` (recorded in
 [`.openmw-base-commit.txt`](.openmw-base-commit.txt)) with local modifications for
-the WASM target.
+the WASM target (GLES/WebGL2 shader port, threading and main-loop changes, GPU
+skinning, a streaming virtual filesystem, and more).
+
+## Playing
+
+Serve `play/` (see [Running](#running)) and open it in desktop Chrome. With the
+launcher enabled you get two ways in:
+
+- **The example world** — a small, freely-distributable demo that ships with
+  OpenMW. No copy of Morrowind required. Great for a first look.
+- **Bring your own Morrowind** — point the browser at your own `Data Files`
+  folder from a legally-obtained install. Files are read straight from disk on
+  demand via the File System Access API and streamed into the engine, so there
+  is no multi-gigabyte upload or copy. The chosen folder is remembered for next
+  time.
+
+Saves, settings and keybindings persist in the browser (IndexedDB) and survive
+reloads. A themed loading screen shows real download / mount progress on the way
+in.
+
+**Morrowind game data is not included or distributed here.** You must supply your
+own legally-obtained copy to play the full game.
+
+### Enabling the launcher
+
+The launcher is gated behind a flag so the bare game page stays the default when
+you want it. Enable it for the dev server by copying the example env file:
+
+```bash
+cp play/.env.example play/.env      # sets OPENMW_LAUNCHER=1
+```
+
+With `OPENMW_LAUNCHER` set, the site root (`/`) serves the data chooser; without
+it, `/` boots straight into the game as before. On a production host, set the
+`OPENMW_LAUNCHER` environment variable (or replicate the routing) as you prefer.
 
 ## What's in this repo
 
-This is a **code-only** repo. Large binaries — game assets, dependency source
-caches, and build artifacts — are intentionally excluded via
+This is a **code-only** repo. Large binaries (game assets, dependency source
+caches, and build artifacts) are intentionally excluded via
 [`.gitignore`](.gitignore) and must be provided/rebuilt locally.
 
 | Path | Purpose |
@@ -23,7 +61,7 @@ caches, and build artifacts — are intentionally excluded via
 | `wasm-build/build-osg.sh` | OpenSceneGraph→WASM configure/build (the hardest dep) |
 | `wasm-build/x11_stubs.c` | Signature-exact X11 no-op stubs osgViewer links against |
 | `wasm-build/patches/osg-emscripten.patch` | All OSG source fixes for WebGL2/emscripten |
-| `play/` | Browser front-end: `index.html`, `openmw.js` loader, `server.py` dev server |
+| `play/` | Browser front-end: `launcher.html`, `index.html`, `openmw.js` loader, `server.py` dev server |
 | `fsroot/` | Virtual filesystem config + test game data mounted into the WASM runtime |
 
 ### Not included (kept local)
@@ -89,7 +127,8 @@ cd play
 python3 server.py        # serves on http://localhost:8795 (override with PORT=...)
 ```
 
-Then open the printed URL.
+Then open the printed URL. To show the data-chooser launcher, enable it first
+(see [Enabling the launcher](#enabling-the-launcher)).
 
 ### Browser requirement
 
@@ -99,6 +138,7 @@ practice, only desktop Chrome provides together reliably:
 - **SharedArrayBuffer + WebAssembly threads** (the engine runs multi-threaded).
 - **WebGL2 / GLES3** via ANGLE.
 - **`EXT_clip_control`** for the reverse-Z depth buffer (Chrome-only).
+- **File System Access API** for the "bring your own Morrowind" folder picker.
 
 Firefox and Safari are **not supported or tested** — several GLES workarounds are
 gated specifically to Chrome's ANGLE behavior. Mobile / touch is out of scope
@@ -134,12 +174,28 @@ location /play/ {
 ```
 
 On static hosts (Netlify, Cloudflare Pages, GitHub Pages via a proxy, …) set the
-same three headers via the host's headers config (e.g. Netlify `_headers`). The
-first load downloads ~800 MB of Morrowind assets **once** — they are cached in
-the browser (Cache API + IDBFS), so subsequent loads are fast. The in-page HUD
-shows live per-file download progress during that first load.
+same three headers via the host's headers config (e.g. Netlify `_headers`). When
+using the bundled retail path, the first load downloads the Morrowind assets
+**once**; they are cached in the browser (Cache API + IDBFS), so subsequent loads
+are fast. The in-page HUD shows live per-file download progress.
 
 ## License
 
-Engine code inherits OpenMW's **GPLv3**. Morrowind game data is **not** included and
-is not covered by this repository — you must supply your own legally-obtained copy.
+openmw-wasm is licensed under the **GNU General Public License, version 3**. It is
+a derivative work of OpenMW, which is itself GPLv3, so the combined work is GPLv3.
+The full license text is in [`LICENSE`](LICENSE).
+
+- **Engine code** (the `openmw/` tree and the WASM build changes) is GPLv3, per
+  upstream OpenMW.
+- **Front-end and tooling** in this repo (`play/`, `wasm-build/`, `fsroot/`
+  config, scripts) is released under the same GPLv3.
+- Bundled dependencies keep their own licenses (OSG, Bullet, MyGUI, FFmpeg,
+  Boost, Lua, SDL2, and the rest); see their respective source trees.
+
+### Game data and trademarks
+
+*The Elder Scrolls* and *Morrowind* are trademarks of ZeniMax Media / Bethesda
+Softworks. This project is **not affiliated with, endorsed by, or associated with**
+Bethesda or ZeniMax. **No Morrowind game data is included or distributed here** —
+you must own and supply your own legally-obtained copy. The engine is an
+independent, clean-room reimplementation (OpenMW); it ships no Bethesda assets.
