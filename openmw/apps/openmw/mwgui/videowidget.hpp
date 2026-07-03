@@ -61,6 +61,13 @@ namespace MWGui
         const VFS::Manager* mVFS;
         std::unique_ptr<MyGUI::ITexture> mTexture;
         std::unique_ptr<Video::VideoPlayer> mPlayer;
+#ifdef __EMSCRIPTEN__
+        // The osg::Texture2D currently wrapped by mTexture. Used by the cooperative update()
+        // to detect when a new video's texture has appeared (including a menu->intro swap,
+        // where the previous video's texture is still attached) and re-bind it.
+        void* mAttachedTexture = nullptr;
+        void attachCurrentTexture();
+#endif
     };
 
 }
