@@ -22,6 +22,7 @@ extern "C"
     #include <libavformat/avformat.h>
     #include <libswscale/swscale.h>
     #include <libavutil/time.h>
+    #include <libavutil/log.h>
 }
 
 #if defined(_MSC_VER)
@@ -749,6 +750,11 @@ void VideoState::init(std::unique_ptr<std::istream>&& inputstream, const std::st
     int video_index = -1;
     int audio_index = -1;
     unsigned int i;
+
+    // ffmpeg logs the container/stream dump (Input #0 / Duration / Stream #0:0) at INFO and the
+    // benign "swscaler: No accelerated colorspace conversion yuv420p -> rgba" at WARNING every time
+    // a Bink video opens — pure noise in the browser console. Keep only real errors.
+    av_log_set_level(AV_LOG_ERROR);
 
     this->av_sync_type = AV_SYNC_DEFAULT;
     this->mQuit = false;

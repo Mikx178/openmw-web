@@ -224,7 +224,9 @@ namespace MWRender
         if (ext->glDisablei)
             mNormalsSupported = true;
         else
-            Log(Debug::Error) << "'glDisablei' unsupported, pass normals will not be available to shaders.";
+            // Info, not Error: on Emscripten we deliberately null glDisablei above (the pass-normals
+            // MRT feature is disabled to avoid the WebGL2 indexed-blend bug), so this is expected.
+            Log(Debug::Info) << "'glDisablei' unsupported, pass normals will not be available to shaders.";
 
         mGLSLVersion = static_cast<int>(ext->glslLanguageVersion * 100);
         mUBO = ext->isUniformBufferObjectSupported && mGLSLVersion >= 330;
