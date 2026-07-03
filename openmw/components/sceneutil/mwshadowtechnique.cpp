@@ -932,16 +932,7 @@ void SceneUtil::MWShadowTechnique::setupCastingShader(Shader::ShaderManager & sh
 {
     // This can't be part of the constructor as OSG mandates that there be a trivial constructor available
 
-    // Casting shaders are built here (before RenderingManager populates the global defines), so any
-    // define the templates reference must be passed explicitly — like useGPUShader4 below. The GPU
-    // skinning path in shadowcasting.vert gates on useGLES.
-#ifdef __EMSCRIPTEN__
-    const std::string useGLES = "1";
-#else
-    const std::string useGLES = "0";
-#endif
-    osg::ref_ptr<osg::Shader> castingVertexShader
-        = shaderManager.getShader("shadowcasting.vert", { { "useGLES", useGLES } });
+    osg::ref_ptr<osg::Shader> castingVertexShader = shaderManager.getShader("shadowcasting.vert");
     std::string useGPUShader4 = SceneUtil::getGLExtensions().isGpuShader4Supported ? "1" : "0";
     for (int alphaFunc = GL_NEVER; alphaFunc <= GL_ALWAYS; ++alphaFunc)
     {

@@ -33,7 +33,6 @@
 #include <components/sceneutil/cullsafeboundsvisitor.hpp>
 #include <components/sceneutil/depth.hpp>
 #include <components/sceneutil/lightmanager.hpp>
-#include <components/sceneutil/riggeometry.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/rtt.hpp>
 #include <components/sceneutil/shadow.hpp>
@@ -323,32 +322,6 @@ namespace MWRender
 
         mSharedUniformStateUpdater = new SceneUtil::SharedUniformStateUpdater(Settings::fog().mSkyBlendingStart);
         rootNode->addUpdateCallback(mSharedUniformStateUpdater);
-
-#ifdef __EMSCRIPTEN__
-        // GPU skinning: reserve the bone-matrix-palette texture unit BEFORE the PostProcessor is
-        // created below, or the post-processor grabs this unit for its ping-pong scene textures and
-        // skinned shaders sampling boneMatrixTex read the active render target (WebGL feedback loop).
-        // Publish the sampler binding globally; default useSkinning off (RigGeometry sets it per rig).
-        {
-            int boneUnit = mResourceSystem->getSceneManager()->getShaderManager().reserveGlobalTextureUnits(
-                Shader::ShaderManager::Slot::SkinningMatrixTexture);
-            SceneUtil::RigGeometry::sBoneMatrixTextureUnit = boneUnit;
-            osg::StateSet* ss = sceneRoot->getOrCreateStateSet();
-            ss->addUniform(new osg::Uniform("boneMatrixTex", boneUnit));
-            ss->addUniform(new osg::Uniform("useSkinning", false));
-            // Every objects shader declares the boneMatrixTex sampler at this unit, so a texture must
-            // always be bound here — otherwise non-skinned draws leave a stale FBO attachment on the
-            // unit and ANGLE flags a framebuffer/texture feedback loop even though it is never sampled.
-            // Bind a 1x1 dummy globally; RigGeometry overrides it with the real palette per rig.
-            osg::ref_ptr<osg::Image> dummyImg = new osg::Image;
-            dummyImg->allocateImage(1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE);
-            osg::ref_ptr<osg::Texture2D> dummyTex = new osg::Texture2D(dummyImg);
-            dummyTex->setFilter(osg::Texture::MIN_FILTER, osg::Texture::NEAREST);
-            dummyTex->setFilter(osg::Texture::MAG_FILTER, osg::Texture::NEAREST);
-            dummyTex->setResizeNonPowerOfTwoHint(false);
-            ss->setTextureAttributeAndModes(boneUnit, dummyTex, osg::StateAttribute::ON);
-        }
-#endif
 
         mPerViewUniformStateUpdater = new SceneUtil::PerViewUniformStateUpdater(mResourceSystem->getSceneManager(),
             mResourceSystem->getSceneManager()->getShaderManager().reserveGlobalTextureUnits(

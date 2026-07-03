@@ -37,27 +37,12 @@ uniform mat4 osg_ViewMatrixInverse;
 #include "compatibility/vertexcolors.glsl"
 #include "compatibility/shadows_vertex.glsl"
 #include "compatibility/normals.glsl"
-#include "lib/skinning.glsl"
 
 void main(void)
 {
-#if @useGLES
-    mat4 skinMat = mat4(1.0);
-#endif
-    vec4 skinnedVertex = gl_Vertex;
-    vec3 skinnedNormal = gl_Normal.xyz;
-#if @useGLES
-    if (useSkinning && hasSkin())
-    {
-        skinMat = skinMatrix();
-        skinnedVertex = skinMat * gl_Vertex;
-        skinnedNormal = mat3(skinMat) * gl_Normal.xyz;
-    }
-#endif
+    gl_Position = modelToClip(gl_Vertex);
 
-    gl_Position = modelToClip(skinnedVertex);
-
-    vec4 viewPos = modelToView(skinnedVertex);
+    vec4 viewPos = modelToView(gl_Vertex);
 #if @useGLES
     passClipDist = dot((osg_ViewMatrixInverse * viewPos).xyz, clipPlane.xyz) + clipPlane.w;
 #else
@@ -67,16 +52,11 @@ void main(void)
     linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
     passColor = gl_Color;
     passViewPos = viewPos.xyz;
-    passNormal = skinnedNormal;
+    passNormal = gl_Normal.xyz;
     normalToViewMatrix = gl_NormalMatrix;
 
 #if @normalMap
-    vec4 skinnedTangent = gl_MultiTexCoord7.xyzw;
-#if @useGLES
-    if (useSkinning && hasSkin())
-        skinnedTangent.xyz = mat3(skinMat) * skinnedTangent.xyz;
-#endif
-    normalToViewMatrix *= generateTangentSpace(skinnedTangent, passNormal);
+    normalToViewMatrix *= generateTangentSpace(gl_MultiTexCoord7.xyzw, passNormal);
 #endif
 
 #if @diffuseMap

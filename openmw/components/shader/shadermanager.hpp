@@ -80,7 +80,6 @@ namespace Shader
             OpaqueDepthTexture,
             SkyTexture,
             ShadowMaps,
-            SkinningMatrixTexture,
             SLOT_COUNT
         };
 

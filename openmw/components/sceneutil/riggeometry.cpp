@@ -1,8 +1,5 @@
 #include "riggeometry.hpp"
 
-#include <algorithm>
-#include <cstring>
-
 #include <osg/MatrixTransform>
 
 #include <osgUtil/CullVisitor>
@@ -14,17 +11,8 @@
 #include "skeleton.hpp"
 #include "util.hpp"
 
-#ifdef __EMSCRIPTEN__
-// GLES3 sized internal format for the float bone matrix palette texture; not exposed by OSG's GL
-// header include chain here.
-#ifndef GL_RGBA32F
-#define GL_RGBA32F 0x8814
-#endif
-#endif
-
 namespace SceneUtil
 {
-    int RigGeometry::sBoneMatrixTextureUnit = -1;
 
     RigGeometry::RigGeometry()
     {
@@ -102,53 +90,6 @@ namespace SceneUtil
             else
                 mSourceTangents = nullptr;
         }
-
-        setupGpuSkinning();
-    }
-
-    void RigGeometry::setupGpuSkinning()
-    {
-#ifdef __EMSCRIPTEN__
-        // GPU skinning: attach the shared per-vertex bone attributes and create this instance's bone
-        // matrix palette texture. Requires both the geometry (setSourceGeometry) and the influence
-        // attributes (setInfluences) to be ready — whichever runs last triggers the setup.
-        if (sBoneMatrixTextureUnit < 0 || mGpuSkinning)
-            return;
-        if (!mData || !mData->mBoneIndices || !mData->mBoneWeights || !mGeometry[0])
-            return;
-
-        const int numBones = static_cast<int>(mData->mBones.size());
-        if (numBones == 0)
-            return;
-
-        mBoneMatrixImage = new osg::Image;
-        mBoneMatrixImage->allocateImage(4, numBones, 1, GL_RGBA, GL_FLOAT);
-        mBoneMatrixImage->setInternalTextureFormat(GL_RGBA32F);
-
-        mBoneMatrixTexture = new osg::Texture2D(mBoneMatrixImage);
-        mBoneMatrixTexture->setInternalFormat(GL_RGBA32F);
-        mBoneMatrixTexture->setSourceFormat(GL_RGBA);
-        mBoneMatrixTexture->setSourceType(GL_FLOAT);
-        mBoneMatrixTexture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::NEAREST);
-        mBoneMatrixTexture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::NEAREST);
-        mBoneMatrixTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
-        mBoneMatrixTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
-        mBoneMatrixTexture->setUseHardwareMipMapGeneration(false);
-        // The palette is raw matrix data indexed by texelFetch — it must NOT be resampled to a
-        // power-of-two size (WebGL2 supports NPOT with NEAREST + CLAMP), or the matrices corrupt.
-        mBoneMatrixTexture->setResizeNonPowerOfTwoHint(false);
-
-        for (unsigned int i = 0; i < 2; ++i)
-        {
-            osg::Geometry& geom = *mGeometry[i];
-            geom.setVertexAttribArray(6, mData->mBoneIndices, osg::Array::BIND_PER_VERTEX);
-            geom.setVertexAttribArray(7, mData->mBoneWeights, osg::Array::BIND_PER_VERTEX);
-            osg::StateSet* ss = geom.getOrCreateStateSet();
-            ss->setTextureAttributeAndModes(sBoneMatrixTextureUnit, mBoneMatrixTexture, osg::StateAttribute::ON);
-            ss->addUniform(new osg::Uniform("useSkinning", true));
-        }
-        mGpuSkinning = true;
-#endif
     }
 
     osg::ref_ptr<osg::Geometry> RigGeometry::getSourceGeometry() const
@@ -218,36 +159,6 @@ namespace SceneUtil
         osg::Geometry& geom = *getGeometry(mLastFrameNumber);
 
         mSkeleton->updateBoneMatrices(traversalNumber);
-
-#ifdef __EMSCRIPTEN__
-        if (mGpuSkinning)
-        {
-            // GPU skinning: upload the bone matrix palette to the texture and let the vertex shader
-            // do the linear-blend skinning. Each bone matrix is invBind * skeletonSpace * transform
-            // (the same product the CPU path applies, with the trailing transform folded in per-bone
-            // since (Σ wᵢBᵢ)·T = Σ wᵢ(BᵢT)). Stored row-major = 4 RGBA texels per bone; see skinning.glsl.
-            osg::Matrixf transform;
-            if (mSkinToSkelMatrix)
-                transform = (*mSkinToSkelMatrix) * mData->mTransform;
-            else
-                transform = mData->mTransform;
-
-            float* dst = reinterpret_cast<float*>(mBoneMatrixImage->data());
-            for (size_t b = 0; b < mNodes.size(); ++b)
-            {
-                osg::Matrixf boneMat; // identity for missing bones
-                if (mNodes[b] != nullptr)
-                    boneMat = mData->mBones[b].mInvBindMatrix * mNodes[b]->mMatrixInSkeletonSpace * transform;
-                std::memcpy(dst + b * 16, boneMat.ptr(), 16 * sizeof(float));
-            }
-            mBoneMatrixImage->dirty();
-
-            nv->pushOntoNodePath(&geom);
-            nv->apply(geom);
-            nv->popFromNodePath();
-            return;
-        }
-#endif
 
         // skinning
         const osg::Vec3Array* positionSrc = static_cast<osg::Vec3Array*>(mSourceGeometry->getVertexArray());
@@ -432,42 +343,6 @@ namespace SceneUtil
 
         mData->mInfluences.reserve(influencesToVertices.size());
         mData->mInfluences.assign(influencesToVertices.begin(), influencesToVertices.end());
-
-#ifdef __EMSCRIPTEN__
-        // GPU skinning: build fixed per-vertex attributes (up to 4 highest-weight bones, normalised)
-        // from the per-vertex influence list. Shared with all clones via mData. Vertices with no
-        // influence get zero weights and are left in bind pose by the shader.
-        if (sBoneMatrixTextureUnit >= 0)
-        {
-            const size_t numVerts = influences.size();
-            osg::ref_ptr<osg::Vec4Array> boneIndices = new osg::Vec4Array(osg::Array::BIND_PER_VERTEX, numVerts);
-            osg::ref_ptr<osg::Vec4Array> boneWeights = new osg::Vec4Array(osg::Array::BIND_PER_VERTEX, numVerts);
-            for (size_t i = 0; i < numVerts; ++i)
-            {
-                BoneWeights bw = influences[i];
-                std::sort(bw.begin(), bw.end(),
-                    [](const BoneWeight& a, const BoneWeight& b) { return a.second > b.second; });
-                if (bw.size() > 4)
-                    bw.resize(4);
-                float sum = 0.f;
-                for (const auto& [idx, w] : bw)
-                    sum += w;
-                osg::Vec4f idxV(0.f, 0.f, 0.f, 0.f);
-                osg::Vec4f wV(0.f, 0.f, 0.f, 0.f);
-                if (sum > 1e-4f)
-                    for (size_t b = 0; b < bw.size(); ++b)
-                    {
-                        idxV[b] = static_cast<float>(bw[b].first);
-                        wV[b] = bw[b].second / sum;
-                    }
-                (*boneIndices)[i] = idxV;
-                (*boneWeights)[i] = wV;
-            }
-            mData->mBoneIndices = boneIndices;
-            mData->mBoneWeights = boneWeights;
-            setupGpuSkinning();
-        }
-#endif
     }
 
     void RigGeometry::setTransform(osg::Matrixf&& transform)
