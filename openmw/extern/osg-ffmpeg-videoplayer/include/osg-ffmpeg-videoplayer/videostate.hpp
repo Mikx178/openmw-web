@@ -186,6 +186,12 @@ struct VideoState {
     uint8_t* mFlushPktData;
 
     AVStream**  video_st;
+    // The external (wall-clock) master clock is zeroed in init(), but on the cooperative
+    // emscripten pump the first frame can arrive many real-time ms later (heavy cell load +
+    // worker spin-up between init() and the first pumped update()). By then the free-running
+    // clock is already ahead of the early PTS, so video_refresh drops every buffered frame as
+    // "too late" -> frozen on frame 1. Re-anchor the clock to the first displayed frame's PTS.
+    bool        mClockAnchored = false;
     double      frame_last_pts;
     double      video_clock; ///<pts of last decoded frame / predicted pts of next decoded frame
     PacketQueue videoq;

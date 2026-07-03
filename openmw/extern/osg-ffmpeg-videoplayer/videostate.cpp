@@ -328,6 +328,16 @@ void VideoState::video_refresh()
     }
     else
     {
+        // Re-anchor the free-running external clock to the first frame that is actually ready to
+        // display, so a load-induced gap between init()'s mExternalClock.set(0) and the first
+        // pumped frame can't strand playback (frozen-on-frame-1). After this the clock advances in
+        // real time from the first PTS, preserving correct playback speed. See videostate.hpp.
+        if (!this->mClockAnchored)
+        {
+            this->mExternalClock.set(static_cast<uint64_t>(this->pictq[this->pictq_rindex].pts * 1000000.0));
+            this->mClockAnchored = true;
+        }
+
         const float threshold = 0.03f;
         if (this->pictq[pictq_rindex].pts > this->get_master_clock() + threshold)
             return; // not ready yet to show this picture
@@ -801,6 +811,7 @@ void VideoState::init(std::unique_ptr<std::istream>&& inputstream, const std::st
     }
 
     mExternalClock.set(0);
+    mClockAnchored = false; // re-anchor to the first displayed frame's PTS (see video_refresh)
 
     if(audio_index >= 0)
         this->stream_open(audio_index, this->format_ctx);
