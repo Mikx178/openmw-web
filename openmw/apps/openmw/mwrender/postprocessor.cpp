@@ -196,18 +196,19 @@ namespace MWRender
         if (!ext->glDisablei && ext->glDisableIndexedEXT)
             ext->glDisablei = ext->glDisableIndexedEXT;
 
-#if defined(ANDROID) || defined(__EMSCRIPTEN__)
-        // WebGL2/GLES: glEnablei/glDisablei (indexed draw-buffer color masks) are not exposed by
-        // Emscripten, so the pass-normals MRT feature is unavailable. Disable it quietly.
+#if defined(ANDROID)
+        // GLES on Android: glEnablei/glDisablei (indexed draw-buffer color masks) are not
+        // exposed, so the pass-normals MRT feature is unavailable. Disable it quietly.
         ext->glDisablei = nullptr;
 #endif
+        // (Under emscripten, OSG's GLExtensions bridges glEnablei/glDisablei/glColorMaski to
+        // WebGL2's OES_draw_buffers_indexed when available, so pass normals work; the pointer
+        // stays null - and normals stay off - only when the extension is truly missing.)
 
         if (ext->glDisablei)
             mNormalsSupported = true;
-#ifndef __EMSCRIPTEN__
         else
             Log(Debug::Error) << "'glDisablei' unsupported, pass normals will not be available to shaders.";
-#endif
 
         mGLSLVersion = static_cast<int>(ext->glslLanguageVersion * 100);
         mUBO = ext->isUniformBufferObjectSupported && mGLSLVersion >= 330;

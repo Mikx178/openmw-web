@@ -58,6 +58,23 @@
  })();
  const logEl = document.getElementById('log');
  let started = false;
+ // HRTF binaural spatialization: emscripten's OpenAL positions sources with PannerNodes
+ // left at the default 'equalpower' model. Flip every panner the engine creates to the
+ // Web Audio HRTF model — proper binaural 3D audio on headphones, no engine change.
+ // (?nohrtf opts out for A/B comparison or low-end CPUs.)
+ (function(){
+   if (/[?&]nohrtf\b/.test(location.search)) return;
+   ['AudioContext','webkitAudioContext'].forEach(function(k){
+     var C = window[k];
+     if (!C || !C.prototype || !C.prototype.createPanner) return;
+     var orig = C.prototype.createPanner;
+     C.prototype.createPanner = function(){
+       var p = orig.call(this);
+       try { p.panningModel = 'HRTF'; } catch(e){}
+       return p;
+     };
+   });
+ })();
  // Web Audio contexts start "suspended" until a user gesture. OpenMW opens the OpenAL
  // device fine, but nothing is audible until we resume. Track every AudioContext the
  // engine creates and resume them all on the first click/keypress.

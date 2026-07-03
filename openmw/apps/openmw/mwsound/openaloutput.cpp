@@ -25,6 +25,328 @@
 #include "sounddecoder.hpp"
 #include "soundmanagerimp.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+// ---------------------------------------------------------------------------
+// EFX over Web Audio.
+//
+// Emscripten's OpenAL (a Web Audio reimplementation) has no ALC_EXT_EFX, so on
+// desktop-parity features OpenMW falls back to crude gain/pitch tricks. Web Audio
+// has the primitives natively, and EM_JS code is emitted into the same JS module
+// scope as emscripten's `AL` library object, so we can reach each source's node
+// graph (src.gain -> [src.panner] -> ctx.gain) directly:
+//   - AL_FILTER_LOWPASS  -> a BiquadFilterNode inserted after the source gain
+//                           (underwater/muffled sounds).
+//   - AL_EFFECT_EAXREVERB + aux slot -> a ConvolverNode with an impulse response
+//     synthesized from the reverb parameters (RT60 = decay time), fed by
+//     per-source send connections (interior/underwater reverb).
+// The function-pointer surface OpenMW loads via alGetProcAddress is provided by
+// the EfxShim adapters below (LOAD_FUNC is redirected under __EMSCRIPTEN__).
+// ---------------------------------------------------------------------------
+
+// clang-format off
+EM_JS(void, omw_efx_setup, (), {
+    if (Module.__EFX) return;
+    Module.__EFX = { nextId: 1, filters: {}, effects: {}, slots: {}, src: {} };
+    // Bind effect -> slot: (re)build the convolver + impulse response from reverb params.
+    Module.__efxBind = function(slot, effect) {
+        var E = Module.__EFX;
+        var s = E.slots[slot]; if (!s) return;
+        s.effect = effect;
+        var AL_ = (typeof AL !== 'undefined') ? AL : null;
+        if (!AL_ || !AL_.currentCtx) return;
+        var actx = AL_.currentCtx.audioCtx;
+        if (!s.conv) {
+            s.conv = actx.createConvolver();
+            s.wet = actx.createGain();
+            s.conv.connect(s.wet);
+            s.wet.connect(AL_.currentCtx.gain);
+        }
+        var fx = E.effects[effect];
+        if (!fx) { s.wet.gain.value = 0; return; }
+        // Impulse response: stereo decaying noise; RT60 = decayTime, HF damping from
+        // decayHFRatio via a one-pole lowpass over the noise.
+        var dur = Math.min(Math.max(fx.decayTime || 1.5, 0.2), 8);
+        var rate = actx.sampleRate, len = Math.max(1, Math.floor(dur * rate));
+        var buf = actx.createBuffer(2, len, rate);
+        var hf = Math.min(Math.max(fx.decayHFRatio || 0.8, 0.1), 2.0);
+        var alpha = Math.min(0.95, Math.max(0.05, 1.2 - hf)); // lower ratio -> darker tail
+        for (var ch = 0; ch < 2; ch++) {
+            var d = buf.getChannelData(ch), lp = 0;
+            for (var i = 0; i < len; i++) {
+                var t = i / rate;
+                var noise = Math.random() * 2 - 1;
+                lp = lp + alpha * (noise - lp);
+                d[i] = lp * Math.exp(-6.9078 * t / dur); // -60 dB at RT60
+            }
+        }
+        s.conv.buffer = buf;
+        s.wet.gain.value = Math.min(1, (fx.gain || 0) * (fx.lateGain || 1));
+        fx.dirty = 0;
+    };
+});
+
+EM_JS(int, omw_efx_gen, (int kind), {
+    var E = Module.__EFX; var id = E.nextId++;
+    if (kind === 0) E.filters[id] = { type: 0, gain: 1, gainhf: 1 };
+    else if (kind === 1) E.effects[id] = { type: 0, gain: 0, gainhf: 0.89, decayTime: 1.49, decayHFRatio: 0.83, lateGain: 1.26 };
+    else E.slots[id] = { effect: 0, conv: null, wet: null };
+    return id;
+});
+
+EM_JS(void, omw_efx_del, (int kind, int id), {
+    var E = Module.__EFX;
+    if (kind === 0) delete E.filters[id];
+    else if (kind === 1) delete E.effects[id];
+    else { var s = E.slots[id]; if (s && s.conv) { try { s.conv.disconnect(); s.wet.disconnect(); } catch(e){} } delete E.slots[id]; }
+});
+
+EM_JS(int, omw_efx_is, (int kind, int id), {
+    var E = Module.__EFX;
+    return ((kind === 0 ? E.filters : kind === 1 ? E.effects : E.slots)[id]) ? 1 : 0;
+});
+
+// param maps: filters: 0x8001=AL_FILTER_TYPE, 1=AL_LOWPASS_GAIN, 2=AL_LOWPASS_GAINHF.
+// effects (EAXREVERB): 0x8001=AL_EFFECT_TYPE, 3=GAIN, 4=GAINHF, 6=DECAY_TIME,
+//                      7=DECAY_HFRATIO, 0xC=LATE_REVERB_GAIN (others ignored).
+EM_JS(void, omw_efx_param, (int kind, int id, int param, double value), {
+    var E = Module.__EFX;
+    if (kind === 0) {
+        var f = E.filters[id]; if (!f) return;
+        if (param === 0x8001) f.type = value|0;
+        else if (param === 1) f.gain = value;
+        else if (param === 2) f.gainhf = value;
+        // live-update any sources currently using this filter
+        for (var sid in E.src) {
+            var st = E.src[sid];
+            if (st.filterId === id && st.biquad) {
+                st.biquad.frequency.value = Math.max(200, 22050 * f.gainhf * f.gainhf);
+                st.fgain.gain.value = f.gain;
+            }
+        }
+    } else if (kind === 1) {
+        var fx = E.effects[id]; if (!fx) return;
+        if (param === 0x8001) fx.type = value|0;
+        else if (param === 3) fx.gain = value;
+        else if (param === 4) fx.gainhf = value;
+        else if (param === 6) fx.decayTime = value;
+        else if (param === 7) fx.decayHFRatio = value;
+        else if (param === 0xC) fx.lateGain = value;
+        fx.dirty = 1;
+        // if a slot is bound to this effect, refresh it
+        for (var slid in E.slots) if (E.slots[slid].effect === id) Module.__efxBind(slid|0, id);
+    }
+});
+
+EM_JS(int, omw_efx_geti, (int kind, int id, int param), {
+    var E = Module.__EFX;
+    var o = (kind === 0 ? E.filters : kind === 1 ? E.effects : E.slots)[id];
+    if (!o) return 0;
+    if (param === 0x8001) return o.type|0;
+    return 0;
+});
+
+// Bind effect -> slot (implementation lives in omw_efx_setup's Module.__efxBind).
+EM_JS(void, omw_efx_slot_effect, (int slot, int effect), {
+    if (Module.__efxBind) Module.__efxBind(slot, effect);
+});
+
+// Insert/remove the per-source direct lowpass: src.gain -> biquad -> fgain -> dest.
+EM_JS(void, omw_efx_source_direct, (int srcId, int filterId), {
+    try {
+        var E = Module.__EFX;
+        var AL_ = (typeof AL !== 'undefined') ? AL : null;
+        if (!AL_ || !AL_.currentCtx) return;
+        var s = AL_.currentCtx.sources[srcId]; if (!s) return;
+        var st = E.src[srcId] || (E.src[srcId] = {});
+        var dest = s.panner || AL_.currentCtx.gain;
+        var f = filterId ? E.filters[filterId] : null;
+        if (f && f.type === 1 /*AL_FILTER_LOWPASS*/) {
+            var actx = AL_.currentCtx.audioCtx;
+            if (!st.biquad) {
+                st.biquad = actx.createBiquadFilter();
+                st.biquad.type = 'lowpass';
+                st.fgain = actx.createGain();
+                st.biquad.connect(st.fgain);
+            }
+            st.filterId = filterId;
+            st.biquad.frequency.value = Math.max(200, 22050 * f.gainhf * f.gainhf);
+            st.fgain.gain.value = f.gain;
+            try { s.gain.disconnect(dest); } catch(e){}
+            try { st.fgain.disconnect(); } catch(e){}
+            s.gain.connect(st.biquad);
+            st.fgain.connect(dest);
+        } else if (st.biquad) {
+            st.filterId = 0;
+            try { s.gain.disconnect(st.biquad); } catch(e){}
+            try { st.fgain.disconnect(); } catch(e){}
+            try { s.gain.connect(dest); } catch(e){}
+        }
+    } catch(e){}
+});
+
+// Add/remove the per-source reverb send (src.gain -> slot convolver).
+EM_JS(void, omw_efx_source_send, (int srcId, int slotId, int filterId), {
+    try {
+        var E = Module.__EFX;
+        var AL_ = (typeof AL !== 'undefined') ? AL : null;
+        if (!AL_ || !AL_.currentCtx) return;
+        var s = AL_.currentCtx.sources[srcId]; if (!s) return;
+        var st = E.src[srcId] || (E.src[srcId] = {});
+        if (st.sendSlot && E.slots[st.sendSlot] && E.slots[st.sendSlot].conv) {
+            try { s.gain.disconnect(E.slots[st.sendSlot].conv); } catch(e){}
+            st.sendSlot = 0;
+        }
+        var slot = slotId ? E.slots[slotId] : null;
+        if (slot) {
+            if (!slot.conv) Module.__efxBind(slotId, slot.effect | 0);
+            if (slot.conv) { s.gain.connect(slot.conv); st.sendSlot = slotId; }
+        }
+    } catch(e){}
+});
+// clang-format on
+
+namespace EfxShim
+{
+    void AL_APIENTRY alGenEffects(ALsizei n, ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            ids[i] = omw_efx_gen(1);
+    }
+    void AL_APIENTRY alDeleteEffects(ALsizei n, const ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            omw_efx_del(1, ids[i]);
+    }
+    ALboolean AL_APIENTRY alIsEffect(ALuint id)
+    {
+        return omw_efx_is(1, id) ? AL_TRUE : AL_FALSE;
+    }
+    void AL_APIENTRY alEffecti(ALuint id, ALenum p, ALint v)
+    {
+        omw_efx_param(1, id, p, v);
+    }
+    void AL_APIENTRY alEffectiv(ALuint id, ALenum p, const ALint* v)
+    {
+        omw_efx_param(1, id, p, v[0]);
+    }
+    void AL_APIENTRY alEffectf(ALuint id, ALenum p, ALfloat v)
+    {
+        omw_efx_param(1, id, p, v);
+    }
+    void AL_APIENTRY alEffectfv(ALuint id, ALenum p, const ALfloat* v)
+    {
+        omw_efx_param(1, id, p, v[0]);
+    }
+    void AL_APIENTRY alGetEffecti(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(1, id, p);
+    }
+    void AL_APIENTRY alGetEffectiv(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(1, id, p);
+    }
+    void AL_APIENTRY alGetEffectf(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+    void AL_APIENTRY alGetEffectfv(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+
+    void AL_APIENTRY alGenFilters(ALsizei n, ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            ids[i] = omw_efx_gen(0);
+    }
+    void AL_APIENTRY alDeleteFilters(ALsizei n, const ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            omw_efx_del(0, ids[i]);
+    }
+    ALboolean AL_APIENTRY alIsFilter(ALuint id)
+    {
+        return omw_efx_is(0, id) ? AL_TRUE : AL_FALSE;
+    }
+    void AL_APIENTRY alFilteri(ALuint id, ALenum p, ALint v)
+    {
+        omw_efx_param(0, id, p, v);
+    }
+    void AL_APIENTRY alFilteriv(ALuint id, ALenum p, const ALint* v)
+    {
+        omw_efx_param(0, id, p, v[0]);
+    }
+    void AL_APIENTRY alFilterf(ALuint id, ALenum p, ALfloat v)
+    {
+        omw_efx_param(0, id, p, v);
+    }
+    void AL_APIENTRY alFilterfv(ALuint id, ALenum p, const ALfloat* v)
+    {
+        omw_efx_param(0, id, p, v[0]);
+    }
+    void AL_APIENTRY alGetFilteri(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(0, id, p);
+    }
+    void AL_APIENTRY alGetFilteriv(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(0, id, p);
+    }
+    void AL_APIENTRY alGetFilterf(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+    void AL_APIENTRY alGetFilterfv(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+
+    void AL_APIENTRY alGenAuxiliaryEffectSlots(ALsizei n, ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            ids[i] = omw_efx_gen(2);
+    }
+    void AL_APIENTRY alDeleteAuxiliaryEffectSlots(ALsizei n, const ALuint* ids)
+    {
+        for (ALsizei i = 0; i < n; ++i)
+            omw_efx_del(2, ids[i]);
+    }
+    ALboolean AL_APIENTRY alIsAuxiliaryEffectSlot(ALuint id)
+    {
+        return omw_efx_is(2, id) ? AL_TRUE : AL_FALSE;
+    }
+    void AL_APIENTRY alAuxiliaryEffectSloti(ALuint slot, ALenum p, ALint v)
+    {
+        if (p == 0x0001 /*AL_EFFECTSLOT_EFFECT*/)
+            omw_efx_slot_effect(slot, v);
+    }
+    void AL_APIENTRY alAuxiliaryEffectSlotiv(ALuint slot, ALenum p, const ALint* v)
+    {
+        alAuxiliaryEffectSloti(slot, p, v[0]);
+    }
+    void AL_APIENTRY alAuxiliaryEffectSlotf(ALuint, ALenum, ALfloat) {}
+    void AL_APIENTRY alAuxiliaryEffectSlotfv(ALuint, ALenum, const ALfloat*) {}
+    void AL_APIENTRY alGetAuxiliaryEffectSloti(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(2, id, p);
+    }
+    void AL_APIENTRY alGetAuxiliaryEffectSlotiv(ALuint id, ALenum p, ALint* out)
+    {
+        *out = omw_efx_geti(2, id, p);
+    }
+    void AL_APIENTRY alGetAuxiliaryEffectSlotf(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+    void AL_APIENTRY alGetAuxiliaryEffectSlotfv(ALuint, ALenum, ALfloat* out)
+    {
+        *out = 0.0f;
+    }
+}
+#endif // __EMSCRIPTEN__
+
 #ifndef ALC_ALL_DEVICES_SPECIFIER
 #define ALC_ALL_DEVICES_SPECIFIER 0x1013
 #endif
@@ -75,6 +397,26 @@ namespace
     {
         void* funcPtr = alGetProcAddress(name);
         convertPointer(func, funcPtr);
+    }
+
+    // Route the per-source EFX state through the Web Audio shim under emscripten
+    // (emscripten's alSourcei/alSource3i don't know the EFX enums and would just
+    // raise AL_INVALID_ENUM).
+    inline void omwSetSourceDirectFilter(ALuint source, ALint filter)
+    {
+#ifdef __EMSCRIPTEN__
+        omw_efx_source_direct(source, filter);
+#else
+        omwSetSourceDirectFilter(source, filter);
+#endif
+    }
+    inline void omwSetSourceSendFilter(ALuint source, ALuint slot, ALint filter)
+    {
+#ifdef __EMSCRIPTEN__
+        omw_efx_source_send(source, slot, filter);
+#else
+        omwSetSourceSendFilter(source, slot, filter);
+#endif
     }
 
     // Effect objects
@@ -749,6 +1091,11 @@ namespace MWSound
                          << "  ALC Extensions: " << alcGetString(mDevice, ALC_EXTENSIONS);
 
         ALC.EXT_EFX = alcIsExtensionPresent(mDevice, "ALC_EXT_EFX");
+#ifdef __EMSCRIPTEN__
+        // Emscripten's OpenAL has no EFX; the Web Audio shim above provides it.
+        ALC.EXT_EFX = true;
+        omw_efx_setup();
+#endif
         ALC.SOFT_HRTF = alcIsExtensionPresent(mDevice, "ALC_SOFT_HRTF");
 
         mContextAttributes.clear();
@@ -889,7 +1236,11 @@ namespace MWSound
 
         if (ALC.EXT_EFX)
         {
+#ifdef __EMSCRIPTEN__
+#define LOAD_FUNC(x) x = &EfxShim::x
+#else
 #define LOAD_FUNC(x) getALFunc(x, #x)
+#endif
             LOAD_FUNC(alGenEffects);
             LOAD_FUNC(alDeleteEffects);
             LOAD_FUNC(alIsEffect);
@@ -1143,21 +1494,21 @@ namespace MWSound
         if (useenv)
         {
             if (mWaterFilter)
-                alSourcei(source, AL_DIRECT_FILTER, (mListenerEnv == Env_Underwater) ? mWaterFilter : AL_FILTER_NULL);
+                omwSetSourceDirectFilter(source, (mListenerEnv == Env_Underwater) ? mWaterFilter : AL_FILTER_NULL);
             else if (mListenerEnv == Env_Underwater)
             {
                 gain *= 0.9f;
                 pitch *= 0.7f;
             }
             if (mEffectSlot)
-                alSource3i(source, AL_AUXILIARY_SEND_FILTER, mEffectSlot, 0, AL_FILTER_NULL);
+                omwSetSourceSendFilter(source, mEffectSlot, AL_FILTER_NULL);
         }
         else
         {
             if (mWaterFilter)
-                alSourcei(source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                omwSetSourceDirectFilter(source, AL_FILTER_NULL);
             if (mEffectSlot)
-                alSource3i(source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+                omwSetSourceSendFilter(source, AL_EFFECTSLOT_NULL, AL_FILTER_NULL);
         }
 
         alSourcef(source, AL_GAIN, gain);
@@ -1183,21 +1534,21 @@ namespace MWSound
         if (useenv)
         {
             if (mWaterFilter)
-                alSourcei(source, AL_DIRECT_FILTER, (mListenerEnv == Env_Underwater) ? mWaterFilter : AL_FILTER_NULL);
+                omwSetSourceDirectFilter(source, (mListenerEnv == Env_Underwater) ? mWaterFilter : AL_FILTER_NULL);
             else if (mListenerEnv == Env_Underwater)
             {
                 gain *= 0.9f;
                 pitch *= 0.7f;
             }
             if (mEffectSlot)
-                alSource3i(source, AL_AUXILIARY_SEND_FILTER, mEffectSlot, 0, AL_FILTER_NULL);
+                omwSetSourceSendFilter(source, mEffectSlot, AL_FILTER_NULL);
         }
         else
         {
             if (mWaterFilter)
-                alSourcei(source, AL_DIRECT_FILTER, AL_FILTER_NULL);
+                omwSetSourceDirectFilter(source, AL_FILTER_NULL);
             if (mEffectSlot)
-                alSource3i(source, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
+                omwSetSourceSendFilter(source, AL_EFFECTSLOT_NULL, AL_FILTER_NULL);
         }
 
         alSourcef(source, AL_GAIN, gain);
@@ -1511,8 +1862,7 @@ namespace MWSound
                     for (Stream* sound : mActiveStreams)
                     {
                         if (sound->getUseEnv())
-                            alSourcei(reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle)->mSource, AL_DIRECT_FILTER,
-                                filter);
+                            omwSetSourceDirectFilter(reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle)->mSource, filter);
                     }
                 }
                 // Update the environment effect

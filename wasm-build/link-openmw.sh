@@ -53,6 +53,7 @@ ninja apps/openmw/CMakeFiles/openmw.dir/main.cpp.o
   -sASSERTIONS=0 -sMALLOC=mimalloc \
   -sENVIRONMENT=web,worker \
   ${OMW_PROFILING:+--profiling-funcs} \
+  ${OMW_CLOSURE:+--closure=1} \
   -Wl,--whole-archive \
     "$LIB/libosgdb_bmp.a" "$LIB/libosgdb_dds.a" "$LIB/libosgdb_freetype.a" \
     "$LIB/libosgdb_jpeg.a" "$LIB/libosgdb_osg.a" "$LIB/libosgdb_png.a" \

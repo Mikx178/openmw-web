@@ -100,7 +100,7 @@ index c3988e0..e8a0358 100644
                      else
                      {
 diff --git a/src/osg/GLExtensions.cpp b/src/osg/GLExtensions.cpp
-index 478b503..293e3a3 100644
+index 478b503..36d60ad 100644
 --- a/src/osg/GLExtensions.cpp
 +++ b/src/osg/GLExtensions.cpp
 @@ -13,6 +13,10 @@
@@ -186,7 +186,56 @@ index 478b503..293e3a3 100644
      isShadowAmbientSupported = validContext && (isGLExtensionSupported(contextID,"GL_ARB_shadow_ambient"));
      isClientStorageSupported = validContext && (isGLExtensionSupported(contextID,"GL_APPLE_client_storage"));
      isNonPowerOfTwoTextureMipMappedSupported = validContext && (builtInSupport || isGLExtensionSupported(contextID, "GL_OES_texture_npot") || isGLExtensionOrVersionSupported(contextID, "GL_ARB_texture_non_power_of_two", 2.0));
-@@ -1132,7 +1180,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+@@ -1013,6 +1061,30 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+     // glEnablei/glDisabli
+     setGLExtensionFuncPtr(glEnablei, "glEnablei", validContext);
+     setGLExtensionFuncPtr(glDisablei, "glDisablei", validContext);
++#ifdef __EMSCRIPTEN__
++    // WebGL2 exposes indexed enable/disable/color-mask via OES_draw_buffers_indexed
++    // (per-attachment state, needed for the pass-normals MRT). getProcAddress can't see
++    // extension objects; bridge with EM_ASM. getExtension() also enables the extension.
++    if (validContext && !glEnablei
++        && EM_ASM_INT({
++               try
++               {
++                   return (typeof GLctx !== 'undefined'
++                              && (GLctx.__omwDBI = GLctx.getExtension('OES_draw_buffers_indexed')))
++                       ? 1
++                       : 0;
++               }
++               catch (e)
++               {
++                   return 0;
++               }
++           }))
++    {
++        glEnablei = [](GLenum target, GLuint index) { EM_ASM({ GLctx.__omwDBI.enableiOES($0, $1); }, target, index); };
++        glDisablei
++            = [](GLenum target, GLuint index) { EM_ASM({ GLctx.__omwDBI.disableiOES($0, $1); }, target, index); };
++    }
++#endif
+ 
+ 
+     // Stencil`
+@@ -1031,6 +1103,17 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
+ 
+     // Color Mask
+     setGLExtensionFuncPtr(glColorMaski, "glColorMaski", "glColorMaskiARB", validContext);
++#ifdef __EMSCRIPTEN__
++    if (validContext && !glColorMaski)
++        glColorMaski = [](GLuint index, GLboolean r, GLboolean g, GLboolean b, GLboolean a) {
++            EM_ASM(
++                {
++                    if (GLctx.__omwDBI)
++                        GLctx.__omwDBI.colorMaskiOES($0, !!$1, !!$2, !!$3, !!$4);
++                },
++                index, r, g, b, a);
++        };
++#endif
+ 
+ 
+     // ClampColor
+@@ -1132,7 +1215,13 @@ GLExtensions::GLExtensions(unsigned int in_contextID):
      isPackedDepthStencilSupported = validContext &&
                                      (OSG_GL3_FEATURES ||
                                       (isGLExtensionSupported(contextID, "GL_EXT_packed_depth_stencil")) ||
