@@ -1331,7 +1331,11 @@ namespace MWSound
                 LoadEffect(mWaterEffect, EFX_REVERB_PRESET_UNDERWATER);
             }
 
+#ifndef __EMSCRIPTEN__
+            // (Not on emscripten: its Web Audio OpenAL doesn't know this EFX listener param
+            // and raises AL_INVALID_ENUM; the shim doesn't model air absorption anyway.)
             alListenerf(AL_METERS_PER_UNIT, 1.0f / Constants::UnitsPerMeter);
+#endif
         }
     skip_efx:
         alDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);

@@ -1,5 +1,8 @@
 #include "workqueue.hpp"
 
+#include <algorithm>
+#include <cstdlib>
+
 #include <components/debug/debuglog.hpp>
 
 #include <numeric>
@@ -47,11 +50,15 @@ namespace SceneUtil
     void WorkQueue::start(std::size_t workerThreads)
     {
 #ifdef __EMSCRIPTEN__
-        // Work runs synchronously in addWorkItem() on the web (see below): the threaded
-        // attempt (2-4 workers, 2026-07-01) broke boot — crash inside WindowManager::initUI
-        // ("type incompatibility" via the worker/proxy path). Keep exactly ONE thread object
-        // alive: a null/absent thread handle trips emscripten's proxy assert elsewhere.
-        workerThreads = 1;
+        // Real worker threads by default (pthread pool has headroom). The 2026-07-01
+        // threaded attempt crashed in initUI because work items compiled GL objects ON the
+        // worker; with the IncrementalCompileOperation now enabled, GL compilation is handed
+        // back to the main GL thread, so workers only do CPU asset prep — the safe partition.
+        // OPENMW_WORKQUEUE_SYNC=1 restores the old inline single-thread behavior.
+        if (getenv("OPENMW_WORKQUEUE_SYNC") != nullptr)
+            workerThreads = 1;
+        else
+            workerThreads = std::min<std::size_t>(std::max<std::size_t>(workerThreads, 1), 2);
 #endif
         {
             const std::lock_guard lock(mMutex);
@@ -83,12 +90,13 @@ namespace SceneUtil
         }
 
 #ifdef __EMSCRIPTEN__
-        // Synchronous fast path (restored): run the work inline on the caller. The threaded
-        // variant crashed boot in initUI. Revisit worker offload only with a hard CPU/GL
-        // partition + main thread never blocking on a worker (plan Tier E2).
-        item->doWork();
-        item->signalDone();
-        return;
+        // Inline fallback (OPENMW_WORKQUEUE_SYNC=1): run the work on the caller.
+        if (getenv("OPENMW_WORKQUEUE_SYNC") != nullptr)
+        {
+            item->doWork();
+            item->signalDone();
+            return;
+        }
 #endif
         std::unique_lock<std::mutex> lock(mMutex);
         if (front)
