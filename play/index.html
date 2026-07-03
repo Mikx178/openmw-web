@@ -328,14 +328,16 @@
  })();
  var Module = {
    canvas: document.getElementById('canvas'),
-   // ?start=<cell> deep-links straight into a cell as a fresh default character (skip-menu +
-   // new-game bypass chargen). Dev/QA aid — only active when the param is present; normal boots
-   // keep the full menu -> intro -> chargen flow (1:1). Set here (not preRun) because emscripten
-   // captures Module.arguments before preRun callbacks fire.
+   // ?start=<cell> deep-links straight into a cell as a fresh default character. Dev/QA aid — only
+   // active when the param is present; normal boots keep the full menu -> intro -> chargen (1:1).
+   // NOTE: --skip-menu WITHOUT --new-game -> newGame(!mNewGame)=newGame(true)=BYPASS in engine.cpp,
+   // which skips the census intro and spawns directly in --start. Passing --new-game forced the
+   // full Imperial-Prison-Ship intro (bypass=false), leaving a headless player stuck in the boat.
+   // Set here (not preRun) because emscripten captures Module.arguments before preRun callbacks.
    arguments: (function(){
      try {
        var m = /[?&]start=([^&]+)/.exec(location.search);
-       if (m) return ['--skip-menu', '--new-game', '--start', decodeURIComponent(m[1])];
+       if (m) return ['--skip-menu', '--start', decodeURIComponent(m[1])];
      } catch (e) {}
      return [];
    })(),

@@ -119,7 +119,11 @@ async function click(x, y) {
   console.log(`[click] ${x},${y}`);
 }
 
-const KEYCODES = { Escape: 27, Enter: 13, Space: 32, Tab: 9 };
+const KEYCODES = { Escape: 27, Enter: 13, Space: 32, Tab: 9, Backspace: 8, Delete: 46,
+  ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39,
+  // Function keys — without these, key('F5') fell back to 'F5'.charCodeAt(0)=70 ('F'), so F5/F9
+  // (quicksave/quickload) etc. were NEVER delivered as real function keys. F1=112 … F12=123.
+  F1: 112, F2: 113, F3: 114, F4: 115, F5: 116, F6: 117, F7: 118, F8: 119, F9: 120, F10: 121, F11: 122, F12: 123 };
 // Physical `code` mapping for punctuation whose scancode matters (e.g. the console key). Emscripten
 // SDL derives the SDL scancode from the DOM `code`, so 'Key`' would fail to map to GRAVE.
 const CODEMAP = { '`': ['Backquote', 192], '~': ['Backquote', 192], '-': ['Minus', 189], '>': ['Period', 190], '<': ['Comma', 188], '"': ['Quote', 222], "'": ['Quote', 222], ',': ['Comma', 188], '.': ['Period', 190], '/': ['Slash', 191] };

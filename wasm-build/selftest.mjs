@@ -69,22 +69,23 @@ const scenarios = [
     ],
   },
   {
+    // ?start=<interior> with --new-game lands in the intro boat (Imperial Prison Ship), not an
+    // arbitrary cell — the new-game sequence owns the start. To reach a SPECIFIC cell, coc from the
+    // console once the world is running. Here we coc into South Wall Cornerclub after boot.
     name: 'interior',
-    url: `${BASE}/index.html?noopt&start=${enc('Balmora, South Wall Cornerclub')}`,
-    secs: 135,
+    url: `${BASE}/index.html?noopt&start=${enc('Seyda Neen')}`,
+    secs: 120,
     args: [
-      // the New Game intro video now plays (video fix) before chargen+teleport; Esc-skip it so we
-      // reach the --start cell in time.
-      '--key-at', '20:Escape', '--key-at', '30:Escape', '--key-at', '45:Escape',
-      '--click-at', '95:640,400',
-      '--eval-at', `115:(function(){var g=GLctx,p=new Uint8Array(4);g.readPixels(640,300,1,1,g.RGBA,g.UNSIGNED_BYTE,p);return {px:[p[0],p[1],p[2]], err:g.getError(), run:Module.__omwRunning};})()`,
-      '--shot-at', `118:${OUT}/interior.png`,
+      '--click-at', '60:640,400',
+      '--key-at', '66:`', '--type-at', '68:coc "Balmora, South Wall Cornerclub"',
+      '--key-at', '80:Enter', '--key-at', '82:`',
+      '--eval-at', `95:(function(){var g=GLctx,p=new Uint8Array(4);g.readPixels(640,300,1,1,g.RGBA,g.UNSIGNED_BYTE,p);return {px:[p[0],p[1],p[2]], err:g.getError(), run:Module.__omwRunning};})()`,
+      '--shot-at', `98:${OUT}/interior.png`,
     ],
     checks: [
-      // South Wall Cornerclub is an interior cell (not the Prison Ship boat we start the new game in)
       ['inSouthWall', (log) => /Loading cell Balmora, South Wall Cornerclub/.test(log)],
-      ['running', (log) => /\[eval @115s\].*"run":1/.test(log)],
-      ['glErr0', (log) => /\[eval @115s\].*"err":0/.test(log)],
+      ['running', (log) => /\[eval @95s\].*"run":1/.test(log)],
+      ['glErr0', (log) => /\[eval @95s\].*"err":0/.test(log)],
     ],
   },
   {
