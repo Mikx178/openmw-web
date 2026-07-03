@@ -1,3 +1,20 @@
+diff --git a/src/osg/ClipPlane.cpp b/src/osg/ClipPlane.cpp
+index 3a3fd85..6b1ef42 100644
+--- a/src/osg/ClipPlane.cpp
++++ b/src/osg/ClipPlane.cpp
+@@ -46,7 +46,11 @@ void ClipPlane::apply(State&) const
+ #if defined(OSG_GL_FIXED_FUNCTION_AVAILABLE) && !defined(OSG_GLES1_AVAILABLE)
+     glClipPlane((GLenum)(GL_CLIP_PLANE0+_clipPlaneNum),_clipPlane.ptr());
+ #else
+-    OSG_NOTICE<<"Warning: ClipPlane::apply(State&) - not supported."<<std::endl;
++    // GLES3/WebGL2 has no fixed-function glClipPlane; clipping is done via gl_ClipDistance in the
++    // shaders instead. This apply() is a no-op here, but it was logging an OSG_NOTICE EVERY frame
++    // per active clip plane (water reflection/refraction cameras) — flooding the browser console.
++    // Demote to OSG_DEBUG_FP so it stays silent at normal notify levels.
++    OSG_DEBUG_FP<<"Warning: ClipPlane::apply(State&) - not supported."<<std::endl;
+ #endif
+ }
+ 
 diff --git a/src/osg/Fog.cpp b/src/osg/Fog.cpp
 index 1eb0658..c0e6913 100644
 --- a/src/osg/Fog.cpp
@@ -12,7 +29,7 @@ index 1eb0658..c0e6913 100644
  #endif
  }
 diff --git a/src/osg/FrameBufferObject.cpp b/src/osg/FrameBufferObject.cpp
-index c3988e0..e8a0358 100644
+index c3988e0..0f9e767 100644
 --- a/src/osg/FrameBufferObject.cpp
 +++ b/src/osg/FrameBufferObject.cpp
 @@ -126,6 +126,21 @@ GLuint RenderBuffer::getObjectID(unsigned int contextID, const GLExtensions* ext
@@ -37,7 +54,20 @@ index c3988e0..e8a0358 100644
          // framebuffer_multisample_coverage specification requires that coverage
          // samples must be >= color samples.
          if (_samples < _colorSamples)
-@@ -754,6 +769,43 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+@@ -439,6 +454,12 @@ void FrameBufferAttachment::createRequiredTexturesAndApplyGenerateMipMap(State &
+         {
+             state.setActiveTextureUnit(0);
+             state.applyTextureAttribute(0, _ximpl->textureTarget.get());
++#ifdef __EMSCRIPTEN__
++            // WebGL2: glGenerateMipmap raises GL_INVALID_OPERATION on compressed (DXT/S3TC)
++            // internal formats — mirror the guard in Texture.cpp and skip mip generation for a
++            // compressed FBO attachment instead of emitting a per-use GL error.
++            if (!Texture::isCompressedInternalFormat(_ximpl->textureTarget->getInternalFormat()))
++#endif
+             ext->glGenerateMipmap(_ximpl->textureTarget->getTextureTarget());
+         }
+ 
+@@ -754,6 +775,43 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
                  OSG_WARN <<"Warning: FrameBufferObject: could not set draw buffers, glDrawBuffers is not supported!" << std::endl;
              }
          }
@@ -81,7 +111,7 @@ index c3988e0..e8a0358 100644
      }
  
      if (dirtyAttachmentList)
-@@ -766,8 +818,17 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
+@@ -766,8 +824,17 @@ void FrameBufferObject::apply(State &state, BindTarget target) const
                  case(Camera::PACKED_DEPTH_STENCIL_BUFFER):
                      if (ext->isPackedDepthStencilSupported)
                      {
@@ -402,22 +432,29 @@ index a869b46..11b8fa1 100644
  #endif
  }
 diff --git a/src/osg/Texture.cpp b/src/osg/Texture.cpp
-index 2d3375f..0999584 100644
+index 2d3375f..809315c 100644
 --- a/src/osg/Texture.cpp
 +++ b/src/osg/Texture.cpp
 @@ -1956,6 +1956,11 @@ void Texture::applyTexParameters(GLenum target, State& state) const
      glTexParameteri( target, GL_TEXTURE_MAG_FILTER, _mag_filter);
  
      // Art: I think anisotropic filtering is not supported by the integer textures
-+#ifndef __EMSCRIPTEN__
-+    // GL_TEXTURE_MAX_ANISOTROPY_EXT: WebGL2 reports EXT_texture_filter_anisotropic in the
-+    // extension string (so isTextureFilterAnisotropicSupported is true) but the pname is only
-+    // accepted after the extension object is explicitly enabled via getExtension(), which OSG
-+    // never does — so this raises GL_INVALID_ENUM on every dirty texture apply. Skip it.
++    // GL_TEXTURE_MAX_ANISOTROPY_EXT: on WebGL2 the pname is only accepted after the extension
++    // object is enabled via getExtension() — the play/index.html getContext wrapper now does that
++    // at context creation, so the anisotropy path is safe on emscripten too (sharper textures at
++    // grazing angles). GL_TEXTURE_SWIZZLE_RGBA (the combined pname) is NOT in GLES3/WebGL2, so it
++    // stays desktop-only.
      if (extensions->isTextureFilterAnisotropicSupported &&
          _internalFormatType != SIGNED_INTEGER && _internalFormatType != UNSIGNED_INTEGER)
      {
-@@ -1970,8 +1975,15 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+@@ -1964,14 +1969,22 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+         glTexParameterf(target, GL_TEXTURE_MAX_ANISOTROPY_EXT, _maxAnisotropy);
+     }
+ 
++#ifndef __EMSCRIPTEN__
+     if (extensions->isTextureSwizzleSupported)
+     {
+         // note, GL_TEXTURE_SWIZZLE_RGBA will either be defined
          // by gl.h (or via glext.h) or by include/osg/Texture.
          glTexParameteriv(target, GL_TEXTURE_SWIZZLE_RGBA, _swizzle.ptr());
      }
@@ -434,7 +471,7 @@ index 2d3375f..0999584 100644
      {
  
          #ifndef GL_TEXTURE_BORDER_COLOR
-@@ -2026,7 +2038,11 @@ void Texture::applyTexParameters(GLenum target, State& state) const
+@@ -2026,7 +2039,11 @@ void Texture::applyTexParameters(GLenum target, State& state) const
          glTexParameterf(target, GL_TEXTURE_MAX_LOD, _maxlod);
      }
  
@@ -445,6 +482,46 @@ index 2d3375f..0999584 100644
 +#endif
  
      getTextureParameterDirty(state.getContextID()) = false;
+ 
+@@ -2246,6 +2263,19 @@ void Texture::applyTexImage2D_load(State& state, GLenum target, const Image* ima
+     }
+ 
+     bool mipmappingRequired = _min_filter != LINEAR && _min_filter != NEAREST;
++#ifdef __EMSCRIPTEN__
++    // WebGL2: glGenerateMipmap raises GL_INVALID_OPERATION on COMPRESSED (DXT/S3TC) textures — you
++    // cannot hardware-generate mips for block-compressed data. If such a texture has no stored mips
++    // but its min filter wants mipmapping, drop the min filter to LINEAR so the texture stays
++    // COMPLETE (a few distant textures lose mip levels -> mild shimmer; far better than an
++    // incomplete/black texture or per-texture GL error spam).
++    if (compressed_image && mipmappingRequired && !image->isMipmap())
++    {
++        const_cast<Texture*>(this)->setFilter(MIN_FILTER, LINEAR);
++        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++        mipmappingRequired = false;
++    }
++#endif
+     bool useHardwareMipMapGeneration = mipmappingRequired && (!image->isMipmap() && isHardwareMipmapGenerationEnabled(state));
+     bool useGluBuildMipMaps = mipmappingRequired && (!useHardwareMipMapGeneration && !image->isMipmap());
+ 
+@@ -2574,6 +2604,19 @@ void Texture::applyTexImage2D_subload(State& state, GLenum target, const Image*
+ 
+ 
+     bool mipmappingRequired = _min_filter != LINEAR && _min_filter != NEAREST;
++#ifdef __EMSCRIPTEN__
++    // WebGL2: glGenerateMipmap raises GL_INVALID_OPERATION on COMPRESSED (DXT/S3TC) textures — you
++    // cannot hardware-generate mips for block-compressed data. If such a texture has no stored mips
++    // but its min filter wants mipmapping, drop the min filter to LINEAR so the texture stays
++    // COMPLETE (a few distant textures lose mip levels -> mild shimmer; far better than an
++    // incomplete/black texture or per-texture GL error spam).
++    if (compressed_image && mipmappingRequired && !image->isMipmap())
++    {
++        const_cast<Texture*>(this)->setFilter(MIN_FILTER, LINEAR);
++        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++        mipmappingRequired = false;
++    }
++#endif
+     bool useHardwareMipMapGeneration = mipmappingRequired && (!image->isMipmap() && isHardwareMipmapGenerationEnabled(state));
+     bool useGluBuildMipMaps = mipmappingRequired && (!useHardwareMipMapGeneration && !image->isMipmap());
  
 diff --git a/src/osg/Texture2D.cpp b/src/osg/Texture2D.cpp
 index 2aac8b2..0eca56f 100644
@@ -551,3 +628,21 @@ index dc1f380..7c4ad76 100644
  }
  
  
+diff --git a/src/osgViewer/ViewerBase.cpp b/src/osgViewer/ViewerBase.cpp
+index 8b4ffe2..1ff41f7 100644
+--- a/src/osgViewer/ViewerBase.cpp
++++ b/src/osgViewer/ViewerBase.cpp
+@@ -390,6 +390,13 @@ void ViewerBase::startThreading()
+ {
+     if (_threadsRunning) return;
+ 
++    // SingleThreaded has no threads to start; the switch below only falls through to an
++    // immediate `return` for it anyway. Bail BEFORE releaseContext() — on a single-WebGL-context
++    // (emscripten) build, releasing and not re-acquiring the context leaves nothing current, so
++    // every subsequent draw renders to nowhere (black screen after e.g. a settings change that
++    // calls stopThreading()/startThreading()).
++    if (_threadingModel == SingleThreaded) return;
++
+     OSG_INFO<<"Viewer::startThreading() - starting threading"<<std::endl;
+ 
+     // release any context held by the main thread.
