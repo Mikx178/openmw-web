@@ -343,17 +343,20 @@ namespace MWGui
         const int screen = Settings::video().mScreen;
         std::vector<std::pair<int, int>> resolutions;
 #ifdef __EMSCRIPTEN__
-        // SDL display queries hang under emscripten, and a canvas has no OS "display modes"
-        // anyway. Synthesize the sensible browser set: the window's native device-pixel size,
-        // scaled tiers of it (75/66/50/33% — same aspect ratio), and the standard desktop modes
-        // that fit inside it. Apply goes through SDL_SetWindowSize, which resizes the canvas
-        // drawing buffer and fires the normal windowResized path.
+        // A browser canvas has no OS "display modes" (and SDL's display queries hang under
+        // emscripten). The only meaningful choice is the INTERNAL render resolution: CSS always
+        // stretches the canvas to fill the same on-screen area, so a lower entry just renders the
+        // 3D scene smaller and upscales it — a quality/performance dial, NOT a window-shape change.
+        // So offer the native drawing-buffer size at 1:1 and integer downscales of it (1/2, 1/3,
+        // 1/4 …), every entry sharing the browser's EXACT aspect ratio, down to a ~480px-wide
+        // floor. Apply goes through SDL_SetWindowSize, which resizes the drawing buffer and fires
+        // the normal windowResized path.
         (void)screen;
+        (void)resolutions;
         {
-            // "Native" = the harness's actual drawing-buffer size (window.__renderW/H) when set —
-            // that is the budget-capped render resolution the canvas is CURRENTLY using, so the
-            // top entry is pixel-perfect to what's on screen (selecting it is a no-op). Fall back
-            // to the raw device-pixel window size before the harness has computed a budget.
+            // "Native" = the harness's actual drawing-buffer size (window.__renderW/H) — the
+            // budget-capped resolution the canvas is CURRENTLY using, so 1:1 is pixel-perfect and
+            // selecting it is a no-op. Fall back to the device-pixel window size pre-harness.
             // clang-format off
             const int nativeW = EM_ASM_INT({
                 return Math.max(320, Math.round(window.__renderW || ((window.innerWidth || 1280) * (window.devicePixelRatio || 1))));
@@ -362,28 +365,18 @@ namespace MWGui
                 return Math.max(240, Math.round(window.__renderH || ((window.innerHeight || 720) * (window.devicePixelRatio || 1))));
             });
             // clang-format on
-            const auto addRes = [&](int w, int h) {
-                w &= ~1; // even dimensions keep FBOs/video codecs happy
-                h &= ~1;
-                if (w >= 640 && h >= 480)
-                    resolutions.emplace_back(w, h);
-            };
-            // The native entry is added EXACTLY (no evening) so it is pixel-perfect to the
-            // current drawing buffer — selecting it never resizes anything.
-            resolutions.emplace_back(nativeW, nativeH);
-            for (const float tier : { 0.75f, 0.66f, 0.5f, 0.33f })
-                addRes(static_cast<int>(nativeW * tier), static_cast<int>(nativeH * tier));
-            // Familiar desktop modes that fit the window (exact aspect labels via getResolutionText).
-            static constexpr std::pair<int, int> standard[] = { { 3840, 2160 }, { 2560, 1440 }, { 1920, 1200 },
-                { 1920, 1080 }, { 1680, 1050 }, { 1600, 900 }, { 1440, 900 }, { 1366, 768 }, { 1280, 800 },
-                { 1280, 720 }, { 1024, 768 }, { 800, 600 } };
-            for (const auto& [w, h] : standard)
-                if (w <= nativeW && h <= nativeH)
-                    addRes(w, h);
-            // Always include the currently-configured resolution so it can be highlighted.
-            addRes(Settings::video().mResolutionX, Settings::video().mResolutionY);
-            std::sort(resolutions.begin(), resolutions.end());
-            resolutions.erase(std::unique(resolutions.begin(), resolutions.end()), resolutions.end());
+            // 1/1, 1/2, 1/3 … while the divided width stays >= 480px.
+            for (int div = 1; div == 1 || (nativeW / div) >= 480; ++div)
+            {
+                // 1:1 is added EXACTLY (pixel-perfect); downscales are evened for FBO/codec sanity.
+                const int w = div == 1 ? nativeW : ((nativeW / div) & ~1);
+                const int h = div == 1 ? nativeH : ((nativeH / div) & ~1);
+                const int percent = (100 + div / 2) / div; // 100, 50, 33, 25, 20 …
+                const std::string label
+                    = std::to_string(w) + " x " + std::to_string(h) + " (" + std::to_string(percent) + "%)";
+                if (mResolutionList->findItemIndexWith(label) == MyGUI::ITEM_NONE)
+                    mResolutionList->addItem(label, std::pair<int, int>(w, h));
+            }
         }
 #else
         int numDisplayModes = SDL_GetNumDisplayModes(screen);
@@ -393,7 +386,6 @@ namespace MWGui
             SDL_GetDisplayMode(screen, i, &mode);
             resolutions.emplace_back(mode.w, mode.h);
         }
-#endif
         std::sort(resolutions.begin(), resolutions.end(), sortResolutions);
         for (std::pair<int, int>& resolution : resolutions)
         {
@@ -402,6 +394,7 @@ namespace MWGui
             if (mResolutionList->findItemIndexWith(str) == MyGUI::ITEM_NONE)
                 mResolutionList->addItem(str, resolution);
         }
+#endif
         highlightCurrentResolution();
 
         mTextureFilteringButton->setCaptionWithReplacing(

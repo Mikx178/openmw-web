@@ -269,8 +269,13 @@
    // refused (request arrived before a user gesture), re-request it on the next click.
    canvas.addEventListener('pointerdown', function(){
      try {
-       if (window.Module && Module.__omwWantsMouseLock && document.pointerLockElement !== canvas)
-         canvas.requestPointerLock();
+       if (window.Module && Module.__omwWantsMouseLock && document.pointerLockElement !== canvas) {
+         // requestPointerLock() returns a promise in modern Chrome; it REJECTS if called too soon
+         // after the user exited the lock (browser rate-limit) — swallow that so it doesn't surface
+         // as an "unhandled rejection" in the console. The next click re-requests successfully.
+         const p = canvas.requestPointerLock();
+         if (p && typeof p.catch === 'function') p.catch(function(){});
+       }
      } catch(e){}
    });
  })();
@@ -328,7 +333,9 @@
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
        // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
        // and the HUD status line); ?debuglog restores full Verbose logging.
-       ENV.OPENMW_DEBUG_LEVEL = /[?&]debuglog\b/.test(location.search) ? 'Verbose' : 'Info';
+       // NOTE: toLevel() in debugging.cpp only matches UPPERCASE names; 'Info' silently fell
+       // through to the Verbose default, leaking Verbose spam. Use the exact uppercase tokens.
+       ENV.OPENMW_DEBUG_LEVEL = /[?&]debuglog\b/.test(location.search) ? 'VERBOSE' : 'INFO';
        ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
        // (OPENMW_DONT_PRECOMPILE no longer set: the SingleThreaded viewer runs the
        //  incremental GL precompile on the main GL thread — smooths cell transitions.)
@@ -375,14 +382,14 @@
            'small feature culling pixel size = 30.0\n' +
            '[Shadows]\n' +
            'enable shadows = true\n' +             // WebGL2 depth-texture shadow maps
-           'shadow map resolution = 1024\n' +
+           'shadow map resolution = 2048\n' +      // finer texels -> less shadow swim on camera turn
            'actor shadows = true\n' +
            'player shadows = true\n' +
            'object shadows = false\n' +            // biggest perf cost; leave off by default
            'terrain shadows = true\n' +
            'maximum shadow map distance = 4096\n' +
            '[Cells]\n' +
-           'preload cell cache max = 14\n' +
+           'preload cell cache max = 18\n' +   // engine asked for 18 for exterior preloading
            '[Game]\n' +
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +

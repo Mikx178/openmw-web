@@ -275,8 +275,18 @@ namespace MWRender
         // OPENMW_DONT_PRECOMPILE=1 opts back out.
         if (getenv("OPENMW_DONT_PRECOMPILE") == nullptr)
         {
-            mViewer->setIncrementalCompileOperation(new osgUtil::IncrementalCompileOperation);
-            mViewer->getIncrementalCompileOperation()->setTargetFrameRate(Settings::cells().mTargetFramerate);
+            osg::ref_ptr<osgUtil::IncrementalCompileOperation> ico = new osgUtil::IncrementalCompileOperation;
+            ico->setTargetFrameRate(Settings::cells().mTargetFramerate);
+#ifdef __EMSCRIPTEN__
+            // The default ICO budget defers compiling subgraphs that enter the view frustum, so on a
+            // SingleThreaded (main-thread GL) emscripten viewer, objects revealed by a camera TURN
+            // "pop in" a few frames late — and only on the leading edge (trailing-edge objects were
+            // already compiled). Raise the budget hard so entering objects compile within the same
+            // frame they're needed: keeps ICO's exterior-streaming smoothing but kills the pop-in.
+            ico->setMaximumNumOfObjectsToCompilePerFrame(1000);
+            ico->setMinimumTimeAvailableForGLCompileAndDeletePerFrame(0.004); // ~1/4 of a 60fps frame
+#endif
+            mViewer->setIncrementalCompileOperation(ico);
         }
 
         mDebugDraw = new Debug::DebugDrawer(mResourceSystem->getSceneManager()->getShaderManager());

@@ -631,20 +631,22 @@ namespace Shader
         addedState->addUniform("colorMode");
 
 #ifdef __EMSCRIPTEN__
-        // No fixed-function pipeline on the web: feed gl_FrontMaterial as a struct uniform
-        // (the shader transform renames gl_FrontMaterial -> osg_FrontMaterial).
+        // No fixed-function pipeline on the web: feed gl_FrontMaterial as FLAT uniforms (the shader
+        // transform in shadermanager.cpp expands gl_FrontMaterial.<member> -> osg_FrontMaterial_<member>).
+        // Struct-member uniforms don't reliably apply on WebGL2/ANGLE — see shadermanager.cpp — so
+        // flat names are required or the material RGB reads black (black smoke / black sky).
         if (reqs.mHasMaterial)
         {
-            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial.emission", reqs.mMaterialEmission));
-            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial.ambient", reqs.mMaterialAmbient));
-            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial.diffuse", reqs.mMaterialDiffuse));
-            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial.specular", reqs.mMaterialSpecular));
-            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial.shininess", reqs.mMaterialShininess));
-            addedState->addUniform("osg_FrontMaterial.emission");
-            addedState->addUniform("osg_FrontMaterial.ambient");
-            addedState->addUniform("osg_FrontMaterial.diffuse");
-            addedState->addUniform("osg_FrontMaterial.specular");
-            addedState->addUniform("osg_FrontMaterial.shininess");
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_emission", reqs.mMaterialEmission));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_ambient", reqs.mMaterialAmbient));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_diffuse", reqs.mMaterialDiffuse));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_specular", reqs.mMaterialSpecular));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_shininess", reqs.mMaterialShininess));
+            addedState->addUniform("osg_FrontMaterial_emission");
+            addedState->addUniform("osg_FrontMaterial_ambient");
+            addedState->addUniform("osg_FrontMaterial_diffuse");
+            addedState->addUniform("osg_FrontMaterial_specular");
+            addedState->addUniform("osg_FrontMaterial_shininess");
         }
 #endif
 

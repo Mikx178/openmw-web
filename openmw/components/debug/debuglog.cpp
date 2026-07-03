@@ -7,7 +7,11 @@
 
 static std::mutex sLock;
 
-Debug::Level Log::sMinDebugLevel = Debug::All;
+// Default to Info (not All): worker threads (physics/navmesh) read this shared static, and before
+// setupLogging() applies the configured level — or if a worker reads it without a barrier — the old
+// Debug::All default let per-job DetourNavigator Debug logs flood the browser console. Info is the
+// sane release floor; setupLogging() still applies OPENMW_DEBUG_LEVEL on the main path.
+Debug::Level Log::sMinDebugLevel = Debug::Info;
 bool Log::sWriteLevel = false;
 
 Log::Log(Debug::Level level)

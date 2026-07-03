@@ -181,8 +181,14 @@ void MWState::StateManager::newGame(bool bypass)
         mState = State_Running;
         MWBase::Environment::get().getLuaManager()->gameLoaded();
 
+#ifndef __EMSCRIPTEN__
+        // Desktop: startNewGame() already blocked on the intro video, so these fades run after it.
+        // Emscripten: the intro is cooperative and still playing here (started last in startNewGame),
+        // so an instant fade-to-black over it would blank the movie. Its own updateVideoPlayback
+        // teardown reveals the running game when the intro ends/skips, so skip the pre-fade.
         MWBase::Environment::get().getWindowManager()->fadeScreenOut(0);
         MWBase::Environment::get().getWindowManager()->fadeScreenIn(1);
+#endif
     }
     catch (std::exception& e)
     {

@@ -351,6 +351,9 @@ namespace MWWorld
             }
         }
 
+#ifndef __EMSCRIPTEN__
+        // Desktop: playVideo() blocks in a nested loop until the intro ends/skips, so the rest of
+        // the new-game handoff (below, and the fades in StateManager::newGame) runs only afterwards.
         if (!bypass)
         {
             std::string_view video = Fallback::Map::getString("Movies_New_Game");
@@ -361,6 +364,7 @@ namespace MWWorld
                 MWBase::Environment::get().getWindowManager()->playVideo(video, true);
             }
         }
+#endif
 
         // enable collision
         if (!mPhysics->toggleCollisionMode())
@@ -371,6 +375,23 @@ namespace MWWorld
 
         // Initial seed.
         mPrng.seed(mRandomSeed);
+
+#ifdef __EMSCRIPTEN__
+        // Emscripten: playVideo() is cooperative (returns immediately; frames are pumped from the
+        // main loop). Because startNewGame runs re-entrantly inside a frame, the whole handoff would
+        // otherwise complete UNDER the intro, leaving it a stale overlay the user had to hand-dismiss.
+        // Start it LAST, with the world/player already set up underneath, so updateVideoPlayback's
+        // end-of-stream (or Esc) teardown cleanly reveals the running game — an auto-advancing intro.
+        if (!bypass)
+        {
+            std::string_view video = Fallback::Map::getString("Movies_New_Game");
+            if (!video.empty())
+            {
+                MWBase::Environment::get().getSoundManager()->stopMusic();
+                MWBase::Environment::get().getWindowManager()->playVideo(video, true);
+            }
+        }
+#endif
     }
 
     void World::clear()

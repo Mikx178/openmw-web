@@ -264,12 +264,21 @@ namespace
             source.swap(fixed);
         }
 
-        // Fixed-function material/fog state -> struct uniforms (no fixed-function in GLES).
+        // Fixed-function material state -> uniforms (no fixed-function in GLES). Use FLAT (non-struct)
+        // uniforms, not a struct: struct-MEMBER uniforms (osg_FrontMaterial.diffuse …) do NOT reliably
+        // apply on WebGL2/ANGLE — they silently read as 0 (black). That is what turned the sky black
+        // (fixed in skyutil.cpp) and what makes SrcIgnore/unlit particles (chimney/hearth smoke) source
+        // a black material RGB -> "grey where thin, black where dense" plumes. Expanding each member
+        // access to a plain uniform sidesteps the struct-apply bug for every shader at once.
         if (source.find("gl_FrontMaterial") != std::string::npos)
         {
-            prelude += "struct osg_MaterialParameters { vec4 emission; vec4 ambient; vec4 diffuse; vec4 "
-                       "specular; float shininess; };\nuniform osg_MaterialParameters osg_FrontMaterial;\n";
-            source = std::regex_replace(source, std::regex("\\bgl_FrontMaterial\\b"), "osg_FrontMaterial");
+            prelude += "uniform vec4 osg_FrontMaterial_emission;\nuniform vec4 osg_FrontMaterial_ambient;\n"
+                       "uniform vec4 osg_FrontMaterial_diffuse;\nuniform vec4 osg_FrontMaterial_specular;\n"
+                       "uniform float osg_FrontMaterial_shininess;\n";
+            for (const char* m : { "emission", "ambient", "diffuse", "specular", "shininess" })
+                source = std::regex_replace(source,
+                    std::regex(std::string("\\bgl_FrontMaterial\\s*\\.\\s*") + m + "\\b"),
+                    std::string("osg_FrontMaterial_") + m);
         }
         if (source.find("gl_Fog") != std::string::npos)
         {
