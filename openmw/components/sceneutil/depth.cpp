@@ -140,6 +140,11 @@ namespace SceneUtil
         unsigned int contextID = graphicsContext->getState()->getContextID();
         if (SceneUtil::AutoDepth::isReversed())
         {
+#ifdef __EMSCRIPTEN__
+            // WebGL2 has DEPTH32F_STENCIL8 in core (there is no GL_ARB_depth_buffer_float
+            // extension string to probe).
+            requestedFormats.push_back(GL_DEPTH32F_STENCIL8);
+#else
             if (osg::isGLExtensionSupported(contextID, "GL_ARB_depth_buffer_float"))
             {
                 requestedFormats.push_back(GL_DEPTH32F_STENCIL8);
@@ -153,6 +158,7 @@ namespace SceneUtil
                 Log(Debug::Warning) << errPreamble
                                     << "'GL_ARB_depth_buffer_float' and 'GL_NV_depth_buffer_float' unsupported.";
             }
+#endif
         }
 
         requestedFormats.push_back(GL_DEPTH24_STENCIL8);

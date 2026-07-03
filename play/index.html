@@ -150,7 +150,8 @@
        // and the HUD status line); ?debuglog restores full Verbose logging.
        ENV.OPENMW_DEBUG_LEVEL = /[?&]debuglog\b/.test(location.search) ? 'Verbose' : 'Info';
        ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
-       ENV.OPENMW_DONT_PRECOMPILE='1'; // no off-GL-thread VBO precompile (proxies to null thread)
+       // (OPENMW_DONT_PRECOMPILE no longer set: the SingleThreaded viewer runs the
+       //  incremental GL precompile on the main GL thread — smooths cell transitions.)
        // A1: disable OSG's per-frame glGetError() check. Default is ONCE_PER_FRAME, and glGetError
        // is a hard GPU sync (flush+wait) in WebGL — a per-frame stall. OFF => NEVER_CHECK_GL_ERRORS.
        // Also stops the residual "invalid enumerant after RenderBin::draw" warning at its checkpoint.

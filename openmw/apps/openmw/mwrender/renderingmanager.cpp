@@ -267,16 +267,17 @@ namespace MWRender
 
         mObjects = std::make_unique<Objects>(mResourceSystem, sceneRoot, unrefQueue);
 
-#ifndef __EMSCRIPTEN__
-        // The incremental compile operation compiles GL objects off the render thread.
-        // Under emscripten that proxies glBufferData to a null GL thread and aborts, so
-        // disable it — GL objects then compile lazily on the GL thread during draw.
+        // The incremental compile operation precompiles GL objects (VBOs/textures/programs)
+        // for preloaded cells under a per-frame time budget instead of stalling at first draw.
+        // Under emscripten the viewer is SingleThreaded, so ICO runs on the main (= GL) thread
+        // during the frame — safe. (An earlier port phase disabled it because a threaded viewer
+        // proxied glBufferData to a null GL thread; that no longer applies.)
+        // OPENMW_DONT_PRECOMPILE=1 opts back out.
         if (getenv("OPENMW_DONT_PRECOMPILE") == nullptr)
         {
             mViewer->setIncrementalCompileOperation(new osgUtil::IncrementalCompileOperation);
             mViewer->getIncrementalCompileOperation()->setTargetFrameRate(Settings::cells().mTargetFramerate);
         }
-#endif
 
         mDebugDraw = new Debug::DebugDrawer(mResourceSystem->getSceneManager()->getShaderManager());
         mDebugDraw->setNodeMask(Mask_Debug);
