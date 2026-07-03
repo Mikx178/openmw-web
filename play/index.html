@@ -301,13 +301,29 @@
  })();
  var Module = {
    canvas: document.getElementById('canvas'),
-   arguments: [],
+   // ?start=<cell> deep-links straight into a cell as a fresh default character (skip-menu +
+   // new-game bypass chargen). Dev/QA aid — only active when the param is present; normal boots
+   // keep the full menu -> intro -> chargen flow (1:1). Set here (not preRun) because emscripten
+   // captures Module.arguments before preRun callbacks fire.
+   arguments: (function(){
+     try {
+       var m = /[?&]start=([^&]+)/.exec(location.search);
+       if (m) return ['--skip-menu', '--new-game', '--start', decodeURIComponent(m[1])];
+     } catch (e) {}
+     return [];
+   })(),
    preRun: [function(){
      try {
        ENV.HOME='/home/web_user'; ENV.USER='player'; ENV.LOGNAME='player';
        // ?nomw boots the free example-suite: enable its compat shims (chargen auto-confirm,
        // +10h daytime start). NEVER set for retail Morrowind — the engine stays 1:1 stock.
        if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)) ENV.OPENMW_EXAMPLE_SUITE='1';
+       // ?start=<cell> (deep-link) => auto-complete chargen so the new game drops straight into
+       // the target cell (see Module.arguments above + charactercreation.cpp). QA aid only.
+       if (/[?&]start=/.test(location.search)) ENV.OPENMW_QA_AUTOCHARGEN='1';
+       // ?forcemrt (QA) reproduces the pre-fix pass-normals-MRT indexed-blend bug (opaque-black
+       // smoke) for A/B comparison. Never used in normal play.
+       if (/[?&]forcemrt\b/.test(location.search)) ENV.OMW_FORCE_NORMALS_RT='1';
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
        // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console

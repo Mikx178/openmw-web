@@ -29,12 +29,18 @@ const shotAts = opts('--shot-at').map(s => { const i = s.indexOf(':'); return { 
 const evalAts = opts('--eval-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), expr: s.slice(i + 1) }; });
 const clickAts = opts('--click-at').map(s => { const i = s.indexOf(':'); const [x, y] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), x, y }; });
 const keyAts = opts('--key-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), key: s.slice(i + 1) }; });
+const typeAts = opts('--type-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), text: s.slice(i + 1) }; });
+// --move-at t:dx,dy  — relative mouse motion for in-game mouselook (no click). Delivered as a
+// short sweep of mouseMoved events so emscripten SDL sees per-event deltas (turns the camera).
+const moveAts = opts('--move-at').map(s => { const i = s.indexOf(':'); const [dx, dy] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), dx, dy }; });
 const consoleOut = opts('--console-out')[0] || '/tmp/omw_cdp_console.log';
 const [w, h] = (opts('--window')[0] || '1280x800').split('x').map(Number);
 const useGpu = args.includes('--gpu');
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const profile = `/tmp/omw_cdp_profile_${process.pid}`;
+// --profile <dir> reuses a fixed user-data-dir so the Cache API (817MB assets) + IDBFS persist
+// across runs → fast, deterministic boots after the first warm-up. Omit for a throwaway profile.
+const profile = opts('--profile')[0] || `/tmp/omw_cdp_profile_${process.pid}`;
 const chromeArgs = [
   '--headless=new', `--user-data-dir=${profile}`, '--no-first-run',
   `--window-size=${w},${h}`, '--remote-debugging-port=0', '--disable-dev-shm-usage',
@@ -114,9 +120,14 @@ async function click(x, y) {
 }
 
 const KEYCODES = { Escape: 27, Enter: 13, Space: 32, Tab: 9 };
+// Physical `code` mapping for punctuation whose scancode matters (e.g. the console key). Emscripten
+// SDL derives the SDL scancode from the DOM `code`, so 'Key`' would fail to map to GRAVE.
+const CODEMAP = { '`': ['Backquote', 192], '~': ['Backquote', 192], '-': ['Minus', 189], '>': ['Period', 190], '<': ['Comma', 188], '"': ['Quote', 222], "'": ['Quote', 222], ',': ['Comma', 188], '.': ['Period', 190], '/': ['Slash', 191] };
 async function key(k) {
-  const code = KEYCODES[k] ?? k.toUpperCase().charCodeAt(0);
-  const base = { key: k.length === 1 ? k : k, code: k.length === 1 ? 'Key' + k.toUpperCase() : k,
+  const mapped = CODEMAP[k];
+  const code = mapped ? mapped[1] : (KEYCODES[k] ?? k.toUpperCase().charCodeAt(0));
+  const codeStr = mapped ? mapped[0] : (k.length === 1 ? 'Key' + k.toUpperCase() : k);
+  const base = { key: k.length === 1 ? k : k, code: codeStr,
     windowsVirtualKeyCode: code, nativeVirtualKeyCode: code };
   await send(browserWs, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base }, sessionId);
   if (k.length === 1) // printable: deliver the character too (text inputs need the char event)
@@ -126,10 +137,32 @@ async function key(k) {
   console.log(`[key] ${k}`);
 }
 
+async function move(dx, dy) {
+  // Sweep from canvas center outward in small steps; SDL relative mode integrates the per-event
+  // deltas into camera yaw/pitch. Center-start avoids clamping at a screen edge.
+  const cx = Math.floor(w / 2), cy = Math.floor(h / 2);
+  const steps = 10;
+  for (let i = 1; i <= steps; i++) {
+    await send(browserWs, 'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: cx + Math.floor(dx * i / steps), y: cy + Math.floor(dy * i / steps), button: 'none' }, sessionId);
+    await new Promise(r => setTimeout(r, 16));
+  }
+  console.log(`[move] ${dx},${dy}`);
+}
+
+async function type(text) {
+  // Every char (incl. space/quote) goes through the single-char path so a `char`
+  // event with the literal text is delivered — MyGUI edit boxes need that char event.
+  for (const ch of text) await key(ch);
+  console.log(`[type] ${text}`);
+}
+
 const timeline = [
   ...shotAts.map(s => ({ t: s.t, fn: () => screenshot(s.path) })),
   ...clickAts.map(c => ({ t: c.t, fn: () => click(c.x, c.y) })),
   ...keyAts.map(k => ({ t: k.t, fn: () => key(k.key) })),
+  ...typeAts.map(t => ({ t: t.t, fn: () => type(t.text) })),
+  ...moveAts.map(m => ({ t: m.t, fn: () => move(m.dx, m.dy) })),
   ...evalAts.map(e => ({
     t: e.t, fn: async () => {
       const r = await send(browserWs, 'Runtime.evaluate', { expression: e.expr, returnByValue: true, awaitPromise: true }, sessionId);

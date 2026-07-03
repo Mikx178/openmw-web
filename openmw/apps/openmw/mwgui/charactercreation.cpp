@@ -149,6 +149,21 @@ namespace MWGui
 
     void CharacterCreation::onFrame(float duration)
     {
+#ifdef __EMSCRIPTEN__
+        // QA deep-link (?start=<cell>) sets OPENMW_QA_AUTOCHARGEN so a new game auto-completes
+        // every chargen dialog with defaults and drops straight into the target cell — used for
+        // automated in-world render verification. Advances one dialog per frame; each handler
+        // pops its GUI mode and pushes the next. Never set for normal retail boots (stays 1:1).
+        if (getenv("OPENMW_QA_AUTOCHARGEN") != nullptr)
+        {
+            if (mNameDialog) { onNameDialogDone(mNameDialog.get()); return; }
+            if (mRaceDialog) { onRaceDialogDone(mRaceDialog.get()); return; }
+            if (mClassChoiceDialog) { onClassChoice(ClassChoiceDialog::Class_Pick); return; }
+            if (mPickClassDialog) { onPickClassDialogDone(mPickClassDialog.get()); return; }
+            if (mBirthSignDialog) { onBirthSignDialogDone(mBirthSignDialog.get()); return; }
+            if (mReviewDialog) { onReviewDialogDone(nullptr); return; }
+        }
+#endif
         if (mReviewDialog)
         {
 #ifdef __EMSCRIPTEN__

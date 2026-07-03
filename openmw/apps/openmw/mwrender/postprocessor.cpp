@@ -196,14 +196,30 @@ namespace MWRender
         if (!ext->glDisablei && ext->glDisableIndexedEXT)
             ext->glDisablei = ext->glDisableIndexedEXT;
 
-#if defined(ANDROID)
+#if defined(ANDROID) || defined(__EMSCRIPTEN__)
         // GLES on Android: glEnablei/glDisablei (indexed draw-buffer color masks) are not
         // exposed, so the pass-normals MRT feature is unavailable. Disable it quietly.
-        ext->glDisablei = nullptr;
+        //
+        // WebGL2/emscripten: OES_draw_buffers_indexed makes glDisablei/glColorMaski non-null,
+        // so mNormalsSupported would latch true. But the pass-normals attachment (draw buffer 1)
+        // is only actually attached when a loaded post-process technique requests normals — and
+        // the default chain requests none, so FBO_Primary has ONLY color attachment 0. The
+        // ShaderVisitor (shadervisitor.cpp) and SceneManager (scenemanager.cpp) nonetheless
+        // decorate transparent/particle StateSets with ColorMaski(1,...) and Disablei(GL_BLEND,1),
+        // gated on the *capability* flag, not the runtime attachment count. Desktop GL treats
+        // indexed calls to an unattached buffer as harmless no-ops; WebGL2/ANGLE raises
+        // GL_INVALID_VALUE and the intended masking/blend-disable fails to land — which knocks out
+        // SRC_ALPHA blending for the transparent bin, so alpha-blended smoke/fire particles composite
+        // OPAQUELY (a low-alpha dark texel written as a solid black quad — the classic "black square"
+        // smoke bug). Force the feature off here so those decorations are never emitted and the
+        // transparent bin blends correctly against the single attachment. Pass-normals PP effects
+        // (e.g. SSAO-style normals techniques) are not in the default chain, matching Android.
+        //
+        // OMW_FORCE_NORMALS_RT (QA only): skip this guard to reproduce the pre-fix behaviour and
+        // A/B the indexed-blend smoke bug. Never set in normal runs.
+        if (getenv("OMW_FORCE_NORMALS_RT") == nullptr)
+            ext->glDisablei = nullptr;
 #endif
-        // (Under emscripten, OSG's GLExtensions bridges glEnablei/glDisablei/glColorMaski to
-        // WebGL2's OES_draw_buffers_indexed when available, so pass normals work; the pointer
-        // stays null - and normals stay off - only when the extension is truly missing.)
 
         if (ext->glDisablei)
             mNormalsSupported = true;
