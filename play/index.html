@@ -204,12 +204,9 @@
    // Set the drawing buffer once so it's correct even before SDL_CreateWindow; matches the
    // resolution we write to settings.cfg, so nothing ever fights over it afterward.
    canvas.width = window.__renderW; canvas.height = window.__renderH;
-   // Double-click toggles true browser fullscreen (requires a user gesture).
-   canvas.addEventListener('dblclick', function(){
-     if (!document.fullscreenElement && !document.webkitFullscreenElement){
-       (canvas.requestFullscreen || canvas.webkitRequestFullscreen || function(){}).call(canvas);
-     } else { (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document); }
-   });
+   // NOTE: no double-click->fullscreen handler — a double-click is a normal in-game action
+   // (e.g. attack), and hijacking it to toggle fullscreen is hostile. Fullscreen is available
+   // via the browser's own control / F11.
    canvas.addEventListener('pointerdown', function(){ canvas.focus(); });
    window.addEventListener('load', function(){ canvas.focus(); });
 
@@ -373,7 +370,11 @@
            '[Game]\n' +
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
-           'max lights = 8\n';                     // fewer dynamic lights per object -> faster shading
+           'max lights = 8\n' +                    // fewer dynamic lights per object -> faster shading
+           // Light particle systems with nearby point lights. Without this, particles get only
+           // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
+           // light) renders as a black quad. Cheap at max lights=8.
+           'particle point lighting = true\n';
          // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
          // config dir) as additional defaults and layers the PERSISTENT user settings from
          // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,

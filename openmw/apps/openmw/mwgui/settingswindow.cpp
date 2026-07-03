@@ -350,12 +350,16 @@ namespace MWGui
         // drawing buffer and fires the normal windowResized path.
         (void)screen;
         {
+            // "Native" = the harness's actual drawing-buffer size (window.__renderW/H) when set —
+            // that is the budget-capped render resolution the canvas is CURRENTLY using, so the
+            // top entry is pixel-perfect to what's on screen (selecting it is a no-op). Fall back
+            // to the raw device-pixel window size before the harness has computed a budget.
             // clang-format off
             const int nativeW = EM_ASM_INT({
-                return Math.max(320, Math.round((window.innerWidth || 1280) * (window.devicePixelRatio || 1)));
+                return Math.max(320, Math.round(window.__renderW || ((window.innerWidth || 1280) * (window.devicePixelRatio || 1))));
             });
             const int nativeH = EM_ASM_INT({
-                return Math.max(240, Math.round((window.innerHeight || 720) * (window.devicePixelRatio || 1)));
+                return Math.max(240, Math.round(window.__renderH || ((window.innerHeight || 720) * (window.devicePixelRatio || 1))));
             });
             // clang-format on
             const auto addRes = [&](int w, int h) {
@@ -364,7 +368,9 @@ namespace MWGui
                 if (w >= 640 && h >= 480)
                     resolutions.emplace_back(w, h);
             };
-            addRes(nativeW, nativeH);
+            // The native entry is added EXACTLY (no evening) so it is pixel-perfect to the
+            // current drawing buffer — selecting it never resizes anything.
+            resolutions.emplace_back(nativeW, nativeH);
             for (const float tier : { 0.75f, 0.66f, 0.5f, 0.33f })
                 addRes(static_cast<int>(nativeW * tier), static_cast<int>(nativeH * tier));
             // Familiar desktop modes that fit the window (exact aspect labels via getResolutionText).

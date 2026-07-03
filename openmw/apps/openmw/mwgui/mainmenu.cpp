@@ -44,6 +44,14 @@ namespace MWGui
                 // If finished playing, start again
                 if (!mVideo->update())
                     mVideo->playVideo("video\\menu_background.bik");
+                // Re-fit once the first frame's dimensions are known (see mAspectApplied): the
+                // initial resize() can run before decode, leaving a stretched full-screen layout.
+                // autoResize reads its parent's size itself, so no coords are needed here.
+                if (!mAspectApplied && mVideo->getVideoHeight() > 0)
+                {
+                    mVideo->autoResize(Settings::gui().mStretchMenuBackground);
+                    mAspectApplied = true;
+                }
             }
             else if (!paused)
             {

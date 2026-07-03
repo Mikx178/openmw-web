@@ -29,6 +29,11 @@ namespace MWGui
         VideoWidget* mVideo;
         std::thread mThread;
         bool mRunning;
+        // Aspect-correct sizing needs the decoded frame's dimensions. On desktop, playVideo blocks
+        // for the first frame so resize() already has them; under emscripten (cooperative playback)
+        // the first frame lands a few ticks later, so re-apply the fit once dimensions are known —
+        // otherwise autoResize falls through to a full-screen (stretched) layout.
+        bool mAspectApplied = false;
 
         void run();
 
