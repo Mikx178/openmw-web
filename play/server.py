@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of openmw-wasm.
 import http.server, socketserver, os, re
 
 # Load play/.env (KEY=VALUE, # comments) WITHOUT clobbering real env vars, so the launcher

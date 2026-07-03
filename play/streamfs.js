@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of openmw-wasm.
+//
 // streamfs.js — synchronous-read streaming files for the OpenMW WASM build.
 //
 // Mounts a byte source as a read-only file in the emscripten FS whose bytes are fetched ON
