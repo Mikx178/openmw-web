@@ -76,6 +76,7 @@ uniform mat4 osg_ViewMatrixInverse;
 #include "shadows_vertex.glsl"
 #include "compatibility/normals.glsl"
 #include "lib/view/depth.glsl"
+#include "lib/skinning.glsl"
 
 #if @particleOcclusion
 varying vec3 orthoDepthMapCoord;
@@ -88,14 +89,28 @@ uniform vec2 screenRes;
 
 void main(void)
 {
-#if @particleOcclusion
-    mat4 model = osg_ViewMatrixInverse * gl_ModelViewMatrix;
-    orthoDepthMapCoord = ((depthSpaceMatrix * model) * vec4(gl_Vertex.xyz, 1.0)).xyz;
+#if @useGLES
+    mat4 skinMat = mat4(1.0);
+#endif
+    vec4 skinnedVertex = gl_Vertex;
+    vec3 skinnedNormal = gl_Normal.xyz;
+#if @useGLES
+    if (useSkinning && hasSkin())
+    {
+        skinMat = skinMatrix();
+        skinnedVertex = skinMat * gl_Vertex;
+        skinnedNormal = mat3(skinMat) * gl_Normal.xyz;
+    }
 #endif
 
-    gl_Position = modelToClip(gl_Vertex);
+#if @particleOcclusion
+    mat4 model = osg_ViewMatrixInverse * gl_ModelViewMatrix;
+    orthoDepthMapCoord = ((depthSpaceMatrix * model) * vec4(skinnedVertex.xyz, 1.0)).xyz;
+#endif
 
-    vec4 viewPos = modelToView(gl_Vertex);
+    gl_Position = modelToClip(skinnedVertex);
+
+    vec4 viewPos = modelToView(skinnedVertex);
 #if @useGLES
     passClipDist = dot((osg_ViewMatrixInverse * viewPos).xyz, clipPlane.xyz) + clipPlane.w;
 #else
@@ -103,11 +118,15 @@ void main(void)
 #endif
     passColor = gl_Color;
     passViewPos = viewPos.xyz;
-    passNormal = gl_Normal.xyz;
+    passNormal = skinnedNormal;
     normalToViewMatrix = gl_NormalMatrix;
 
 #if @normalMap || @diffuseParallax
     passTangent = gl_MultiTexCoord7.xyzw;
+#if @useGLES
+    if (useSkinning && hasSkin())
+        passTangent.xyz = mat3(skinMat) * passTangent.xyz;
+#endif
     normalToViewMatrix *= generateTangentSpace(passTangent, passNormal);
 #endif
 

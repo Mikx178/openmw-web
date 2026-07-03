@@ -9,11 +9,20 @@ uniform bool useTreeAnim;
 uniform bool useDiffuseMapForShadowAlpha = true;
 uniform bool alphaTestShadows = true;
 
+#include "lib/skinning.glsl"
+
 void main(void)
 {
-    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    vec4 skinnedVertex = gl_Vertex;
+#if @useGLES
+    // Skin the shadow caster to match the skinned scene geometry, or character shadows detach.
+    if (useSkinning && hasSkin())
+        skinnedVertex = skinMatrix() * gl_Vertex;
+#endif
 
-    vec4 viewPos = (gl_ModelViewMatrix * gl_Vertex);
+    gl_Position = gl_ModelViewProjectionMatrix * skinnedVertex;
+
+    vec4 viewPos = (gl_ModelViewMatrix * skinnedVertex);
     gl_ClipVertex = viewPos;
 
     if (useDiffuseMapForShadowAlpha)

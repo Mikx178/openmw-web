@@ -28,12 +28,24 @@ uniform vec4 falloffParams;
 
 #include "compatibility/vertexcolors.glsl"
 #include "compatibility/shadows_vertex.glsl"
+#include "lib/skinning.glsl"
 
 void main(void)
 {
-    gl_Position = modelToClip(gl_Vertex);
+    vec4 skinnedVertex = gl_Vertex;
+    vec3 skinnedNormal = gl_Normal.xyz;
+#if @useGLES
+    if (useSkinning && hasSkin())
+    {
+        mat4 skinMat = skinMatrix();
+        skinnedVertex = skinMat * gl_Vertex;
+        skinnedNormal = mat3(skinMat) * gl_Normal.xyz;
+    }
+#endif
 
-    vec4 viewPos = modelToView(gl_Vertex);
+    gl_Position = modelToClip(skinnedVertex);
+
+    vec4 viewPos = modelToView(skinnedVertex);
 #if @useGLES
     passClipDist = dot((osg_ViewMatrixInverse * viewPos).xyz, clipPlane.xyz) + clipPlane.w;
 #else
@@ -48,11 +60,11 @@ void main(void)
 
     passColor = gl_Color;
     passViewPos = viewPos.xyz;
-    passNormal = gl_Normal.xyz;
+    passNormal = skinnedNormal;
 
     if (useFalloff)
     {
-        vec3 viewNormal = gl_NormalMatrix * normalize(gl_Normal.xyz);
+        vec3 viewNormal = gl_NormalMatrix * normalize(skinnedNormal);
         vec3 viewDir = normalize(viewPos.xyz);
         float viewAngle = abs(dot(viewNormal, viewDir));
         passFalloff = smoothstep(falloffParams.x, falloffParams.y, viewAngle);

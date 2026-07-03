@@ -1087,6 +1087,9 @@ namespace Shader
             case Slot::ShadowMaps:
                 slotDescr = "shadow maps";
                 break;
+            case Slot::SkinningMatrixTexture:
+                slotDescr = "skinning matrix texture";
+                break;
             default:
                 slotDescr = "UNKNOWN";
         }

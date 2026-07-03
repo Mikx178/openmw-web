@@ -2,7 +2,9 @@
 #define OPENMW_COMPONENTS_NIFOSG_RIGGEOMETRY_H
 
 #include <osg/Geometry>
+#include <osg/Image>
 #include <osg/Matrixf>
+#include <osg/Texture2D>
 
 #include <string_view>
 
@@ -32,6 +34,10 @@ namespace SceneUtil
         RigGeometry(const RigGeometry& copy, const osg::CopyOp& copyop);
 
         META_Object(SceneUtil, RigGeometry)
+
+        // Global texture unit for the GPU-skinning bone matrix palette texture (Emscripten only),
+        // assigned once at startup by RenderingManager. -1 = GPU skinning disabled (CPU path).
+        static int sBoneMatrixTextureUnit;
 
         // Currently empty as this is difficult to implement. Technically we would need to compile both internal
         // geometries in separate frames but this method is only called once. Alternatively we could compile just the
@@ -100,9 +106,20 @@ namespace SceneUtil
             std::vector<std::pair<BoneWeights, VertexList>> mInfluences;
             osg::Matrixf mTransform;
             std::string mRootBone;
+            // GPU skinning per-vertex attributes (Emscripten): up to 4 (bone index, weight) per
+            // vertex. Built once on the template and shared with all clones via mData.
+            osg::ref_ptr<osg::Vec4Array> mBoneIndices;
+            osg::ref_ptr<osg::Vec4Array> mBoneWeights;
         };
         osg::ref_ptr<InfluenceData> mData;
         std::vector<Bone*> mNodes;
+
+        // GPU skinning (Emscripten): per-instance bone matrix palette uploaded as an RGBA32F texture
+        // (width 4 = the 4 matrix rows, height = bone count) and re-written each frame in cull().
+        bool mGpuSkinning{ false };
+        osg::ref_ptr<osg::Texture2D> mBoneMatrixTexture;
+        osg::ref_ptr<osg::Image> mBoneMatrixImage;
+        void setupGpuSkinning();
 
         unsigned int mLastFrameNumber{ 0 };
         bool mBoundsFirstFrame{ true };
