@@ -64,7 +64,7 @@
         <path d="M7 24 24 21 41 24 24 27Z"/>
       </svg>
     </div>
-    <div class="ld-title" id="ld-title">Morrowind</div>
+    <div class="ld-title" id="ld-title">Elder Scrolls III: Morrowind</div>
     <div class="ld-status" id="ld-status">Preparing…</div>
     <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
     <div class="ld-detail" id="ld-detail"></div>
@@ -171,7 +171,7 @@
      el=document.getElementById('loading'); titleEl=document.getElementById('ld-title');
      st=document.getElementById('ld-status'); fill=document.getElementById('ld-fill');
      det=document.getElementById('ld-detail');
-     if (titleEl) titleEl.textContent = /[?&]nomw\b/.test(location.search) ? 'The example world' : 'Morrowind';
+     // Same themed screen for every path — title stays "Elder Scrolls III: Morrowind".
      return el;
    }
    function set(pct, label, detail){
@@ -183,13 +183,14 @@
    }
    function fromLog(t){
      var m;
-     if ((m = /^\[dl\]\s+(\S+)\s+(\d+)%/.exec(t)))      set(+m[2], 'Downloading game data', m[1] + ' ' + m[2] + '%');
-     else if (/^\[dl\]/.test(t))                        set(null, 'Downloading game data', t.replace(/^\[dl\]\s*/, ''));
-     else if (/^\[local\] scanning/.test(t))            set(null, 'Reading your Data Files');
-     else if ((m = /^\[local\] mounted (\d+) files/.exec(t))) set(null, 'Reading your Data Files', m[1] + ' files');
+     // Generic, path-agnostic phase labels — same screen whether booting the sample or your files.
+     if ((m = /^\[dl\]\s+(\S+)\s+(\d+)%/.exec(t)))      set(+m[2], 'Downloading', m[1] + ' ' + m[2] + '%');
+     else if (/^\[dl\]/.test(t))                        set(null, 'Downloading', t.replace(/^\[dl\]\s*/, ''));
+     else if (/^\[local\] scanning/.test(t))            set(null, 'Loading');
+     else if ((m = /^\[local\] mounted (\d+) files/.exec(t))) set(null, 'Loading', m[1] + ' files');
      else if (/^\[(local|mw)\] READY/.test(t))          set(null, 'Entering the world');
-     else if (/SKIPPED \(nomw\)/.test(t))               set(null, 'Loading the example world');
-     else if (/^\[mw\] loading Morrowind/.test(t))      set(null, 'Loading Morrowind');
+     else if (/SKIPPED \(nomw\)/.test(t))               set(null, 'Loading');
+     else if (/^\[mw\] loading Morrowind/.test(t))      set(null, 'Downloading');
    }
    function finish(){
      if (done || !E()) return; done=true;
@@ -855,7 +856,7 @@
      try {
        var m = /\((\d+)\s*\/\s*(\d+)\)/.exec(t);
        if (window.__omwLoading){
-         if (m && +m[2] > 0) window.__omwLoading.set(Math.round(+m[1]*100/+m[2]), 'Downloading engine');
+         if (m && +m[2] > 0) window.__omwLoading.set(Math.round(+m[1]*100/+m[2]), 'Downloading');
          else window.__omwLoading.set(null, t.replace(/\.\.\.$/, ''));
        }
      } catch(e){}
