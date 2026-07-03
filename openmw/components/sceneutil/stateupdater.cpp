@@ -129,6 +129,16 @@ namespace SceneUtil
         osg::Fog* fog = new osg::Fog;
         fog->setMode(osg::Fog::LINEAR);
         stateset->setAttributeAndModes(fog, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+        // No fixed-function fog on GLES: the osg::Fog above is inert, so also feed gl_Fog (renamed to
+        // flat osg_Fog_* uniforms by the shader transform) so the scene shaders' applyFog() actually
+        // runs. Inherited down the scene graph; updated per-frame in apply().
+        stateset->addUniform(new osg::Uniform("osg_Fog_color", osg::Vec4f(0.53f, 0.62f, 0.73f, 1.f)));
+        stateset->addUniform(new osg::Uniform("osg_Fog_start", 0.f));
+        stateset->addUniform(new osg::Uniform("osg_Fog_end", 100000.f));
+        stateset->addUniform(new osg::Uniform("osg_Fog_scale", 0.f));
+        stateset->addUniform(new osg::Uniform("osg_Fog_density", 0.f));
+#endif
         if (mWireframe)
         {
             osg::PolygonMode* polygonmode = new osg::PolygonMode;
@@ -146,6 +156,15 @@ namespace SceneUtil
         fog->setColor(mFogColor);
         fog->setStart(mFogStart);
         fog->setEnd(mFogEnd);
+#ifdef __EMSCRIPTEN__
+        // Mirror the fog state into the flat uniforms the GLES shaders read. scale = 1/(end-start)
+        // is what fixed-function GL derives internally for LINEAR fog; guard the degenerate range.
+        const float range = mFogEnd - mFogStart;
+        stateset->getUniform("osg_Fog_color")->set(mFogColor);
+        stateset->getUniform("osg_Fog_start")->set(mFogStart);
+        stateset->getUniform("osg_Fog_end")->set(mFogEnd);
+        stateset->getUniform("osg_Fog_scale")->set(range > 1e-4f ? 1.f / range : 0.f);
+#endif
     }
 
     void StateUpdater::setAmbientColor(const osg::Vec4f& col)

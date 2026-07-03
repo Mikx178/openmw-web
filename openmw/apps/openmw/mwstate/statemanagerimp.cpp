@@ -733,11 +733,36 @@ void MWState::StateManager::quickLoad()
 {
     if (Character* currentCharacter = getCurrentCharacter())
     {
-        if (currentCharacter->begin() == currentCharacter->end())
+        if (currentCharacter->begin() != currentCharacter->end())
+        {
+            // use requestLoad, otherwise we can crash by loading during the wrong part of the frame
+            requestLoad(currentCharacter, currentCharacter->begin()->mPath);
             return;
-        // use requestLoad, otherwise we can crash by loading during the wrong part of the frame
-        requestLoad(currentCharacter, currentCharacter->begin()->mPath);
+        }
     }
+
+#ifdef __EMSCRIPTEN__
+    // QoL fallback: at the main menu there is no current character/slot, so desktop quickLoad is a
+    // no-op. On Emscripten, F9 instead loads the most-recently-written save across all characters,
+    // so the browser player can resume with a single keypress. Desktop behavior is unchanged.
+    const Character* newestCharacter = nullptr;
+    const Slot* newestSlot = nullptr;
+    for (auto characterIt = mCharacterManager.begin(); characterIt != mCharacterManager.end(); ++characterIt)
+    {
+        // Slots are sorted ascending by timestamp, and Character::begin() is a reverse iterator,
+        // so begin() is the newest slot for this character.
+        if (characterIt->begin() == characterIt->end())
+            continue;
+        const Slot& candidate = *characterIt->begin();
+        if (newestSlot == nullptr || newestSlot->mTimeStamp < candidate.mTimeStamp)
+        {
+            newestSlot = &candidate;
+            newestCharacter = &*characterIt;
+        }
+    }
+    if (newestCharacter != nullptr && newestSlot != nullptr)
+        requestLoad(newestCharacter, newestSlot->mPath);
+#endif
 }
 
 void MWState::StateManager::deleteGame(const MWState::Character* character, const MWState::Slot* slot)

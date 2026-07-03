@@ -282,9 +282,14 @@ namespace
         }
         if (source.find("gl_Fog") != std::string::npos)
         {
-            prelude += "struct osg_FogParameters { vec4 color; float start; float end; float scale; float "
-                       "density; };\nuniform osg_FogParameters osg_Fog;\n";
-            source = std::regex_replace(source, std::regex("\\bgl_Fog\\b"), "osg_Fog");
+            // Same struct-member-uniform ANGLE bug as gl_FrontMaterial above: osg_Fog.<member>
+            // silently reads 0, so fog stayed disabled (grey haze / no distance fog). Flatten each
+            // member to a plain uniform, fed per-frame by SceneUtil::StateUpdater on emscripten.
+            prelude += "uniform vec4 osg_Fog_color;\nuniform float osg_Fog_start;\nuniform float osg_Fog_end;\n"
+                       "uniform float osg_Fog_scale;\nuniform float osg_Fog_density;\n";
+            for (const char* m : { "color", "start", "end", "scale", "density" })
+                source = std::regex_replace(source,
+                    std::regex(std::string("\\bgl_Fog\\s*\\.\\s*") + m + "\\b"), std::string("osg_Fog_") + m);
         }
 
         if (type == osg::Shader::VERTEX)

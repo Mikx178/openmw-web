@@ -2,6 +2,10 @@
 
 #include <filesystem>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <MyGUI_InputManager.h>
 #include <osg/Stats>
 
@@ -198,6 +202,21 @@ namespace MWLua
                 mGlobalStorage.save(view.sol(), userConfigPath / "global_storage.bin");
             mPlayerStorage.save(view.sol(), userConfigPath / "player_storage.bin");
         });
+
+#ifdef __EMSCRIPTEN__
+        // The storage landed in MEMFS-backed IDBFS; flush it to IndexedDB NOW so a
+        // crash/close right after saving cannot lose it (the JS harness only syncs on a timer).
+        EM_ASM({
+            try
+            {
+                if (typeof FS !== 'undefined' && FS.syncfs)
+                    FS.syncfs(false, function() {});
+            }
+            catch (e)
+            {
+            }
+        });
+#endif
     }
 
     void LuaManager::sendLocalEvent(

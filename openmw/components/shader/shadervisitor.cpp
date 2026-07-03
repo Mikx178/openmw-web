@@ -648,6 +648,23 @@ namespace Shader
             addedState->addUniform("osg_FrontMaterial_specular");
             addedState->addUniform("osg_FrontMaterial_shininess");
         }
+        else
+        {
+            // No osg::Material anywhere in the inherited chain (pushRequirements copies the parent
+            // frame, so mHasMaterial==false means none upstream either). Desktop GL would apply the
+            // fixed-function DEFAULT material here; without these uniforms the flat osg_FrontMaterial_*
+            // read 0 and the surface renders black. Feed the GL defaults to keep parity.
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_emission", osg::Vec4f(0.f, 0.f, 0.f, 1.f)));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_ambient", osg::Vec4f(0.2f, 0.2f, 0.2f, 1.f)));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_diffuse", osg::Vec4f(0.8f, 0.8f, 0.8f, 1.f)));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_specular", osg::Vec4f(0.f, 0.f, 0.f, 1.f)));
+            writableStateSet->addUniform(new osg::Uniform("osg_FrontMaterial_shininess", 0.f));
+            addedState->addUniform("osg_FrontMaterial_emission");
+            addedState->addUniform("osg_FrontMaterial_ambient");
+            addedState->addUniform("osg_FrontMaterial_diffuse");
+            addedState->addUniform("osg_FrontMaterial_specular");
+            addedState->addUniform("osg_FrontMaterial_shininess");
+        }
 #endif
 
         defineMap["alphaFunc"] = std::to_string(reqs.mAlphaFunc);

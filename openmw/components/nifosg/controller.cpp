@@ -511,6 +511,12 @@ namespace NifOsg
             osg::Vec3f value = mData.interpKey(getInputValue(nv));
             osg::Material* mat = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
             using TargetColor = Nif::NiMaterialColorController::TargetColor;
+            // On GLES the shaders read the flat osg_FrontMaterial_* uniforms (see shadervisitor.cpp),
+            // not the fixed-function material — so a per-frame material mutation here must also be
+            // pushed into the matching uniform or animated VFX colours (spell glows, enchant pulses)
+            // stay frozen at their first-frame value. updateUniform() is a no-op off emscripten.
+            const char* uniformName = nullptr;
+            osg::Vec4f uniformValue;
             switch (mTargetColor)
             {
                 case TargetColor::Diffuse:
@@ -518,6 +524,8 @@ namespace NifOsg
                     osg::Vec4f diffuse = mat->getDiffuse(osg::Material::FRONT_AND_BACK);
                     diffuse.set(value.x(), value.y(), value.z(), diffuse.a());
                     mat->setDiffuse(osg::Material::FRONT_AND_BACK, diffuse);
+                    uniformName = "osg_FrontMaterial_diffuse";
+                    uniformValue = diffuse;
                     break;
                 }
                 case TargetColor::Specular:
@@ -525,6 +533,8 @@ namespace NifOsg
                     osg::Vec4f specular = mat->getSpecular(osg::Material::FRONT_AND_BACK);
                     specular.set(value.x(), value.y(), value.z(), specular.a());
                     mat->setSpecular(osg::Material::FRONT_AND_BACK, specular);
+                    uniformName = "osg_FrontMaterial_specular";
+                    uniformValue = specular;
                     break;
                 }
                 case TargetColor::Emissive:
@@ -532,6 +542,8 @@ namespace NifOsg
                     osg::Vec4f emissive = mat->getEmission(osg::Material::FRONT_AND_BACK);
                     emissive.set(value.x(), value.y(), value.z(), emissive.a());
                     mat->setEmission(osg::Material::FRONT_AND_BACK, emissive);
+                    uniformName = "osg_FrontMaterial_emission";
+                    uniformValue = emissive;
                     break;
                 }
                 case TargetColor::Ambient:
@@ -540,8 +552,18 @@ namespace NifOsg
                     osg::Vec4f ambient = mat->getAmbient(osg::Material::FRONT_AND_BACK);
                     ambient.set(value.x(), value.y(), value.z(), ambient.a());
                     mat->setAmbient(osg::Material::FRONT_AND_BACK, ambient);
+                    uniformName = "osg_FrontMaterial_ambient";
+                    uniformValue = ambient;
                 }
             }
+#ifdef __EMSCRIPTEN__
+            if (uniformName)
+                if (osg::Uniform* u = stateset->getUniform(uniformName))
+                    u->set(uniformValue);
+#else
+            (void)uniformName;
+            (void)uniformValue;
+#endif
         }
     }
 

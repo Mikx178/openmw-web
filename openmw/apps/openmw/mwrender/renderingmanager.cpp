@@ -371,18 +371,6 @@ namespace MWRender
         sceneRoot->getOrCreateStateSet()->addUniform(new osg::Uniform("emissiveMult", 1.f));
         sceneRoot->getOrCreateStateSet()->addUniform(new osg::Uniform("specStrength", 1.f));
         sceneRoot->getOrCreateStateSet()->addUniform(new osg::Uniform("distortionStrength", 0.f));
-#ifdef __EMSCRIPTEN__
-        // Feed gl_Fog (renamed osg_Fog by the GLES shader transform) as uniforms; no
-        // fixed-function pipeline supplies it. scale=0 disables fog for now.
-        {
-            osg::StateSet* ss = sceneRoot->getOrCreateStateSet();
-            ss->addUniform(new osg::Uniform("osg_Fog.color", osg::Vec4f(0.53f, 0.62f, 0.73f, 1.f)));
-            ss->addUniform(new osg::Uniform("osg_Fog.start", 0.f));
-            ss->addUniform(new osg::Uniform("osg_Fog.end", 100000.f));
-            ss->addUniform(new osg::Uniform("osg_Fog.scale", 0.f));
-            ss->addUniform(new osg::Uniform("osg_Fog.density", 0.f));
-        }
-#endif
 
         resourceSystem->getSceneManager()->setUpNormalsRTForStateSet(sceneRoot->getOrCreateStateSet(), true);
 
