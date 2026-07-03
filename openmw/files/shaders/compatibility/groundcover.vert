@@ -35,6 +35,10 @@ centroid varying vec3 passLighting;
 #endif
 
 varying vec3 passNormal;
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+uniform vec4 clipPlane;
+#endif
 
 #include "shadows_vertex.glsl"
 #include "compatibility/normals.glsl"
@@ -135,7 +139,11 @@ void main(void)
     worldPos.xy += groundcoverDisplacement(worldPos.xyz, gl_Vertex.z);
     vec4 viewPos = osg_ViewMatrix * worldPos;
 
+#if @useGLES
+    passClipDist = dot(worldPos.xyz, clipPlane.xyz) + clipPlane.w;
+#else
     gl_ClipVertex = viewPos;
+#endif
     euclideanDepth = length(viewPos.xyz);
 
     if (length(gl_ModelViewMatrix * vec4(position, 1.0)) > @groundcoverFadeEnd)

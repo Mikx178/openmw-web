@@ -1133,6 +1133,7 @@ namespace Shader
             { "numViews", "1" },
             { "particle", "0" },
             { "particlePointLighting", "1" },
+            { "useGLES", "0" },
         };
     }
 }

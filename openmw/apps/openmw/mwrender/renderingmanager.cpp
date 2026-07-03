@@ -256,6 +256,12 @@ namespace MWRender
 
         globalDefines["reverseZ"] = reverseZ ? "1" : "0";
 
+#ifdef __EMSCRIPTEN__
+        globalDefines["useGLES"] = "1";
+#else
+        globalDefines["useGLES"] = "0";
+#endif
+
         // It is unnecessary to stop/start the viewer as no frames are being rendered yet.
         mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(globalDefines);
 

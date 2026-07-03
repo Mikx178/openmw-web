@@ -265,6 +265,13 @@ namespace MWRender
             camera->addChild(mClipCullNode);
             camera->setNodeMask(Mask_RenderToTexture);
 
+#ifdef __EMSCRIPTEN__
+            // GLES has no gl_ClipVertex/ClipPlane: the scene shaders emulate the clip via a
+            // world-space plane uniform + fragment discard (see @useGLES in objects.vert etc.).
+            // vec4(N.xyz, d); keep where dot(N, worldPos) + d >= 0. Updated per-frame in apply().
+            camera->getOrCreateStateSet()->addUniform(new osg::Uniform("clipPlane", osg::Vec4f(0.f, 0.f, -1.f, 0.f)));
+#endif
+
             if (Settings::water().mRefractionScale != 1) // TODO: to be removed with issue #5709
                 SceneUtil::ShadowManager::instance().disableShadowsForStateSet(*camera->getOrCreateStateSet());
         }
@@ -273,6 +280,10 @@ namespace MWRender
         {
             camera->setViewMatrix(mViewMatrix);
             camera->setCullMask(mNodeMask);
+#ifdef __EMSCRIPTEN__
+            if (osg::Uniform* clip = camera->getOrCreateStateSet()->getUniform("clipPlane"))
+                clip->set(mClipPlane);
+#endif
         }
 
         void setScene(osg::Node* scene)
@@ -291,6 +302,8 @@ namespace MWRender
                 * osg::Matrix::translate(0, 0, (1.0 - refractionScale) * waterLevel);
 
             mClipCullNode->setPlane(osg::Plane(osg::Vec3d(0, 0, -1), osg::Vec3d(0, 0, waterLevel)));
+            // Keep geometry at or below the water surface (worldPos.z <= waterLevel).
+            mClipPlane = osg::Vec4f(0.f, 0.f, -1.f, waterLevel);
         }
 
         void showWorld(bool show)
@@ -305,6 +318,7 @@ namespace MWRender
         osg::ref_ptr<ClipCullNode> mClipCullNode;
         osg::ref_ptr<osg::Node> mScene;
         osg::Matrix mViewMatrix{ osg::Matrix::identity() };
+        osg::Vec4f mClipPlane{ 0.f, 0.f, -1.f, 0.f }; // GLES shader clip (emscripten)
 
         unsigned int mNodeMask;
 
@@ -342,6 +356,10 @@ namespace MWRender
             camera->addChild(mClipCullNode);
             camera->setNodeMask(Mask_RenderToTexture);
 
+#ifdef __EMSCRIPTEN__
+            camera->getOrCreateStateSet()->addUniform(new osg::Uniform("clipPlane", osg::Vec4f(0.f, 0.f, 1.f, 0.f)));
+#endif
+
             SceneUtil::ShadowManager::instance().disableShadowsForStateSet(*camera->getOrCreateStateSet());
         }
 
@@ -349,6 +367,10 @@ namespace MWRender
         {
             camera->setViewMatrix(mViewMatrix);
             camera->setCullMask(mNodeMask);
+#ifdef __EMSCRIPTEN__
+            if (osg::Uniform* clip = camera->getOrCreateStateSet()->getUniform("clipPlane"))
+                clip->set(mClipPlane);
+#endif
         }
 
         void setInterior(bool isInterior)
@@ -361,6 +383,8 @@ namespace MWRender
         {
             mViewMatrix = osg::Matrix::scale(1, 1, -1) * osg::Matrix::translate(0, 0, 2 * waterLevel);
             mClipCullNode->setPlane(osg::Plane(osg::Vec3d(0, 0, 1), osg::Vec3d(0, 0, waterLevel)));
+            // Keep geometry at or above the water surface (worldPos.z >= waterLevel).
+            mClipPlane = osg::Vec4f(0.f, 0.f, 1.f, -waterLevel);
         }
 
         void setScene(osg::Node* scene)
@@ -400,6 +424,7 @@ namespace MWRender
 
         osg::ref_ptr<ClipCullNode> mClipCullNode;
         osg::ref_ptr<osg::Node> mScene;
+        osg::Vec4f mClipPlane{ 0.f, 0.f, 1.f, 0.f }; // GLES shader clip (emscripten)
         osg::Node::NodeMask mNodeMask;
         osg::Matrix mViewMatrix{ osg::Matrix::identity() };
         bool mInterior;

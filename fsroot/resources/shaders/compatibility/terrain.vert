@@ -21,6 +21,11 @@ centroid varying vec3 passSpecular;
 
 varying vec3 passViewPos;
 varying vec3 passNormal;
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+uniform vec4 clipPlane;
+uniform mat4 osg_ViewMatrixInverse;
+#endif
 
 #include "vertexcolors.glsl"
 #include "shadows_vertex.glsl"
@@ -33,7 +38,11 @@ void main(void)
     gl_Position = modelToClip(gl_Vertex);
 
     vec4 viewPos = modelToView(gl_Vertex);
+#if @useGLES
+    passClipDist = dot((osg_ViewMatrixInverse * viewPos).xyz, clipPlane.xyz) + clipPlane.w;
+#else
     gl_ClipVertex = viewPos;
+#endif
     euclideanDepth = length(viewPos.xyz);
     linearDepth = getLinearDepth(gl_Position.z, viewPos.z);
 

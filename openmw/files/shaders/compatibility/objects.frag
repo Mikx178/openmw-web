@@ -82,6 +82,9 @@ varying vec3 passNormal;
 #if @normalMap || @diffuseParallax
 varying vec4 passTangent;
 #endif
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+#endif
 
 #if @additiveBlending
 #define ADDITIVE_BLENDING
@@ -113,6 +116,10 @@ varying vec3 orthoDepthMapCoord;
 
 void main()
 {
+#if @useGLES
+    if (passClipDist < 0.0)
+        discard;
+#endif
 #if @particleOcclusion
     applyOcclusionDiscard(orthoDepthMapCoord, texture2D(orthoDepthMap, orthoDepthMapCoord.xy * 0.5 + 0.5).r);
 #endif

@@ -31,6 +31,9 @@ centroid varying vec3 passSpecular;
 #endif
 varying vec3 passViewPos;
 varying vec3 passNormal;
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+#endif
 
 uniform vec2 screenRes;
 uniform float far;
@@ -46,6 +49,10 @@ uniform float far;
 
 void main()
 {
+#if @useGLES
+    if (passClipDist < 0.0)
+        discard;
+#endif
     vec2 adjustedUV = (gl_TextureMatrix[0] * vec4(uv, 0.0, 1.0)).xy;
 
 #if @parallax

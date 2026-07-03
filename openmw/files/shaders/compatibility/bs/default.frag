@@ -27,6 +27,9 @@ varying float linearDepth;
 
 varying vec3 passViewPos;
 varying vec3 passNormal;
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+#endif
 
 uniform vec2 screenRes;
 uniform float far;
@@ -48,6 +51,10 @@ uniform float distortionStrength;
 
 void main()
 {
+#if @useGLES
+    if (passClipDist < 0.0)
+        discard;
+#endif
 #if @diffuseMap
     gl_FragData[0] = texture2D(diffuseMap, diffuseMapUV);
 

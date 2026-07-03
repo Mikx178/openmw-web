@@ -37,6 +37,9 @@ centroid varying vec3 passLighting;
 #endif
 
 varying vec3 passNormal;
+#if @useGLES
+varying float passClipDist; // water reflection/refraction clip (see objects.vert)
+#endif
 
 #include "shadows_fragment.glsl"
 #include "lib/material/alpha.glsl"
@@ -45,6 +48,10 @@ varying vec3 passNormal;
 
 void main()
 {
+#if @useGLES
+    if (passClipDist < 0.0)
+        discard;
+#endif
 #if @diffuseMap
     gl_FragData[0] = texture2D(diffuseMap, diffuseMapUV);
 #else
