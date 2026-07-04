@@ -486,9 +486,10 @@
            // (default off = 1:1 with desktop). Normal play leaves AA to the Options menu.
            (/[?&]aa=(\d+)/.test(location.search) ? 'antialiasing = ' + RegExp.$1 + '\n' : '') +
            '[Camera]\n' +
-           'viewing distance = 8192.0\n' +        // reach the valley mountain-backdrop ring (~4000u)
+           'viewing distance = ' + ((/[?&]vd=(\d+)/.exec(location.search)||[])[1] || '16384') + '.0\n' +  // 2 cells: radial distant-terrain vista (paired with 'distant terrain=true' below). ?vd=N overrides (QA)
            'small feature culling pixel size = 3.0\n' +
            '[Terrain]\n' +
+           'distant terrain = ' + (/[?&]dt=0/.test(location.search) ? 'false' : 'true') + '\n' +  // QuadTree LOD: radial terrain+statics to the view distance (else only the 3x3 active cells render = square boundary). ?dt=0 disables (QA)
            'object paging = true\n' +
            'object paging active grid = true\n' +
            'object paging min size = 0.005\n' +   // render/merge the distant backdrop rocks + trees
@@ -515,7 +516,10 @@
            // Light particle systems with nearby point lights. Without this, particles get only
            // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
            // light) renders as a black quad. Cheap at max lights=8.
-           'particle point lighting = true\n';
+           'particle point lighting = true\n' +
+           // ?pp=1 (QA) enables post-processing so the Fx pipeline (incl. internal_distortion) is
+           // exercised — verifies the GLES Fx-shader transform. Off by default.
+           (/[?&]pp=1\b/.test(location.search) ? '[Post Processing]\nenabled = true\n' : '');
          // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
          // config dir) as additional defaults and layers the PERSISTENT user settings from
          // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,

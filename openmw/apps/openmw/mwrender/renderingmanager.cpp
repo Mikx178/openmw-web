@@ -420,6 +420,17 @@ namespace MWRender
         // breaks things.
         mRootNode->getOrCreateStateSet()->setMode(GL_ALPHA_TEST, osg::StateAttribute::OFF);
 
+#ifdef __EMSCRIPTEN__
+        // GLES water clip (see @useGLES in objects.vert / water.cpp): the reflection/refraction RTT
+        // cameras publish a per-frame `clipPlane` uniform and the scene shaders discard fragments on
+        // the wrong side of it. Those cameras are DESCENDANTS of mRootNode, so a neutral clipPlane
+        // here is the default for the MAIN pass (dot()+w == 0 -> nothing discarded) while each RTT
+        // camera overrides it with its real plane for the reflection/refraction render. Without this
+        // default the main pass inherits the STALE value last set by the RTT cameras and discards all
+        // above-water geometry — the scene collapses to just water + sky + the shoreline base.
+        mRootNode->getOrCreateStateSet()->addUniform(new osg::Uniform("clipPlane", osg::Vec4f(0.f, 0.f, 0.f, 0.f)));
+#endif
+
         if (reverseZ)
         {
             osg::ref_ptr<osg::ClipControl> clipcontrol

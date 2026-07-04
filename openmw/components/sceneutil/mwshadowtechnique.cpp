@@ -1998,6 +1998,12 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
                 double cy = 0.5 * (yMin + yMax);
                 double half = 0.5 * osg::maximum(xMax - xMin, yMax - yMin);
                 if (half <= 0.0) half = 1.0;
+                // Quantize the ortho half-size to the next power of two so texelSize is INVARIANT to
+                // the frustum box shrinking/growing as the camera yaws/pitches. If half varied
+                // continuously, texelSize varied with it and the per-texel center snap below shifted
+                // every frame — the shadow "crawl"/swim. With a fixed texelSize the snap keeps the
+                // shadow map locked to whole-texel positions as the camera moves.
+                half = std::pow(2.0, std::ceil(std::log2(half)));
                 double mapRes = static_cast<double>(settings->getTextureSize().x());
                 if (mapRes < 1.0) mapRes = 1024.0;
                 double texelSize = (2.0 * half) / mapRes;
@@ -2728,6 +2734,10 @@ bool MWShadowTechnique::cropShadowCameraToMainFrustum(Frustum& frustum, osg::Cam
             double cy = 0.5 * (yMin + yMax);
             double half = 0.5 * osg::maximum(xMax - xMin, yMax - yMin);
             if (half <= 0.0) half = 1.0;
+            // Quantize to a power-of-two extent so texel size is invariant to the cascade box
+            // changing as the camera turns — a varying texel makes the snap below shift every frame
+            // (shadow crawl). Fixed texel => the crop stays locked to whole-texel positions.
+            half = std::pow(2.0, std::ceil(std::log2(half)));
             const ShadowSettings* s = getShadowedScene()->getShadowSettings();
             double mapRes = static_cast<double>(s->getTextureSize().x());
             if (mapRes < 1.0) mapRes = 1024.0;

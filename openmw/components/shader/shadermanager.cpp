@@ -160,7 +160,12 @@ namespace
             std::size_t eol = source.find('\n', vpos);
             if (eol == std::string::npos)
                 eol = source.size();
-            source.replace(vpos, eol - vpos + 1, header);
+            // Replace from the START of the source (not just from #version) through the version line,
+            // so anything preceding #version is removed. GLSL requires #version to be the very first
+            // line; the Fx post-process header (components/fx/pass.cpp) begins with a blank line, which
+            // would push #version to line 2 and make the compiler silently fall back to ES 1.00
+            // ('in'/'out' unsupported, samplers reserved, no default float precision).
+            source.replace(0, eol + 1, header);
         }
         else
             source = header + source;

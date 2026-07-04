@@ -42,19 +42,34 @@ material from `components/shader/shadervisitor.cpp`, fog from `components/sceneu
 and animated material controllers from `components/nifosg/controller.cpp`. Without this the sky,
 smoke, and unlit geometry rendered black.
 
-### GPU vertex-shader skinning
-Desktop OpenMW skins actors on the CPU (`components/sceneutil/riggeometry.cpp`), rewriting every
-vertex each frame. On the web the per-vertex transform is moved into the vertex shader: bone
-index/weight are uploaded as vertex attributes, the bone-matrix palette as an `RGBA32F` texture
-sampled with `texelFetch`, and linear-blend skinning runs in `files/shaders/lib/skinning.glsl`.
-Shadow casters skin identically so shadows track the body. The matrix layout was chosen so
-`mat4(rows) * v` reproduces OSG's `preMult` exactly — the row-major/column-major transpose cancels.
+### Actor skinning (CPU) and vertex morphing
+Actors are skinned on the CPU (`components/sceneutil/riggeometry.cpp`), which rewrites every vertex
+each frame into a dedicated per-array VBO. This works correctly on WebGL2 and holds 60fps. (An
+optional GPU vertex-shader skinning path was prototyped but **reverted** — it reshuffled the
+post-processor/opaque-depth texture-unit reservation and regressed scene rendering; see the
+"Revert GPU vertex-shader skinning" commit. `riggeometry.cpp` is back to the stock CPU path.)
+
+Vertex **morphing** (`components/sceneutil/morphgeometry.cpp`, driven by a `NiGeomMorpherController`
+— used by NPC/player heads for blink/talk facial animation) is **disabled** on the web
+(`components/nifosg/nifloader.cpp`, `#ifdef __EMSCRIPTEN__`): the mesh renders as its static source
+geometry instead of being wrapped in a `MorphGeometry`. `MorphGeometry` rewrites its vertex VBO every
+frame across two double-buffered `osg::Geometry` copies, and under WebGL2/ANGLE with forced VAOs that
+per-frame re-upload does not reach the GPU correctly — the head rendered as a collapsed cone even
+though the CPU-side vertices were provably correct (unlike CPU skinning, `MorphGeometry` gives only
+its position array a dedicated VBO). The morph targets are tiny eyelid/mouth deltas held at weight 0
+most of the time, so the only visible cost is the loss of subtle facial blink/talk; the head shape is
+correct.
 
 ### Water reflection/refraction clipping without clip planes
-GLES has no `gl_ClipVertex` / user clip planes. The water RTT passes emulate the clip plane with a
-world-space `clipPlane` uniform published from `apps/openmw/mwrender/water.cpp` and a fragment
-`discard` in the scene shaders (`#if @useGLES`). On the main camera the uniform defaults to zero, so
-nothing is clipped there.
+GLES has no `gl_ClipVertex` / user clip planes. The water reflection/refraction RTT cameras emulate
+the clip plane with a world-space `clipPlane` uniform published from `apps/openmw/mwrender/water.cpp`
+and a fragment `discard` in the scene shaders (`#if @useGLES`). The main camera pass must NOT clip —
+but a GLSL uniform is not per-pass state: if the main pass left `clipPlane` unset it would keep the
+stale value last written by a water RTT camera and discard all above-water geometry (only sky + water
++ the shoreline base draw). So a neutral `clipPlane = vec4(0)` is published on `mRootNode`
+(`apps/openmw/mwrender/renderingmanager.cpp`, `#ifdef __EMSCRIPTEN__`): the main pass inherits it
+(`dot()+w == 0` → nothing discarded) while the RTT cameras — descendants of `mRootNode` — override it
+with their real per-frame plane, so reflection/refraction clipping still works.
 
 ### WebGL2-legal framebuffer & texture formats
 WebGL2 is stricter than desktop GL about renderable formats. Several OSG defaults had to be made
@@ -219,3 +234,6 @@ Honest boundaries of the port. None are correctness bugs; each is a documented t
 - **RTT color buffers are RGBA8** where desktop uses RGB (a few bytes/pixel more, no visual change).
 - **Desktop Chrome / Chromium only.** Several workarounds are gated specifically to Chrome's ANGLE
   behavior; Firefox and Safari are untested. Mobile/touch is out of scope (no on-screen controls).
+- **No facial blink/talk animation.** Vertex morphing (`MorphGeometry`) is disabled on the web
+  because its per-frame VBO rewrite mis-uploads under WebGL2/ANGLE (it rendered heads as a cone); see
+  §1. Heads render as their static base mesh — correct shape, just no eyelid/mouth micro-animation.

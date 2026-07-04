@@ -270,13 +270,23 @@ float omw_EstimateFogCoverageFromUV(vec2 uv)
                      << "\t#extension " << extension << ": enable" << '\n'
                      << "#endif" << '\n';
 
+#ifdef __EMSCRIPTEN__
+        // WebGL2 is GLES 3.00. Emit "#version 300 es" and use the modern (non-legacy) in/out/texture
+        // path (mLegacyGLSL is forced false in compile()) so Fx post-process shaders compile natively
+        // instead of as unsupported "#version 120". Precision qualifiers are injected below.
+        const std::string glslVersion = "300";
+        const std::string glslProfile = "es";
+#else
+        const std::string glslVersion = std::to_string(technique.getGLSLVersion());
+        const std::string glslProfile = technique.getGLSLProfile();
+#endif
         const std::vector<std::pair<std::string, std::string>> defines
             = { { "@pointLightCount", std::to_string(SceneUtil::PPLightBuffer::sMaxPPLightsArraySize) },
                   { "@apiVersion", std::to_string(Version::getPostprocessingApiRevision()) },
-                  { "@version", std::to_string(technique.getGLSLVersion()) },
+                  { "@version", glslVersion },
                   { "@multiview", Stereo::getMultiview() ? "1" : "0" },
                   { "@builtinSampler", Stereo::getMultiview() ? "sampler2DArray" : "sampler2D" },
-                  { "@profile", technique.getGLSLProfile() }, { "@extensions", extBlock.str() },
+                  { "@profile", glslProfile }, { "@extensions", extBlock.str() },
                   { "@uboStruct", StateUpdater::getStructDefinition() }, { "@ubo", mUBO ? "1" : "0" },
                   { "@normals", technique.getNormals() ? "1" : "0" },
                   { "@reverseZ", SceneUtil::AutoDepth::isReversed() ? "1" : "0" },
@@ -307,6 +317,27 @@ float omw_EstimateFogCoverageFromUV(vec2 uv)
                 header.append(glsl.value());
 
         header.append(preamble);
+
+#ifdef __EMSCRIPTEN__
+        // GLSL ES requires: (1) #version to be the very first line — the header template starts with a
+        // blank line, which would push #version to line 2 and silently fall back to ES 1.00; and
+        // (2) an explicit default float precision (fragment shaders have none). Strip anything before
+        // #version, then inject precision right after the version line.
+        {
+            std::size_t v = header.find("#version");
+            if (v != std::string::npos && v > 0)
+                header.erase(0, v);
+            std::size_t eol = header.find('\n');
+            if (eol != std::string::npos)
+            {
+                std::string precision = "precision highp float;\nprecision highp int;\n";
+                if (fragOut)
+                    precision += "precision highp sampler2D;\nprecision highp sampler2DShadow;\n"
+                                 "precision highp sampler2DArray;\n";
+                header.insert(eol + 1, precision);
+            }
+        }
+#endif
 
         return header;
     }
@@ -357,7 +388,14 @@ float omw_EstimateFogCoverageFromUV(vec2 uv)
         if (mCompiled)
             return;
 
+#ifdef __EMSCRIPTEN__
+        // WebGL2/GLES3: always use the modern in/out/texture/_omw_* path (never legacy
+        // varying/texture2D/gl_FragColor, which are invalid in GLES 3.00). getPassHeader() emits
+        // "#version 300 es" + precision to match.
+        mLegacyGLSL = false;
+#else
         mLegacyGLSL = technique.getGLSLVersion() < 330;
+#endif
 
         if (mType == Type::Pixel)
         {
