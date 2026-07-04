@@ -109,7 +109,14 @@ namespace MWGui
         , mBackground(nullptr)
     {
         getWidget(mVersionText, "VersionText");
+#ifdef __EMSCRIPTEN__
+        // Hide the "OpenMW version x.y.z" overlay in the bottom-right of the main menu on the web
+        // build (empty caption shows nothing regardless of the visibility toggle below).
+        mVersionText->setCaption({});
+        (void)versionDescription;
+#else
         mVersionText->setCaption(versionDescription);
+#endif
 
         constexpr VFS::Path::NormalizedView menuBackgroundVideo("video/menu_background.bik");
 

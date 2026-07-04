@@ -215,7 +215,18 @@ namespace MWGui
 
         // NB: dw/w must be floating-point — integer division truncates a non-1 device-pixel ratio
         // (e.g. drawable smaller than window) to 0, zeroing the whole GUI/local-map scale.
+#ifdef __EMSCRIPTEN__
+        // On the web the canvas IS the drawable at the render resolution index.html already chose
+        // (its pixel budget accounts for devicePixelRatio). SDL reports drawable=canvas but
+        // window=CSS-size, so dw/w == devicePixelRatio would DOUBLE-COUNT DPR and scale the whole
+        // GUI ~2x on a retina display — the settings window then overflows the viewport. Use the
+        // configured factor only; the 3D scene and GUI then share the canvas 1:1.
+        (void)dw;
+        (void)w;
+        mScalingFactor = Settings::gui().mScalingFactor;
+#else
         mScalingFactor = Settings::gui().mScalingFactor * (w > 0 ? static_cast<float>(dw) / static_cast<float>(w) : 1.f);
+#endif
         constexpr VFS::Path::NormalizedView resourcePath("mygui");
         mGuiPlatform = std::make_unique<MyGUIPlatform::Platform>(viewer, guiRoot, resourceSystem->getImageManager(),
             resourceSystem->getVFS(), mScalingFactor, resourcePath, logpath / "MyGUI.log");

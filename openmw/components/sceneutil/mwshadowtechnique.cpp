@@ -2004,6 +2004,17 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
                 // every frame — the shadow "crawl"/swim. With a fixed texelSize the snap keeps the
                 // shadow map locked to whole-texel positions as the camera moves.
                 half = std::pow(2.0, std::ceil(std::log2(half)));
+                // Grow-only: even the pow2 step still jumps 2x whenever the frustum box crosses a
+                // boundary as the camera yaws (and oscillates if it hovers near one) — each jump
+                // doubles/halves texelSize and slides the whole shadow grid = the residual swim.
+                // Latch half to its running maximum so texelSize becomes constant after the first
+                // frames and the grid stays locked. Cost: shadows a touch softer (slightly oversized
+                // ortho); benefit: no orientation-driven texel-size changes.
+                static double sStableBaseHalf = 0.0;
+                if (half < sStableBaseHalf)
+                    half = sStableBaseHalf;
+                else
+                    sStableBaseHalf = half;
                 double mapRes = static_cast<double>(settings->getTextureSize().x());
                 if (mapRes < 1.0) mapRes = 1024.0;
                 double texelSize = (2.0 * half) / mapRes;
@@ -2738,6 +2749,19 @@ bool MWShadowTechnique::cropShadowCameraToMainFrustum(Frustum& frustum, osg::Cam
             // changing as the camera turns — a varying texel makes the snap below shift every frame
             // (shadow crawl). Fixed texel => the crop stays locked to whole-texel positions.
             half = std::pow(2.0, std::ceil(std::log2(half)));
+            // Grow-only latch, per cascade (keyed by its shadow camera): even the pow2 step jumps
+            // 2x when the cascade box crosses a boundary on camera yaw (and oscillates near one),
+            // sliding the crop = residual swim. Latch to the per-cascade running max so texel size
+            // stops changing after the first frames and the crop stays locked. Per-camera keying
+            // keeps each cascade's own resolution (a single shared max would blow up near cascades).
+            {
+                static std::map<const osg::Camera*, double> sStableCropHalf;
+                double& stable = sStableCropHalf[camera];
+                if (half < stable)
+                    half = stable;
+                else
+                    stable = half;
+            }
             const ShadowSettings* s = getShadowedScene()->getShadowSettings();
             double mapRes = static_cast<double>(s->getTextureSize().x());
             if (mapRes < 1.0) mapRes = 1024.0;

@@ -1081,12 +1081,40 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mOkButton);
     }
 
+#ifdef __EMSCRIPTEN__
+    namespace
+    {
+        // Deferred settings save. Runs from a clean top-of-event-loop stack (emscripten_async_call),
+        // NOT inside the settings-window close-event dispatch: doing the writes synchronously in
+        // onClose deadlocked the main thread. The user config dir is FIXED on the web
+        // (index.html: XDG_CONFIG_HOME=/userdata/config; boot logs userConfig=/userdata/config/openmw)
+        // and is hardcoded here on purpose — re-reading it from the ConfigurationManager in this
+        // async context returned garbage/empty and intermittently trapped (UB).
+        void doDeferredSettingsSave(void*)
+        {
+            const std::filesystem::path dir("/userdata/config/openmw");
+            Settings::Manager::saveUser(dir / "settings.cfg");
+            MWBase::Environment::get().getLuaManager()->savePermanentStorage(dir);
+            MWBase::Environment::get().getInputManager()->saveBindings();
+        }
+    }
+#endif
+
     void SettingsWindow::onClose()
     {
+#ifdef __EMSCRIPTEN__
+        // Do NOT save synchronously here. onClose() runs inside the settings-window close-event
+        // dispatch (WindowBase::onClose during setVisible(false)); doing the file writes +
+        // FS.syncfs from within that traversal deadlocked the main thread on the web. Defer the
+        // whole save to a clean top-of-event-loop stack via emscripten_async_call(0ms), after the
+        // close traversal has fully unwound. Persistence is preserved; it happens ~one tick later.
+        emscripten_async_call(&doDeferredSettingsSave, nullptr, 0);
+#else
         // Save user settings
         Settings::Manager::saveUser(mCfgMgr.getUserConfigPath() / "settings.cfg");
         MWBase::Environment::get().getLuaManager()->savePermanentStorage(mCfgMgr.getUserConfigPath());
         MWBase::Environment::get().getInputManager()->saveBindings();
+#endif
     }
 
     void SettingsWindow::onWindowResize(MyGUI::Window* /*sender*/)
