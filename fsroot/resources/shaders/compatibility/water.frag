@@ -89,7 +89,19 @@ uniform vec2 screenRes;
 #include "shadows_fragment.glsl"
 #include "fog.glsl"
 
+#if @useGLES
+// Guard: the linked-shader merge can pull this block in more than once per compiled unit.
+#ifndef OMW_SUN_UNIFORMS
+#define OMW_SUN_UNIFORMS
+uniform vec4 sun_position;
+uniform vec4 sun_diffuse;
+uniform vec4 sun_ambient;
+uniform vec4 sun_specular;
+#define sun DirectionalLight(sun_position, sun_diffuse, sun_ambient, sun_specular)
+#endif
+#else
 uniform DirectionalLight sun;
+#endif
 
 void main(void)
 {

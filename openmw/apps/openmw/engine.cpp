@@ -84,6 +84,11 @@
 #include "mwworld/worldimp.hpp"
 #include "mwworld/actionteleport.hpp"
 #include "mwworld/globals.hpp"
+#ifdef __EMSCRIPTEN__
+#include "mwmechanics/drawstate.hpp"
+#include "mwworld/inventorystore.hpp"
+#include "mwworld/player.hpp"
+#endif
 
 #include <components/esm/util.hpp>
 #include <components/esm3/loadcell.hpp>
@@ -1120,6 +1125,26 @@ extern "C" EMSCRIPTEN_KEEPALIVE void omw_debug_coe(int x, int y)
     MWWorld::ActionTeleport(ESM::RefId::esm3ExteriorCell(x, y), pos, false).execute(player);
     player = world->getPlayerPtr();
     world->adjustPosition(player, false);
+}
+
+// Debug: give the player a fresh weapon, equip it, and draw it. Reproduces/validates the
+// gear-equip path — a cache-miss weapon mesh loaded on the main thread — that used to freeze
+// the browser (WorkQueue worker/main contention). Returns 1 on success, 0/-1 on failure.
+extern "C" EMSCRIPTEN_KEEPALIVE int omw_debug_giveweapon()
+{
+    MWBase::World* world = MWBase::Environment::get().getWorld();
+    MWWorld::Ptr player = world->getPlayerPtr();
+    if (player.isEmpty())
+        return -1;
+    MWWorld::InventoryStore& store = player.getClass().getInventoryStore(player);
+    // Qualify: InventoryStore::add(ConstPtr,…) name-hides the RefId convenience overload.
+    MWWorld::ContainerStoreIterator it
+        = store.MWWorld::ContainerStore::add(ESM::RefId::stringRefId("iron dagger"), 1, false);
+    if (it == store.end())
+        return 0;
+    store.equip(MWWorld::InventoryStore::Slot_CarriedRight, it);
+    world->getPlayer().setDrawState(MWMechanics::DrawState::Weapon);
+    return 1;
 }
 #endif
 

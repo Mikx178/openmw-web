@@ -29,6 +29,8 @@ const shotAts = opts('--shot-at').map(s => { const i = s.indexOf(':'); return { 
 const evalAts = opts('--eval-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), expr: s.slice(i + 1) }; });
 const clickAts = opts('--click-at').map(s => { const i = s.indexOf(':'); const [x, y] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), x, y }; });
 const keyAts = opts('--key-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), key: s.slice(i + 1) }; });
+// --rclick-at T:x,y  — right mouse click (OpenMW: inventory / activate / GUI context)
+const rclickAts = opts('--rclick-at').map(s => { const i = s.indexOf(':'); const [x, y] = s.slice(i + 1).split(',').map(Number); return { t: parseFloat(s.slice(0, i)), x, y }; });
 const typeAts = opts('--type-at').map(s => { const i = s.indexOf(':'); return { t: parseFloat(s.slice(0, i)), text: s.slice(i + 1) }; });
 // --move-at t:dx,dy  — relative mouse motion for in-game mouselook (no click). Delivered as a
 // short sweep of mouseMoved events so emscripten SDL sees per-event deltas (turns the camera).
@@ -85,9 +87,21 @@ browserWs.onmessage = (ev) => {
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
   handleEvent(m);
 };
-const targetsResp = await send(browserWs, 'Target.getTargets', {});
-const targetInfos = targetsResp.result?.targetInfos ?? [];
-const page = targetInfos.find(t => t.type === 'page' && t.url.includes('localhost'));
+// Poll for the page target: on a cold profile the tab hasn't navigated to the
+// localhost URL yet when the browser endpoint first comes up, so getTargets can
+// race and return only about:blank. Retry for a few seconds.
+let page = null;
+const tTarget = Date.now();
+while (!page && Date.now() - tTarget < 10000) {
+  const targetsResp = await send(browserWs, 'Target.getTargets', {});
+  const targetInfos = targetsResp.result?.targetInfos ?? [];
+  // Prefer the localhost tab, but fall back to ANY page target: a warm profile can
+  // restore to chrome://newtab and swallow the command-line URL, so we grab whatever
+  // page exists and navigate it to the target URL below.
+  page = targetInfos.find(t => t.type === 'page' && t.url.includes('localhost'))
+      || targetInfos.find(t => t.type === 'page');
+  if (!page) await new Promise(r => setTimeout(r, 200));
+}
 if (!page) { console.error('no page target'); chrome.kill(); process.exit(2); }
 const attach = await send(browserWs, 'Target.attachToTarget', { targetId: page.targetId, flatten: true });
 const sessionId = attach.result.sessionId;
@@ -105,6 +119,10 @@ function handleEvent(m) {
 await send(browserWs, 'Runtime.enable', {}, sessionId);
 await send(browserWs, 'Log.enable', {}, sessionId);
 await send(browserWs, 'Page.enable', {}, sessionId);
+// If the profile restored to newtab (URL arg swallowed), drive the navigation ourselves.
+if (!page.url.includes('localhost')) {
+  await send(browserWs, 'Page.navigate', { url }, sessionId);
+}
 const inject = opts('--inject')[0];
 if (inject) {
   await send(browserWs, 'Page.addScriptToEvaluateOnNewDocument', { source: inject }, sessionId);
@@ -119,13 +137,13 @@ async function screenshot(path) {
 }
 await send(browserWs, 'Page.enable', {}, sessionId);
 
-async function click(x, y) {
+async function click(x, y, button = 'left') {
   for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
     await send(browserWs, 'Input.dispatchMouseEvent',
-      { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: 1 }, sessionId);
+      { type, x, y, button: type === 'mouseMoved' ? 'none' : button, clickCount: 1 }, sessionId);
     await new Promise(r => setTimeout(r, 60));
   }
-  console.log(`[click] ${x},${y}`);
+  console.log(`[${button === 'right' ? 'rclick' : 'click'}] ${x},${y}`);
 }
 
 const KEYCODES = { Escape: 27, Enter: 13, Space: 32, Tab: 9, Backspace: 8, Delete: 46,
@@ -178,6 +196,7 @@ async function type(text) {
 const timeline = [
   ...shotAts.map(s => ({ t: s.t, fn: () => screenshot(s.path) })),
   ...clickAts.map(c => ({ t: c.t, fn: () => click(c.x, c.y) })),
+  ...rclickAts.map(c => ({ t: c.t, fn: () => click(c.x, c.y, 'right') })),
   ...keyAts.map(k => ({ t: k.t, fn: () => key(k.key) })),
   ...typeAts.map(t => ({ t: t.t, fn: () => type(t.text) })),
   ...moveAts.map(m => ({ t: m.t, fn: () => move(m.dx, m.dy) })),

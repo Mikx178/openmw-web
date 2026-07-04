@@ -50,15 +50,17 @@ namespace SceneUtil
     void WorkQueue::start(std::size_t workerThreads)
     {
 #ifdef __EMSCRIPTEN__
-        // Real worker threads by default (pthread pool has headroom). The 2026-07-01
-        // threaded attempt crashed in initUI because work items compiled GL objects ON the
-        // worker; with the IncrementalCompileOperation now enabled, GL compilation is handed
-        // back to the main GL thread, so workers only do CPU asset prep — the safe partition.
-        // OPENMW_WORKQUEUE_SYNC=1 restores the old inline single-thread behavior.
-        if (getenv("OPENMW_WORKQUEUE_SYNC") != nullptr)
-            workerThreads = 1;
-        else
+        // INLINE by default (single-threaded, work runs on the caller — see addWorkItem).
+        // Real worker threads were tried (workers do CPU asset prep, GL compile handed to the
+        // main thread via the IncrementalCompileOperation) but a worker's getTemplate()/ICO->add()
+        // runs concurrently with a MAIN-thread cache-miss getTemplate() (e.g. equipping a fresh
+        // weapon). On the single-threaded WebGL2 build a main-thread futex wait on a worker-held
+        // mutex (mSharedStateMutex / object cache / ICO) STARVES the browser event loop = hard
+        // freeze. So default to inline; OPENMW_WORKQUEUE_THREADED=1 opts back into 2 workers.
+        if (getenv("OPENMW_WORKQUEUE_THREADED") != nullptr)
             workerThreads = std::min<std::size_t>(std::max<std::size_t>(workerThreads, 1), 2);
+        else
+            workerThreads = 1;
 #endif
         {
             const std::lock_guard lock(mMutex);
@@ -90,8 +92,10 @@ namespace SceneUtil
         }
 
 #ifdef __EMSCRIPTEN__
-        // Inline fallback (OPENMW_WORKQUEUE_SYNC=1): run the work on the caller.
-        if (getenv("OPENMW_WORKQUEUE_SYNC") != nullptr)
+        // Inline by default: run the work on the caller (main thread). Avoids the worker/main
+        // getTemplate contention that freezes the browser. OPENMW_WORKQUEUE_THREADED=1 opts into
+        // real worker threads (queued below).
+        if (getenv("OPENMW_WORKQUEUE_THREADED") == nullptr)
         {
             item->doWork();
             item->signalDone();

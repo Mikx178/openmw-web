@@ -58,17 +58,27 @@ namespace SceneUtil
 {
     static int sLightId = 0;
 
+#ifdef __EMSCRIPTEN__
+    // WebGL2/ANGLE reads struct-member uniforms (sun.ambient …) as 0, which zeroed the per-cell
+    // ambient floor (black interiors) and the directional sun. The GLES shaders (@useGLES) swap
+    // `uniform DirectionalLight sun` for flat sun_* uniforms + a reconstructing macro, so feed the
+    // flat names here.
+#define OMW_SUN_UNIFORM(member) ("sun_" member)
+#else
+#define OMW_SUN_UNIFORM(member) ("sun." member)
+#endif
+
     void configureStateSetSunOverride(const osg::Light* light, osg::StateSet* stateset, int mode)
     {
-        stateset->addUniform(new osg::Uniform("sun.position", light->getPosition()), mode);
-        stateset->addUniform(new osg::Uniform("sun.diffuse", light->getDiffuse()), mode);
-        stateset->addUniform(new osg::Uniform("sun.ambient", light->getAmbient()), mode);
-        stateset->addUniform(new osg::Uniform("sun.specular", light->getSpecular()), mode);
+        stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("position"), light->getPosition()), mode);
+        stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("diffuse"), light->getDiffuse()), mode);
+        stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("ambient"), light->getAmbient()), mode);
+        stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("specular"), light->getSpecular()), mode);
     }
 
     void configureSunAmbientOverride(const osg::Vec4f& ambient, osg::StateSet* stateset)
     {
-        stateset->getOrCreateUniform("sun.ambient", osg::Uniform::FLOAT_VEC4)->set(ambient);
+        stateset->getOrCreateUniform(OMW_SUN_UNIFORM("ambient"), osg::Uniform::FLOAT_VEC4)->set(ambient);
     }
 
     LightManager* findLightManager(const osg::NodePath& path)
@@ -229,10 +239,10 @@ namespace SceneUtil
         if (!stateset)
         {
             stateset = new osg::StateSet;
-            stateset->addUniform(new osg::Uniform("sun.position", osg::Vec4f{}));
-            stateset->addUniform(new osg::Uniform("sun.diffuse", osg::Vec4f{}));
-            stateset->addUniform(new osg::Uniform("sun.ambient", osg::Vec4f{}));
-            stateset->addUniform(new osg::Uniform("sun.specular", osg::Vec4f{}));
+            stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("position"), osg::Vec4f{}));
+            stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("diffuse"), osg::Vec4f{}));
+            stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("ambient"), osg::Vec4f{}));
+            stateset->addUniform(new osg::Uniform(OMW_SUN_UNIFORM("specular"), osg::Vec4f{}));
 
             if (node->getClusteredLighting())
             {
@@ -283,10 +293,10 @@ namespace SceneUtil
             // Don't use Camera::getViewMatrix, that one might be relative to another camera!
             const osg::RefMatrix* viewMatrix = cv->getCurrentRenderStage()->getInitialViewMatrix();
 
-            stateset->getUniform("sun.position")->set(sun->getPosition() * (*viewMatrix));
-            stateset->getUniform("sun.diffuse")->set(sun->getDiffuse());
-            stateset->getUniform("sun.ambient")->set(sun->getAmbient());
-            stateset->getUniform("sun.specular")->set(sun->getSpecular());
+            stateset->getUniform(OMW_SUN_UNIFORM("position"))->set(sun->getPosition() * (*viewMatrix));
+            stateset->getUniform(OMW_SUN_UNIFORM("diffuse"))->set(sun->getDiffuse());
+            stateset->getUniform(OMW_SUN_UNIFORM("ambient"))->set(sun->getAmbient());
+            stateset->getUniform(OMW_SUN_UNIFORM("specular"))->set(sun->getSpecular());
 
             if (node->getClusteredLighting())
             {

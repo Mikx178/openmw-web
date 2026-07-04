@@ -513,6 +513,10 @@
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
            'max lights = 8\n' +                    // fewer dynamic lights per object -> faster shading
+           // Interiors are lit by a low ambient floor + point-light lamps. The stock 0.08 floor
+           // reads near-black on the web build; raise it so interiors are navigable (OpenMW's
+           // sanctioned "increase if interiors are too dark" knob; needs classic falloff=false).
+           'minimum interior brightness = 0.25\n' +
            // Light particle systems with nearby point lights. Without this, particles get only
            // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
            // light) renders as a black quad. Cheap at max lights=8.
