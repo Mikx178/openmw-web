@@ -102,6 +102,11 @@ struct PacketQueue {
 
     void put(AVPacket *pkt);
     int get(AVPacket *pkt, VideoState *is);
+    // Non-blocking variant: 1 = got a packet, 0 = queue empty (data may still arrive),
+    // -1 = quitting/flushed-dry. For callers that must never sleep — on Emscripten the
+    // movie-audio decode runs inline on the browser main thread, where get()'s wait
+    // would freeze the tab (e.g. at end-of-audio while the video is still finishing).
+    int tryGet(AVPacket *pkt, VideoState *is);
 
     void flush();
     void clear();

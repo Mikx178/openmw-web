@@ -164,7 +164,9 @@ async function key(k) {
   const codeStr = mapped ? mapped[0] : (k.length === 1 ? 'Key' + k.toUpperCase() : k);
   const base = { key: k.length === 1 ? k : k, code: codeStr,
     windowsVirtualKeyCode: code, nativeVirtualKeyCode: code };
-  await send(browserWs, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base }, sessionId);
+  // 'keyDown' (not 'rawKeyDown') — rawKeyDown skips text processing and emscripten SDL misses
+  // some non-printable keys with it (Escape never skipped videos, Return never hit OK buttons).
+  await send(browserWs, 'Input.dispatchKeyEvent', { type: 'keyDown', ...base }, sessionId);
   if (k.length === 1) // printable: deliver the character too (text inputs need the char event)
     await send(browserWs, 'Input.dispatchKeyEvent', { type: 'char', text: k, ...base }, sessionId);
   await new Promise(r => setTimeout(r, 60));

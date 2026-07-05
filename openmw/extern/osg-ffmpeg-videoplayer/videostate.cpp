@@ -180,6 +180,31 @@ int PacketQueue::get(AVPacket *pkt, VideoState *is)
     return -1;
 }
 
+int PacketQueue::tryGet(AVPacket *pkt, VideoState *is)
+{
+    std::unique_lock<std::mutex> lock(this->mutex);
+    if(is->mQuit)
+        return -1;
+
+    PacketList *pkt1 = this->first_pkt;
+    if(pkt1)
+    {
+        this->first_pkt = pkt1->next;
+        if(!this->first_pkt)
+            this->last_pkt = nullptr;
+        this->nb_packets--;
+        this->size -= pkt1->pkt->size;
+
+        av_packet_unref(pkt);
+        av_packet_move_ref(pkt, pkt1->pkt);
+        av_free(pkt1);
+
+        return 1;
+    }
+
+    return this->flushing ? -1 : 0;
+}
+
 void PacketQueue::flush()
 {
     this->flushing = true;
