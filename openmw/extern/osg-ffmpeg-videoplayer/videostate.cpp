@@ -643,16 +643,43 @@ public:
                 }
 
 
+#ifdef __EMSCRIPTEN__
+                // Web: movie audio is consumed cooperatively on the main thread (inline stream
+                // pump). If that lags or stalls (suspended/again-suspended AudioContext, the
+                // source never actually draining its buffers), the audio packet queue fills. The
+                // upstream logic below stalls the WHOLE read loop whenever EITHER queue is full,
+                // so a full audio queue starves the VIDEO queue → the video thread blocks in
+                // videoq.get() → pictq drains → the intro FREEZES on its current frame (this is
+                // the "frozen on the opening card right after New Game" report). Video is paced by
+                // the external real-time clock and does NOT need audio to advance, so here we only
+                // back-pressure on the VIDEO queue; a full audio queue is handled by dropping
+                // audio packets at the routing step below, never by blocking. The video always
+                // plays through to its natural end (audio may glitch under starvation).
+                if(self->video_st && self->videoq.size > MAX_VIDEOQ_SIZE)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    continue;
+                }
+#else
                 if((self->audio_st && self->audioq.size > MAX_AUDIOQ_SIZE) ||
                    (self->video_st && self->videoq.size > MAX_VIDEOQ_SIZE))
                 {
                     std::this_thread::sleep_for(std::chrono::milliseconds(10));
                     continue;
                 }
+#endif
 
                 if(av_read_frame(pFormatCtx, packet.get()) < 0)
                 {
-                    if (self->audioq.nb_packets == 0 && self->videoq.nb_packets == 0)
+#ifdef __EMSCRIPTEN__
+                    // End-of-video is decided by the VIDEO path only here: audio packets may be
+                    // intentionally dropped / left undrained (back-pressure note above), so a
+                    // non-empty audio queue must NOT keep the intro from ever ending.
+                    const bool queuesDrained = (self->videoq.nb_packets == 0);
+#else
+                    const bool queuesDrained = (self->audioq.nb_packets == 0 && self->videoq.nb_packets == 0);
+#endif
+                    if (queuesDrained)
                     {
                         self->pictq_mutex.lock();
                         bool videoEnded = self->pictq_size == 0;
@@ -672,7 +699,19 @@ public:
                 if(self->video_st && packet->stream_index == self->video_st-pFormatCtx->streams)
                     self->videoq.put(packet.get());
                 else if(self->audio_st && packet->stream_index == self->audio_st-pFormatCtx->streams)
+                {
+#ifdef __EMSCRIPTEN__
+                    // See the video-only back-pressure note above: never let a full audio queue
+                    // stall the reader (which would starve video). Drop audio packets that would
+                    // overflow instead — audio degrades, video keeps playing to the end.
+                    if(self->audioq.size <= MAX_AUDIOQ_SIZE)
+                        self->audioq.put(packet.get());
+                    else
+                        av_packet_unref(packet.get());
+#else
                     self->audioq.put(packet.get());
+#endif
+                }
                 else
                     av_packet_unref(packet.get());
             }
