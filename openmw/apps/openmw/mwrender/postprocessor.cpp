@@ -294,8 +294,22 @@ namespace MWRender
 
     void PostProcessor::enable()
     {
+#ifdef __EMSCRIPTEN__
+        // Post-processing is not functional on the WebGL2/GLES build: enabling it rebuilds the
+        // technique chain (HDR luminance/tonemap passes + a multisample-resolve reconfigure) and
+        // the first PP render hangs the main thread — a hard freeze at cell load / on toggling
+        // "Post Processing" (or any "max settings" preset that includes it) in Options. Force it
+        // OFF and keep the setting consistent so the UI doesn't show a lie. Remove this guard once
+        // the PP chain is ported to GLES.
+        Log(Debug::Info) << "Post-processing is not supported on this platform (WebGL2); ignoring.";
+        Settings::postProcessing().mEnabled.set(false);
+        mUsePostProcessing = false;
+        mReload = false;
+        return;
+#else
         mReload = true;
         mUsePostProcessing = true;
+#endif
     }
 
     void PostProcessor::disable()
