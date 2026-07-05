@@ -358,7 +358,11 @@ void MWState::StateManager::saveGame(std::string_view description, const Slot* s
         EM_ASM({
             try
             {
-                if (typeof FS !== 'undefined' && FS.syncfs)
+                // Route through the serialized guard (index.html) so overlapping saves
+                // don't race the IDBFS reconciliation and drop writes; fall back to raw.
+                if (typeof window !== 'undefined' && window.__omwSyncfs)
+                    window.__omwSyncfs();
+                else if (typeof FS !== 'undefined' && FS.syncfs)
                     FS.syncfs(false, function() {});
             }
             catch (e)

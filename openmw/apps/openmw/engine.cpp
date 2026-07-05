@@ -1045,6 +1045,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE void omw_pump_frame()
     }
 }
 
+// Flush user settings to the persistent config (called from index.html's pagehide/hidden
+// lifecycle handlers). Without this, changing settings and refreshing the page loses them:
+// the Options window only saves on CLOSE, and even then the async IDBFS sync needs a beat.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_save_settings()
+{
+    try
+    {
+        Settings::Manager::saveUser("/userdata/config/openmw/settings.cfg");
+    }
+    catch (const std::exception& e)
+    {
+        printf("omw_save_settings: %s\n", e.what());
+    }
+}
+
 // Change the render resolution at runtime (Options -> Video Apply, and the harness's debounced
 // browser-window-resize handler). Goes through SDL so the canvas drawing buffer resizes and
 // SDL_WINDOWEVENT_SIZE_CHANGED fires -> OpenMW::windowResized() resizes viewport/FBOs/GUI —
@@ -1308,7 +1323,7 @@ void OMW::Engine::go()
                 // IDBFS state and hand the page a clear end-of-session overlay (__omwOnQuit).
                 // clang-format off
                 EM_ASM({
-                    try { if (typeof FS !== 'undefined' && FS.syncfs) FS.syncfs(false, function(){}); } catch(e){}
+                    try { if (window.__omwSyncfs) window.__omwSyncfs(); else if (typeof FS !== 'undefined' && FS.syncfs) FS.syncfs(false, function(){}); } catch(e){}
                     try { Module.__omwRunning = 0; } catch(e){}
                     try { if (window.__omwOnQuit) window.__omwOnQuit(); } catch(e){}
                 });

@@ -431,6 +431,26 @@
      else if (!running && armed){ window.removeEventListener('beforeunload', guard); armed = false; }
    }, 2000);
  })();
+ // Serialized IDBFS persist-sync. Every save path (settings.cfg, saves, keybindings, Lua
+ // storage, the periodic timer, lifecycle handlers) needs to flush MEMFS->IndexedDB. Two
+ // FS.syncfs(false) in flight at once RACE the reconciliation and can silently DROP writes
+ // (root cause of "changed settings in Options, refreshed, everything reverted", and the
+ // 'warning: 2 FS.syncfs operations in flight at once'). Coalesce to exactly one in-flight
+ // sync plus at most one queued re-sync, so a request during a sync still gets flushed after.
+ // ALL callers — JS and the C++ EM_ASM save hooks — route through this.
+ window.__omwSyncing = false;
+ window.__omwSyncAgain = false;
+ window.__omwSyncfs = function(){
+   try {
+     if (typeof FS === 'undefined' || !FS.syncfs) return;
+     if (window.__omwSyncing) { window.__omwSyncAgain = true; return; }
+     window.__omwSyncing = true;
+     FS.syncfs(false, function(){
+       window.__omwSyncing = false;
+       if (window.__omwSyncAgain) { window.__omwSyncAgain = false; window.__omwSyncfs(); }
+     });
+   } catch(e){}
+ };
  var Module = {
    canvas: document.getElementById('canvas'),
    // ?start=<cell> deep-links straight into a cell as a fresh default character. Dev/QA aid — only
@@ -587,12 +607,32 @@
                if (!FS.analyzePath('/userdata/config/openmw/openmw.cfg').exists)
                  FS.writeFile('/userdata/config/openmw/openmw.cfg',
                    '# OpenMW user config dir (persistent, IndexedDB-backed)\n');
-               FS.syncfs(false, function(){});
+               // ?aa=N must beat the USER config too (the baseline write only covers first
+               // runs — saved user settings override it). Rewrite the persisted setting so
+               // e.g. ?aa=0 reliably disables MSAA. ?resetcfg=1 wipes all user settings.
+               try {
+                 var ucfg = '/userdata/config/openmw/settings.cfg';
+                 if (/[?&]resetcfg=1/.test(location.search) && FS.analyzePath(ucfg).exists) {
+                   FS.unlink(ucfg); append('[cfg] ?resetcfg=1 — user settings.cfg wiped');
+                 } else if (/[?&]aa=(\d+)/.test(location.search) && FS.analyzePath(ucfg).exists) {
+                   var want = 'antialiasing = ' + RegExp.$1;
+                   var txt = FS.readFile(ucfg, {encoding:'utf8'});
+                   if (/^antialiasing\s*=.*$/m.test(txt)) txt = txt.replace(/^antialiasing\s*=.*$/m, want);
+                   else txt = txt.replace(/^\[Video\]$/m, '[Video]\n' + want);
+                   FS.writeFile(ucfg, txt); append('[cfg] ?aa applied to user settings: ' + want);
+                 }
+               } catch(e){ append('[cfg override err] '+e,'err'); }
+               window.__omwSyncfs();
              } catch(e){ append('[idbfs setup err] '+e,'err'); }
              removeRunDependency('idbfs-load');
            });
            // Flush game state back to IndexedDB periodically (lifecycle handlers cover exits).
-           window.__omwSync = function(){ try { FS.syncfs(false, function(){}); } catch(e){} };
+           window.__omwSync = function(){
+             // Flush in-memory settings to the config file first (Options only saves on window
+             // CLOSE — without this, changing settings then refreshing loses them), then sync.
+             try { if (Module._omw_save_settings && Module.__omwRunning !== undefined) Module._omw_save_settings(); } catch(e){}
+             window.__omwSyncfs();
+           };
            setInterval(window.__omwSync, 15000);
          } else {
            append('[idbfs] not available — saves will NOT persist across reloads','err');
