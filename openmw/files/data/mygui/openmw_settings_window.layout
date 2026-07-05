@@ -466,7 +466,6 @@
                             <Property key="AddItem" value="Off"/>
                             <Property key="AddItem" value="MSAA 2x"/>
                             <Property key="AddItem" value="MSAA 4x"/>
-                            <Property key="AddItem" value="MSAA 8x"/>
                         </Widget>
 
                     </Widget>

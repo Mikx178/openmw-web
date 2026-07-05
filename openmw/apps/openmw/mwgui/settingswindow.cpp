@@ -305,9 +305,12 @@ namespace MWGui
         mTextureFilteringButton->eventComboChangePosition
             += MyGUI::newDelegate(this, &SettingsWindow::onTextureFilteringChanged);
         {
-            // Anti-aliasing dropdown: items are Off / MSAA 2x / 4x / 8x -> sample counts {0,2,4,8}.
+            // Anti-aliasing dropdown: items are Off / MSAA 2x / 4x -> sample counts {0,2,4}. 8x is
+            // omitted because WebGL2/ANGLE (e.g. Apple Metal) caps hardware MSAA at 4x for the
+            // color format OpenMW uses — 8x silently negotiates down to 4x (engine.cpp), which
+            // looked like the setting "not saving". A value of 8 from an old config maps to 4x.
             const int aa = Settings::video().mAntialiasing;
-            const size_t aaIdx = aa >= 8 ? 3 : aa >= 4 ? 2 : aa >= 2 ? 1 : 0;
+            const size_t aaIdx = aa >= 4 ? 2 : aa >= 2 ? 1 : 0;
             mAntialiasingButton->setIndexSelected(aaIdx);
             mAntialiasingButton->eventComboChangePosition
                 += MyGUI::newDelegate(this, &SettingsWindow::onAntialiasingChanged);
@@ -650,8 +653,8 @@ namespace MWGui
         // Dropdown index -> MSAA sample count. The renderer reads this at startup (PostProcessor
         // construction), so a change only takes effect after a restart — on the web that's a page
         // reload; the setting persists in the browser (IDBFS settings.cfg).
-        static const int samples[] = { 0, 2, 4, 8 };
-        Settings::video().mAntialiasing.set(samples[std::min<size_t>(pos, 3)]);
+        static const int samples[] = { 0, 2, 4 };
+        Settings::video().mAntialiasing.set(samples[std::min<size_t>(pos, 2)]);
 
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
             "#{OMWEngine:ChangeRequiresRestart}", { "#{Interface:OK}" }, true);
