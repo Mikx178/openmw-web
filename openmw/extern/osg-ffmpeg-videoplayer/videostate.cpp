@@ -167,7 +167,14 @@ int PacketQueue::get(AVPacket *pkt, VideoState *is)
 
         if(this->flushing)
             break;
-        this->cond.wait(lock);
+        // Timed wait rather than an unbounded wait(): mQuit/flushing are set by the
+        // teardown path (VideoState::deinit / PacketQueue::flush) without holding this
+        // mutex, so a notify_one() can be lost if it races ahead of this wait — leaving
+        // the decode thread blocked forever and deinit()'s join() deadlocked. Re-checking
+        // the predicate on a short timeout makes teardown robust regardless of that race
+        // (mirrors the timed pictq_cond wait and the ParseThread poll loop). This was an
+        // intermittent hang on new-game intro-video skip under the cooperative web loop.
+        this->cond.wait_for(lock, std::chrono::milliseconds(10));
     }
 
     return -1;
