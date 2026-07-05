@@ -1646,19 +1646,12 @@ namespace NifOsg
                     continue;
                 if (ctrl->mRecordType == Nif::RC_NiGeomMorpherController)
                 {
-#ifdef __EMSCRIPTEN__
-                    // SceneUtil::MorphGeometry rewrites its vertex VBO every frame and double-buffers
-                    // two osg::Geometry copies. Under WebGL2/ANGLE with forced VAOs that per-frame
-                    // re-upload does not reach the GPU correctly, so a morphing mesh (notably the
-                    // NPC/player head, which carries a blink/talk NiGeomMorpherController) renders as a
-                    // collapsed cone even though the CPU-side vertices are correct. The morph targets
-                    // are only tiny eyelid/mouth deltas driven at weight 0 most of the time, so we
-                    // render the mesh as its static source geometry: the head looks correct; we only
-                    // lose subtle facial blink/talk animation. (RigGeometry, which uses the same
-                    // per-frame pattern but a dedicated VBO for every array, works — the plain static
-                    // geometry path here is unconditionally safe.)
-                    continue;
-#endif
+                    // NOTE (web): MorphGeometry used to be disabled here on WebGL2/ANGLE because its
+                    // per-frame vertex re-upload rendered the head as a collapsed cone. That was
+                    // caused by the morph geometry mixing its dedicated position VBO with the source
+                    // geometry's VBO for the other attributes; MorphGeometry now puts every array on
+                    // one dedicated VBO under __EMSCRIPTEN__ (mirroring RigGeometry, which always
+                    // worked), so the morph path is enabled again.
                     if (!niGeometry->mSkin.empty())
                         continue;
 
