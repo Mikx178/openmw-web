@@ -927,6 +927,14 @@
    },
  };
  window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); showLogOnce(); });
+ // Pointer-lock re-requests are browser rate-limited ("cannot be acquired immediately after the
+ // user has exited the lock"). SDL's own requestPointerLock() promise has no .catch, so that
+ // rejection surfaces as console noise right when the game grabs the mouse (e.g. new-game start).
+ // Expected + self-healing (the pointerdown helper re-requests on the next click) — silence it.
+ window.addEventListener('unhandledrejection', function(e){
+   if (String(e.reason && e.reason.message || e.reason).indexOf('Pointer lock') !== -1) { e.preventDefault(); return; }
+   append('unhandled rejection: '+(e.reason && e.reason.message || e.reason),'err');
+ });
 </script>
 <script src="streamfs.js"></script>
 <script src="openmw.js"></script>

@@ -1022,8 +1022,25 @@ extern "C" EMSCRIPTEN_KEEPALIVE void omw_pump_frame()
         return;
     if (g_emTick && g_emArg)
     {
+        // Exception-safe: if a frame throws (C++ or a foreign/JS exception unwinding out of a
+        // JS library call), the guard MUST reset — the JS pump swallows the exception and keeps
+        // calling, so a stuck inTick=true turns every later pump into an instant no-op: the
+        // header keeps counting "60fps" of 0ms skips while the game is permanently frozen.
+        // Catch here (the engine's cooperative video branch runs outside Engine::frame's own
+        // try/catch), log the cause, and let the next frame carry on.
         inTick = true;
-        g_emTick(g_emArg);
+        try
+        {
+            g_emTick(g_emArg);
+        }
+        catch (const std::exception& e)
+        {
+            printf("omw_pump_frame: frame threw: %s\n", e.what());
+        }
+        catch (...)
+        {
+            printf("omw_pump_frame: frame threw a non-C++ (likely JS) exception\n");
+        }
         inTick = false;
     }
 }
