@@ -255,6 +255,7 @@ namespace MWGui
         getWidget(mVSyncModeList, "VSyncModeList");
         getWidget(mWindowBorderButton, "WindowBorderButton");
         getWidget(mTextureFilteringButton, "TextureFilteringButton");
+        getWidget(mAntialiasingButton, "AntialiasingButton");
         getWidget(mControlsBox, "ControlsBox");
         getWidget(mResetControlsButton, "ResetControlsButton");
         getWidget(mKeyboardSwitch, "KeyboardButton");
@@ -303,6 +304,14 @@ namespace MWGui
         mOkButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onOkButtonClicked);
         mTextureFilteringButton->eventComboChangePosition
             += MyGUI::newDelegate(this, &SettingsWindow::onTextureFilteringChanged);
+        {
+            // Anti-aliasing dropdown: items are Off / MSAA 2x / 4x / 8x -> sample counts {0,2,4,8}.
+            const int aa = Settings::video().mAntialiasing;
+            const size_t aaIdx = aa >= 8 ? 3 : aa >= 4 ? 2 : aa >= 2 ? 1 : 0;
+            mAntialiasingButton->setIndexSelected(aaIdx);
+            mAntialiasingButton->eventComboChangePosition
+                += MyGUI::newDelegate(this, &SettingsWindow::onAntialiasingChanged);
+        }
         mResolutionList->eventListChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onResolutionSelected);
 
         mWaterRefractionButton->eventMouseButtonClick
@@ -631,6 +640,21 @@ namespace MWGui
 
         Settings::video().mVsyncMode.set(static_cast<SDLUtil::VSyncMode>(sender->getIndexSelected()));
         apply();
+    }
+
+    void SettingsWindow::onAntialiasingChanged(MyGUI::ComboBox* sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+
+        // Dropdown index -> MSAA sample count. The renderer reads this at startup (PostProcessor
+        // construction), so a change only takes effect after a restart — on the web that's a page
+        // reload; the setting persists in the browser (IDBFS settings.cfg).
+        static const int samples[] = { 0, 2, 4, 8 };
+        Settings::video().mAntialiasing.set(samples[std::min<size_t>(pos, 3)]);
+
+        MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
+            "#{OMWEngine:ChangeRequiresRestart}", { "#{Interface:OK}" }, true);
     }
 
     void SettingsWindow::onWindowModeChanged(MyGUI::ComboBox* sender, size_t pos)
