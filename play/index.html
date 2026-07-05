@@ -451,8 +451,13 @@
      });
    } catch(e){}
  };
+ // ?skipintro=1 — hard-skip the new-game intro video (read by worldimp.cpp startNewGame).
+ // A guaranteed-playable path for anyone the cooperative video path still trips up: no video
+ // is played at all, so New Game drops straight into the prison-ship cell.
+ window.__omwSkipIntroFlag = /[?&]skipintro=1/.test(location.search);
  var Module = {
    canvas: document.getElementById('canvas'),
+   __omwSkipIntro: /[?&]skipintro=1/.test(location.search),
    // ?start=<cell> deep-links straight into a cell as a fresh default character. Dev/QA aid — only
    // active when the param is present; normal boots keep the full menu -> intro -> chargen (1:1).
    // NOTE: --skip-menu WITHOUT --new-game -> newGame(!mNewGame)=newGame(true)=BYPASS in engine.cpp,

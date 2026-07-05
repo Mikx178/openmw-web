@@ -3,6 +3,10 @@
 #include <charconv>
 #include <vector>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <osg/ComputeBoundsVisitor>
 #include <osg/Group>
 #include <osg/Timer>
@@ -382,7 +386,13 @@ namespace MWWorld
         // otherwise complete UNDER the intro, leaving it a stale overlay the user had to hand-dismiss.
         // Start it LAST, with the world/player already set up underneath, so updateVideoPlayback's
         // end-of-stream (or Esc) teardown cleanly reveals the running game — an auto-advancing intro.
-        if (!bypass)
+        // ?skipintro=1 (index.html sets Module.__omwSkipIntro): hard bypass of the cooperative
+        // intro video. Guaranteed path into the game for anyone the video path still trips up —
+        // no video means no video-related freeze, period. The world/player are already set up
+        // above, so skipping playVideo() drops straight into the running prison-ship cell.
+        bool skipIntro = false;
+        skipIntro = EM_ASM_INT({ return (typeof Module !== 'undefined' && Module.__omwSkipIntro) ? 1 : 0; }) != 0;
+        if (!bypass && !skipIntro)
         {
             std::string_view video = Fallback::Map::getString("Movies_New_Game");
             if (!video.empty())
