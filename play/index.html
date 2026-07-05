@@ -301,8 +301,17 @@
    // multisample-resolve blit renders black on the web's GLES path; SSAA uses the ordinary
    // single-sample render path that already works. Opt-in via ?ss=2 or window.__superSample; capped
    // at 2x (4x fragment cost). Off (ss=1) by default so the default perf is unchanged.
+   // ?ss=N sets the supersample factor AND remembers it (localStorage), so you set it once and it
+   // sticks across reloads without keeping the URL. ?ss=1 turns it back off. Precedence:
+   // window.__superSample > ?ss= (persisted) > last-saved value > 1.
    var _ssm = /[?&]ss=(\d+(?:\.\d+)?)/.exec(location.search);
-   var ss = Math.max(1, Math.min(2, window.__superSample || (_ssm ? parseFloat(_ssm[1]) : 1)));
+   var ss = 1;
+   try {
+     if (window.__superSample) ss = window.__superSample;
+     else if (_ssm) { ss = parseFloat(_ssm[1]); localStorage.setItem('omw_ss', String(ss)); }
+     else { ss = parseFloat(localStorage.getItem('omw_ss')) || 1; }
+   } catch (e) { ss = _ssm ? parseFloat(_ssm[1]) : 1; }
+   ss = Math.max(1, Math.min(2, ss));
    scale *= ss;
    window.__renderW = Math.max(320, Math.round(w * scale));
    window.__renderH = Math.max(240, Math.round(h * scale));
