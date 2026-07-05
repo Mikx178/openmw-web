@@ -383,9 +383,16 @@ namespace MWGui
                 // 1:1 is added EXACTLY (pixel-perfect); downscales are evened for FBO/codec sanity.
                 const int w = div == 1 ? nativeW : ((nativeW / div) & ~1);
                 const int h = div == 1 ? nativeH : ((nativeH / div) & ~1);
+                // This list is a RENDER-SCALE dial, not monitor modes: 'Full' renders the 3D scene
+                // at the canvas's native drawing buffer, lower tiers render smaller and the browser
+                // upscales to the same window (faster, softer). Label it that way + show the pixels.
                 const int percent = (100 + div / 2) / div; // 100, 50, 33, 25, 20 …
-                const std::string label
-                    = std::to_string(w) + " x " + std::to_string(h) + " (" + std::to_string(percent) + "%)";
+                const char* tier = div == 1 ? "Full" : div == 2 ? "Half" : div == 3 ? "Third"
+                    : div == 4                                              ? "Quarter"
+                                                                            : nullptr;
+                std::string label = tier ? (std::string(tier) + " (" + std::to_string(percent) + "%)")
+                                         : (std::to_string(percent) + "%");
+                label += " - " + std::to_string(w) + " x " + std::to_string(h);
                 if (mResolutionList->findItemIndexWith(label) == MyGUI::ITEM_NONE)
                     mResolutionList->addItem(label, std::pair<int, int>(w, h));
             }

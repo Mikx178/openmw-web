@@ -1071,6 +1071,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void omw_set_resolution(int w, int h)
     SDL_Window* window = SDL_GL_GetCurrentWindow();
     if (window)
         SDL_SetWindowSize(window, w, h);
+    // Keep the [Video] resolution setting in sync with the actual drawing-buffer size so the
+    // Options resolution list highlights the real current size. On emscripten the normal
+    // SDL_WINDOWEVENT_SIZE_CHANGED -> WindowManager::windowResized() -> mResolutionX/Y.set() path
+    // is unreliable (SDL_SetWindowSize doesn't always dispatch it), which left the setting stale
+    // after a browser-window resize -> list/highlight mismatch. Setting it directly is idempotent
+    // with windowResized() when that does fire.
+    Settings::video().mResolutionX.set(w);
+    Settings::video().mResolutionY.set(h);
 }
 
 // OS-clipboard -> SDL bridge: the harness's document 'paste' listener pushes the real browser

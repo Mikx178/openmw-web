@@ -289,10 +289,15 @@
    // drawing buffer matches what SDL expects — NO JS<->SDL resize war (that war recreated the
    // FBOs repeatedly and froze the engine). CSS (#canvas is 100vw/100vh) scales the capped
    // render up to fill the window. Perf lever: window.__maxPixels (set before load).
-   var w = window.innerWidth || 1280, h = window.innerHeight || 720;
-   // 4MP default covers up to ~2560x1440 natively (no blurry CSS upscale, GUI sized correctly).
-   // The engine now has the headroom for it (wasm-EH + SIMD landed ~4.4ms/frame at 1.2MP).
-   // Still overridable via window.__maxPixels for slower machines.
+   // Render at DEVICE pixels, not CSS pixels: on a retina/HiDPI display (devicePixelRatio 2)
+   // a 1710-CSS-px window is 3420 physical px, so rendering at 1710 and letting CSS upscale 2x
+   // looked soft ("not using the resolution"). Multiply by devicePixelRatio so we render at the
+   // display's true pixels, then cap by the pixel budget below.
+   var dpr = window.devicePixelRatio || 1;
+   var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+   var w = cssW * dpr, h = cssH * dpr;
+   // 4MP cap: on retina this lands ~2700x1470 (crisp, perf-safe) instead of the physical 6MP+.
+   // The engine has headroom (wasm-EH + SIMD ~4.4ms/frame at 1.2MP). Override via __maxPixels.
    var budget = window.__maxPixels || 4000000;
    var scale = Math.min(1, Math.sqrt(budget / (w * h)));
    // SUPERSAMPLING anti-aliasing (SSAA): render the canvas at ss× the display size and let the
@@ -315,6 +320,12 @@
    scale *= ss;
    window.__renderW = Math.max(320, Math.round(w * scale));
    window.__renderH = Math.max(240, Math.round(h * scale));
+   // GUI scale = drawing-buffer px per CSS px. When the buffer is DPR-bigger than the CSS window,
+   // MyGUI widgets (sized in buffer px) must scale UP by this ratio to stay the same on-screen size
+   // — the engine multiplies gui.scalingFactor by this (windowmanagerimp.cpp). At DPR=1 it's ~1
+   // (no change); on retina it's ~DPR*budgetScale so menus don't shrink. Inverse of the earlier
+   // "oversized Options on retina" fix, now correct because the canvas really is device-pixel.
+   window.__guiScale = window.__renderW / cssW;
    // Set the drawing buffer once so it's correct even before SDL_CreateWindow; matches the
    // resolution we write to settings.cfg, so nothing ever fights over it afterward.
    canvas.width = window.__renderW; canvas.height = window.__renderH;
@@ -334,7 +345,9 @@
      resizeTimer = setTimeout(function(){
        resizeTimer = null;
        if (!(window.Module && Module._omw_set_resolution)) return; // engine not up yet
-       var w = window.innerWidth || 1280, h = window.innerHeight || 720;
+       var dpr = window.devicePixelRatio || 1;
+       var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+       var w = cssW * dpr, h = cssH * dpr;   // device pixels (match the boot IIFE)
        var budget = window.__maxPixels || 4000000;
        var scale = Math.min(1, Math.sqrt(budget / (w * h)));
        // New NATIVE (100%) render size for the resized window.
@@ -351,6 +364,8 @@
        // Update the native baseline so the Options list (built from __renderW/H) reflects the
        // resized window on its next open, and the divisor stays inferable on the next resize.
        window.__renderW = nw; window.__renderH = nh;
+       // Keep the GUI-scale ratio current for the new window (buffer px per CSS px).
+       window.__guiScale = rw / cssW;
        if (rw === canvas.width && rh === canvas.height) return; // window unchanged -> nothing to do
        append('[resize] ' + rw + 'x' + rh + ' (1/' + div + ' of ' + nw + 'x' + nh + ')');
        try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[resize err] '+e,'err'); }

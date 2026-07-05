@@ -236,14 +236,16 @@ namespace MWGui
         // NB: dw/w must be floating-point — integer division truncates a non-1 device-pixel ratio
         // (e.g. drawable smaller than window) to 0, zeroing the whole GUI/local-map scale.
 #ifdef __EMSCRIPTEN__
-        // On the web the canvas IS the drawable at the render resolution index.html already chose
-        // (its pixel budget accounts for devicePixelRatio). SDL reports drawable=canvas but
-        // window=CSS-size, so dw/w == devicePixelRatio would DOUBLE-COUNT DPR and scale the whole
-        // GUI ~2x on a retina display — the settings window then overflows the viewport. Use the
-        // configured factor only; the 3D scene and GUI then share the canvas 1:1.
+        // The canvas drawing buffer is device-pixel sized (index.html renders at
+        // innerWidth*devicePixelRatio, budget-capped), while the canvas DISPLAYS at the CSS window
+        // size. MyGUI sizes widgets in drawing-buffer pixels, so to keep the GUI the same on-screen
+        // size it must scale by (buffer px / CSS px) = window.__guiScale (~1 at DPR=1, ~DPR*budget
+        // on retina). SDL's dw/w is unreliable here (emscripten reports both as the canvas backing
+        // size -> ratio 1 -> GUI would shrink on retina), so read the explicit JS ratio instead.
         (void)dw;
         (void)w;
-        mScalingFactor = Settings::gui().mScalingFactor;
+        const double guiScale = EM_ASM_DOUBLE({ return window.__guiScale || 1.0; });
+        mScalingFactor = Settings::gui().mScalingFactor * static_cast<float>(guiScale > 0 ? guiScale : 1.0);
 #else
         mScalingFactor = Settings::gui().mScalingFactor * (w > 0 ? static_cast<float>(dw) / static_cast<float>(w) : 1.f);
 #endif
