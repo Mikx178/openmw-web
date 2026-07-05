@@ -800,6 +800,13 @@ namespace MWGui
     void WindowManager::interactiveMessageBox(
         std::string_view message, const std::vector<std::string>& buttons, bool block, int defaultFocus)
     {
+#ifdef __EMSCRIPTEN__
+        // The blocking path below runs a NESTED synchronous render loop, which deadlocks/crashes the
+        // browser's cooperative main loop (the same reason playVideo's nested loop returns early on
+        // the web). Show the message box non-blocking; it is dismissed by the normal frame loop when
+        // the user clicks a button.
+        block = false;
+#endif
         mMessageBoxManager->createInteractiveMessageBox(message, buttons, block, defaultFocus);
         updateVisible();
 
