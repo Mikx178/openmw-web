@@ -241,6 +241,9 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
     if (mWindowManager->isPlayingVideo())
     {
         mWindowManager->updateVideoPlayback(frametime);
+        // No background audio StreamThread on the web — refill the movie-audio stream
+        // inline (the normal SoundManager::update path doesn't run during videos).
+        mSoundManager->pumpAudioStreams();
         mViewer->eventTraversal();
         mViewer->updateTraversal();
         mViewer->renderingTraversals();

@@ -676,7 +676,18 @@ namespace MWSound
 
         StreamThread()
             : mQuitNow(false)
+#ifndef __EMSCRIPTEN__
+            // Web: no background thread. Emscripten's OpenAL is JS/Web Audio — every AL call
+            // from a worker sync-proxies to the main thread. This thread holds mMutex across
+            // process() (AL calls), so if the main thread ever blocks on mMutex (add/remove/
+            // removeAll — e.g. tearing down a movie-audio stream on intro-video skip) while
+            // this thread is mid-proxy, neither can advance: the proxy needs the main loop,
+            // the main loop needs mMutex → permanent freeze. Streams are pumped inline from
+            // the main thread instead (pump(), called from OpenALOutput::finishUpdate and the
+            // engine's cooperative video branch). 6 buffers × 0.125s gives 0.75s of queue —
+            // ample for a per-frame refill.
             , mThread([this] { run(); })
+#endif
         {
         }
         ~StreamThread()
@@ -685,8 +696,27 @@ namespace MWSound
             mMutex.lock();
             mMutex.unlock();
             mCondVar.notify_all();
+#ifndef __EMSCRIPTEN__
             mThread.join();
+#endif
         }
+
+#ifdef __EMSCRIPTEN__
+        // One processing pass, run on the main thread (see ctor comment). Safe: same lock,
+        // same body as run()'s loop iteration, just no persistent lock across frames.
+        void pump()
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            auto iter = mStreams.begin();
+            while (iter != mStreams.end())
+            {
+                if ((*iter)->process() == false)
+                    iter = mStreams.erase(iter);
+                else
+                    ++iter;
+            }
+        }
+#endif
 
         // thread entry point
         void run()
@@ -1837,6 +1867,12 @@ namespace MWSound
     void OpenALOutput::finishUpdate()
     {
         alcProcessContext(alcGetCurrentContext());
+#ifdef __EMSCRIPTEN__
+        // No background StreamThread on the web (see StreamThread ctor) — refill active
+        // audio streams inline here, once per SoundManager::update.
+        if (mStreamThread)
+            mStreamThread->pump();
+#endif
     }
 
     void OpenALOutput::updateListener(

@@ -1107,6 +1107,16 @@ namespace MWSound
         }
     }
 
+#ifdef __EMSCRIPTEN__
+    void SoundManager::pumpAudioStreams()
+    {
+        if (!mOutput->isInitialized())
+            return;
+        // finishUpdate() runs the inline stream refill on the web (see OpenALOutput).
+        mOutput->finishUpdate();
+    }
+#endif
+
     void SoundManager::processChangedSettings(const Settings::CategorySettingVector& settings)
     {
         if (!mOutput->isInitialized())

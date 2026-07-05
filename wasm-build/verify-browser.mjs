@@ -57,6 +57,10 @@ const chromeArgs = [
   `--window-size=${w},${h}`, '--remote-debugging-port=0', '--disable-dev-shm-usage',
 ];
 if (!useGpu) chromeArgs.push('--use-angle=swiftshader');
+// --chrome-flag <flag> (repeatable) — extra Chrome switches, e.g.
+// --chrome-flag --autoplay-policy=no-user-gesture-required to unlock the AudioContext
+// headlessly (matches a live session where video/game audio actually runs).
+chromeArgs.push(...opts('--chrome-flag'));
 chromeArgs.push(url);
 
 writeFileSync(consoleOut, '');

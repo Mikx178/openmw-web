@@ -281,6 +281,14 @@ namespace MWSound
 
         void update(float duration);
 
+#ifdef __EMSCRIPTEN__
+        // Web: there is no background audio StreamThread (its worker->main AL proxying can
+        // deadlock against a main thread blocked on the stream mutex). Streams are refilled
+        // inline via SoundOutput::finishUpdate(); the engine's cooperative video branch calls
+        // this because the normal update() path doesn't run while a video plays.
+        void pumpAudioStreams();
+#endif
+
         void setListenerPosDir(
             const osg::Vec3f& pos, const osg::Vec3f& dir, const osg::Vec3f& up, bool underwater) override;
 
