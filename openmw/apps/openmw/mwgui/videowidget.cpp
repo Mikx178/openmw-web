@@ -107,6 +107,20 @@ namespace MWGui
     }
 #endif
 
+#ifdef __EMSCRIPTEN__
+    unsigned VideoWidget::getFrameCounter() const
+    {
+        // NOTE: the decoder installs a brand-new osg::Image on the texture for every video
+        // frame (VideoState::video_display), so getModifiedCount() alone is CONSTANT during
+        // healthy playback — hash the image pointer in so the value changes per frame.
+        osg::ref_ptr<osg::Texture2D> texture = mPlayer->getVideoTexture();
+        if (texture && texture->getImage())
+            return static_cast<unsigned>(reinterpret_cast<uintptr_t>(texture->getImage()))
+                ^ texture->getImage()->getModifiedCount();
+        return 0;
+    }
+#endif
+
     void VideoWidget::stop()
     {
         mPlayer->close();

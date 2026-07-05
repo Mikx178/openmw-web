@@ -67,6 +67,14 @@ namespace MWGui
         // where the previous video's texture is still attached) and re-bind it.
         void* mAttachedTexture = nullptr;
         void attachCurrentTexture();
+
+    public:
+        // Monotonic per-frame upload counter of the current video texture (0 if none).
+        // Lets the cooperative driver detect a decoder that claims to be playing but has
+        // stopped producing frames (end-of-stream clock stall) and force-end it.
+        unsigned getFrameCounter() const;
+
+    private:
 #endif
     };
 

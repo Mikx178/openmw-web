@@ -363,6 +363,18 @@ size_t MovieAudioDecoder::read(char *stream, size_t len)
                 data[0] = stream;
                 av_samples_set_silence(
                     (uint8_t**)data, 0, static_cast<int>((len - total) / sampleSize), 1, mOutputSampleFormat);
+                // CRITICAL: advance the audio clock through the silence. The video's remaining
+                // pictures are paced by this clock (audio-master sync) — if it stalls at
+                // end-of-audio, the last queued frames never display, pictq never drains,
+                // mVideoEnded never fires, and the engine sits in its video branch FOREVER
+                // with the movie's last frame blocking the viewport over a healthy game.
+#if OPENMW_FFMPEG_5_OR_GREATER
+                int nch = mOutputChannelLayout.nb_channels;
+#else
+                int nch = av_get_channel_layout_nb_channels(mOutputChannelLayout);
+#endif
+                if (nch > 0 && mOutputSampleRate > 0)
+                    mAudioClock += double(len - total) / (sampleSize * nch * mOutputSampleRate);
                 total = len;
                 break;
             }
