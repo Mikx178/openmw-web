@@ -264,9 +264,14 @@
    let lastFps = -1, tick = 0;
    setInterval(function(){
      const fps = (window.__fps|0), ms = (window.__frameMs||0);
-     const running = !!(window.Module && window.Module._omw_pump_frame);
-     // Engine is up and pumping frames -> fade the themed loading overlay out.
-     if (running && window.__omwLoading) window.__omwLoading.done();
+     // Fade the loading overlay only when the engine's main loop is ACTUALLY rendering (the start
+     // screen is up), not merely when the pump function exists — _omw_pump_frame is exported the
+     // instant the wasm loads, long before game data downloads/loads and the menu appears, so
+     // gating on it uncovered the rest of the boot. __omwRunning is set by the engine's frame loop
+     // on its first real frame, so it covers the whole boot (wasm + game data + init) end to end.
+     const rendering = !!(window.Module && window.Module.__omwRunning !== undefined);
+     const running = rendering || !!(window.Module && window.Module._omw_pump_frame);
+     if (rendering && window.__omwLoading) window.__omwLoading.done();
      const open = logEl.classList.contains('show');
      hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
      // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
@@ -422,11 +427,13 @@
    });
  })();
 
- // --- Quit hook (engine calls window.__omwOnQuit after syncing saves): a cancelled main loop
- // in a frozen tab is hostile UX — show a clear end state instead.
+ // --- Quit hook (engine calls window.__omwOnQuit after syncing saves). A cancelled main loop
+ // leaves a dead tab; rather than a dead-end "exited" page, just RESTART the app (reload the
+ // page) — same as the user hitting refresh. Saves/settings already synced to IndexedDB above.
  window.__omwOnQuit = function(){
-   append('[quit] engine exited');
-   fatalOverlay('Morrowind has exited', 'Your saves are stored in this browser. Reload to play again.');
+   append('[quit] engine exited — restarting');
+   try { location.reload(); }
+   catch(e){ fatalOverlay('Morrowind has exited', 'Reload to play again.'); }
  };
 
  // --- Page lifecycle (bfcache-safe): visibilitychange->hidden is the LAST RELIABLE signal
