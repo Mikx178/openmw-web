@@ -24,6 +24,26 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <atomic>
+
+namespace
+{
+    // Deferred video-skip request. Esc during a cooperative video, or the JS omw_skip_video()
+    // export, sets this. updateVideoPlayback() consumes it and tears the video down from ITS
+    // OWN clean stack — NOT synchronously from inside the input handler. Calling stop()->close()
+    // ->deinit() (which joins the decode threads) mid-input-dispatch, re-entrantly inside
+    // updateVideoPlayback's mInputManager->update(), was deadlocking → the intro froze on the
+    // last frame exactly when the user pressed Esc to skip. The natural-end teardown already runs
+    // from the clean stack and works; routing skip through the same point fixes it.
+    std::atomic<bool> g_videoSkipRequested{ false };
+}
+
+// JS-callable skip (index.html can bind it to a button / the harness can drive it). Sets the
+// same deferred flag as Esc, so the skip is honored on the next updateVideoPlayback tick.
+extern "C" EMSCRIPTEN_KEEPALIVE void omw_skip_video()
+{
+    g_videoSkipRequested.store(true);
+}
 #endif
 
 #include <components/debug/debuglog.hpp>
@@ -2220,7 +2240,14 @@ namespace MWGui
         MyGUI::IntSize screenSize = MyGUI::RenderManager::getInstance().getViewSize();
         sizeVideo(screenSize.width, screenSize.height);
 
-        if (mVideoWidget->update() && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
+        // Consume a deferred skip (Esc / omw_skip_video) here, on the clean stack: fall straight
+        // through to the teardown below (which stops the player and reveals the game) instead of
+        // continuing playback. Doing the stop() here — not in the input handler — avoids the
+        // re-entrant decode-thread-join deadlock that froze the intro on its last frame.
+        const bool skipRequested = g_videoSkipRequested.exchange(false);
+
+        if (!skipRequested && mVideoWidget->update()
+            && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
         {
             // Failsafe: a decoder can claim "still playing" while producing no frames (e.g. an
             // end-of-stream A/V clock stall) — that would hold this branch FOREVER with the last
@@ -2317,7 +2344,14 @@ namespace MWGui
     void WindowManager::onVideoKeyPressed(MyGUI::Widget* /*sender*/, MyGUI::KeyCode key, MyGUI::Char value)
     {
         if (key == MyGUI::KeyCode::Escape)
+#ifdef __EMSCRIPTEN__
+            // Defer: do NOT stop()/close()/deinit() here — this runs inside the input handler,
+            // re-entrantly inside updateVideoPlayback; the synchronous decode-thread join
+            // deadlocked → froze on the last frame. Flag it; updateVideoPlayback tears down.
+            g_videoSkipRequested.store(true);
+#else
             mVideoWidget->stop();
+#endif
     }
 
     void WindowManager::updatePinnedWindows()
