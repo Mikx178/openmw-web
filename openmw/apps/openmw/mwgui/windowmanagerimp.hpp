@@ -609,6 +609,9 @@ namespace MWGui
 
         // Key pressed while playing a video
         void onVideoKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode key, MyGUI::Char value);
+#ifdef __EMSCRIPTEN__
+        void onVideoClicked(MyGUI::Widget* sender);
+#endif
 
         void sizeVideo(int screenWidth, int screenHeight);
 

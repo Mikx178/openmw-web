@@ -2145,10 +2145,23 @@ namespace MWGui
 
         mVideoWidget->eventKeyButtonPressed.clear();
         mVideoBackground->eventKeyButtonPressed.clear();
+#ifdef __EMSCRIPTEN__
+        // Clear any stale deferred-skip flag so a skip requested outside a video (e.g. Esc in the
+        // menu, or a JS omw_skip_video during gameplay) can't auto-skip THIS video on frame 1.
+        g_videoSkipRequested.store(false);
+        mVideoWidget->eventMouseButtonClick.clear();
+        mVideoBackground->eventMouseButtonClick.clear();
+#endif
         if (allowSkipping)
         {
             mVideoWidget->eventKeyButtonPressed += MyGUI::newDelegate(this, &WindowManager::onVideoKeyPressed);
             mVideoBackground->eventKeyButtonPressed += MyGUI::newDelegate(this, &WindowManager::onVideoKeyPressed);
+#ifdef __EMSCRIPTEN__
+            // Click-to-skip too (more discoverable/reliable than Esc for a mouse-driven web user);
+            // routes through the same deferred-skip flag as Esc.
+            mVideoWidget->eventMouseButtonClick += MyGUI::newDelegate(this, &WindowManager::onVideoClicked);
+            mVideoBackground->eventMouseButtonClick += MyGUI::newDelegate(this, &WindowManager::onVideoClicked);
+#endif
         }
 
         enableScene(false);
@@ -2353,6 +2366,14 @@ namespace MWGui
             mVideoWidget->stop();
 #endif
     }
+
+#ifdef __EMSCRIPTEN__
+    void WindowManager::onVideoClicked(MyGUI::Widget* /*sender*/)
+    {
+        // Same deferred skip as Esc (see onVideoKeyPressed).
+        g_videoSkipRequested.store(true);
+    }
+#endif
 
     void WindowManager::updatePinnedWindows()
     {
