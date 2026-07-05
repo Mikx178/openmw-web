@@ -657,14 +657,20 @@ namespace MWGui
         if (pos == MyGUI::ITEM_NONE)
             return;
 
-        // Dropdown index -> MSAA sample count. The renderer reads this at startup (PostProcessor
-        // construction), so a change only takes effect after a restart — on the web that's a page
-        // reload; the setting persists in the browser (IDBFS settings.cfg).
+        // Dropdown index -> MSAA sample count.
         static const int samples[] = { 0, 2, 4 };
         Settings::video().mAntialiasing.set(samples[std::min<size_t>(pos, 2)]);
 
+#ifdef __EMSCRIPTEN__
+        // Apply live: RenderingManager::processChangedSettings -> PostProcessor::setSamples rebuilds
+        // the render FBOs with the new sample count immediately — no restart/reload needed (and so
+        // no lost-write race from a fast refresh). The value persists via the normal save path.
+        apply();
+#else
+        // Desktop reads MSAA at PostProcessor construction, so it takes effect on restart.
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
             "#{OMWEngine:ChangeRequiresRestart}", { "#{Interface:OK}" }, true);
+#endif
     }
 
     void SettingsWindow::onWindowModeChanged(MyGUI::ComboBox* sender, size_t pos)

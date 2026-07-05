@@ -1441,6 +1441,14 @@ namespace MWRender
                     mViewer->startThreading();
                 }
             }
+            else if (it->first == "Video" && it->second == "antialiasing")
+            {
+                // Live MSAA change (Options anti-aliasing dropdown) — rebuild the render FBOs with
+                // the new sample count instead of requiring a restart. On the web this also dodges
+                // the settings-not-sticking issue: applying live means the player never refreshes,
+                // so the async IDBFS save always has time to persist (no reload-race).
+                mPostProcessor->setSamples(Settings::video().mAntialiasing);
+            }
             else if (it->first == "Post Processing" && it->second == "enabled")
             {
                 if (Settings::postProcessing().mEnabled)

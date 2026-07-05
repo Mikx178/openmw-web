@@ -414,8 +414,49 @@ namespace MWRender
         }
     }
 
+    void PostProcessor::setSamples(int samples)
+    {
+        // Called from RenderingManager::processChangedSettings (Options apply) while a GL context
+        // is current, so it's safe to query the sample-count ceiling. The scene renders into
+        // FBO_Multisample (created by createObjectsForFrame when mSamples > 1), so changing the
+        // sample count + rebuilding those FBOs re-applies MSAA live — no window/context recreation.
+        if (samples < 0)
+            samples = 0;
+        if (samples > 1)
+        {
+#ifndef GL_MAX_SAMPLES
+#define GL_MAX_SAMPLES 0x8D57
+#endif
+            GLint maxSamples = 0;
+            glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+            if (maxSamples >= 1 && samples > maxSamples)
+            {
+                Log(Debug::Info) << "Antialiasing " << samples << "x exceeds GL_MAX_SAMPLES ("
+                                 << maxSamples << "x); using " << maxSamples << "x.";
+                samples = maxSamples;
+            }
+        }
+        if (samples == mSamples)
+            return;
+        mSamples = samples;
+        // Defer the FBO rebuild to update() (UPDATE traversal) — the safe point where resize()
+        // already runs — rather than mutating FBOs from inside the settings-apply call.
+        mSamplesDirty = true;
+    }
+
     void PostProcessor::reloadIfRequired()
     {
+        if (mSamplesDirty)
+        {
+            mSamplesDirty = false;
+            // Rebuild both double-buffered frames' FBOs with the new mSamples. resize() rebuilds
+            // the current frame and dirties the other; do both so MSAA changes take on the next
+            // frame regardless of which buffer draws first.
+            createObjectsForFrame(0);
+            createObjectsForFrame(1);
+            resize();
+        }
+
         if (!mReload)
             return;
 
@@ -561,6 +602,12 @@ namespace MWRender
 
         if (mSamples > 1)
         {
+#ifdef __EMSCRIPTEN__
+            // Proof that the chosen MSAA level actually reaches the scene render target: the scene
+            // is drawn into this multisample FBO. Logged so 'antialiasing = N' can be confirmed as
+            // live in the rendering engine (frame 0 build + on every live setSamples rebuild).
+            Log(Debug::Info) << "MSAA: scene render target built with " << mSamples << "x multisampling";
+#endif
             fbos[FBO_Multisample] = new osg::FrameBufferObject;
             fbos[FBO_Intercept] = new osg::FrameBufferObject;
             auto colorRB = createFrameBufferAttachmentFromTemplate(

@@ -187,6 +187,11 @@ namespace MWRender
 
         void enable();
 
+        // Live MSAA change: update the multisample sample count and rebuild the render FBOs
+        // WITHOUT a restart. Clamps to the renderbuffer's GL_MAX_SAMPLES. Used on the web so the
+        // Options anti-aliasing dropdown applies immediately (no page reload -> no lost-write race).
+        void setSamples(int samples);
+
         void setRenderTargetSize(int width, int height)
         {
             mWidth = width;
@@ -245,6 +250,7 @@ namespace MWRender
 
         bool mDirty = false;
         bool mReload = true;
+        bool mSamplesDirty = false; // live MSAA change pending an FBO rebuild (see setSamples)
         bool mTriggerShaderReload = false;
         bool mUsePostProcessing = false;
 
