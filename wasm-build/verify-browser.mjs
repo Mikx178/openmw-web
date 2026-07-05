@@ -162,7 +162,12 @@ async function key(k) {
   const mapped = CODEMAP[k];
   const code = mapped ? mapped[1] : (KEYCODES[k] ?? k.toUpperCase().charCodeAt(0));
   const codeStr = mapped ? mapped[0] : (k.length === 1 ? 'Key' + k.toUpperCase() : k);
-  const base = { key: k.length === 1 ? k : k, code: codeStr,
+  // CDP quirk: 'keyDown' WITHOUT a text field is silently treated as 'rawKeyDown', which never
+  // produces a DOM keydown for the page — so Escape/WASD were never delivered at all. Provide
+  // the generated text (control chars for Escape/Enter/Tab, the char itself for printables).
+  const TEXTMAP = { Escape: '', Enter: '\r', Tab: '\t', Backspace: '', Space: ' ' };
+  const text = k.length === 1 ? k : (TEXTMAP[k] ?? '');
+  const base = { key: k.length === 1 ? k : k, code: codeStr, text, unmodifiedText: text,
     windowsVirtualKeyCode: code, nativeVirtualKeyCode: code };
   // 'keyDown' (not 'rawKeyDown') — rawKeyDown skips text processing and emscripten SDL misses
   // some non-printable keys with it (Escape never skipped videos, Return never hit OK buttons).
