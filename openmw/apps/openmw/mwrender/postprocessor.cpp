@@ -122,16 +122,10 @@ namespace MWRender
         , mViewer(viewer)
         , mVFS(vfs)
         , mUsePostProcessing(Settings::postProcessing().mEnabled)
-#ifdef __EMSCRIPTEN__
-        // MSAA stays OFF on the web. Enabling it (multisampled COLOR_BUFFER0 + blitFramebuffer
-        // resolve) raises no GL error, but the self-test showed it renders the 3D scene BLACK —
-        // the multisampled depth resolve does not compose correctly with this build's reverse-Z
-        // depth (only the GUI survives). Proper web MSAA needs a reverse-Z-aware resolve (separate
-        // effort); until then force 0 so users can't pick a black-screen AA in Options.
-        , mSamples(0)
-#else
+        // MSAA real-GPU deep-dive: honor the [Video] antialiasing setting (set via ?aa=N) so
+        // hardware MSAA can be validated on real hardware. Paired with the OSG RenderStage
+        // color-only multisample-resolve fix + the __omwMsaa readback diagnostic.
         , mSamples(Settings::video().mAntialiasing)
-#endif
         , mPingPongCull(new PingPongCull(this))
         , mDistortionCallback(new DistortionCallback)
     {

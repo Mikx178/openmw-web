@@ -592,10 +592,24 @@ index 2aac8b2..0eca56f 100644
  
              width >>= 1;
 diff --git a/src/osgUtil/RenderStage.cpp b/src/osgUtil/RenderStage.cpp
-index d8300d2..51abdeb 100644
+index d8300d2..85ba0fd 100644
 --- a/src/osgUtil/RenderStage.cpp
 +++ b/src/osgUtil/RenderStage.cpp
-@@ -529,7 +529,18 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
+@@ -30,6 +30,13 @@
+ using namespace osg;
+ using namespace osgUtil;
+ 
++#ifdef __EMSCRIPTEN__
++// Emscripten/WebGL2 exports the raw glBlitFramebuffer symbol, but OSG's getProcAddress returns null
++// for it, so ext->glBlitFramebuffer is null. Call the raw symbol directly for the multisample
++// resolve.
++extern "C" void glBlitFramebuffer(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
++#endif
++
+ // register a RenderStage prototype with the RenderBin prototype list.
+ //RegisterRenderBinProxy<RenderStage> s_registerRenderStageProxy;
+ 
+@@ -529,7 +536,18 @@ void RenderStage::runCameraSetUp(osg::RenderInfo& renderInfo)
  
              if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
              {
@@ -615,6 +629,70 @@ index d8300d2..51abdeb 100644
  
                  fbo_supported = false;
                  GLuint fboId = state.getGraphicsContext() ? state.getGraphicsContext()->getDefaultFboId() : 0;
+@@ -949,7 +967,14 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
+     const FrameBufferObject* read_fbo = fbo_supported ? _fbo.get() : 0;
+     bool apply_read_fbo = false;
+ 
++#ifdef __EMSCRIPTEN__
++    // On the web ext->glBlitFramebuffer is null (getProcAddress returns null for it), but the raw
++    // WebGL2 glBlitFramebuffer symbol IS available — so don't gate the multisample resolve on the
++    // (null) extension pointer; call ::glBlitFramebuffer directly below.
++    if (fbo_supported && _resolveFbo.valid())
++#else
+     if (fbo_supported && _resolveFbo.valid() && ext->glBlitFramebuffer)
++#endif
+     {
+         GLbitfield blitMask = 0;
+         bool needToBlitColorBuffers = false;
+@@ -962,19 +987,36 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
+             switch (it->first)
+             {
+             case Camera::DEPTH_BUFFER:
++#ifndef __EMSCRIPTEN__
+                 blitMask |= GL_DEPTH_BUFFER_BIT;
++#endif
+                 break;
+             case Camera::STENCIL_BUFFER:
++#ifndef __EMSCRIPTEN__
+                 blitMask |= GL_STENCIL_BUFFER_BIT;
++#endif
+                 break;
+             case Camera::PACKED_DEPTH_STENCIL_BUFFER:
++#ifndef __EMSCRIPTEN__
+                 blitMask |= GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
++#endif
+                 break;
+             case Camera::COLOR_BUFFER:
+                 blitMask |= GL_COLOR_BUFFER_BIT;
+                 break;
+             default:
++#ifdef __EMSCRIPTEN__
++                // WebGL2/GLES: the per-color-attachment resolve blit below is compiled out, so a
++                // COLOR_BUFFER0 resolve target never resolves (MSAA scene black). Fold it into the
++                // main blit; color-only, since WebGL2 rejects resolving depth/stencil from a
++                // multisample read framebuffer (INVALID_OPERATION).
++                if (it->first == Camera::COLOR_BUFFER0)
++                    blitMask |= GL_COLOR_BUFFER_BIT;
++                else
++                    needToBlitColorBuffers = true;
++#else
+                 needToBlitColorBuffers = true;
++#endif
+                 break;
+             }
+         }
+@@ -989,7 +1031,11 @@ void RenderStage::drawInner(osg::RenderInfo& renderInfo,RenderLeaf*& previous, b
+             // Note that (with nvidia 175.16 windows drivers at least) if the read
+             // framebuffer is multisampled then the dimension arguments are ignored
+             // and the whole framebuffer is always copied.
++#ifdef __EMSCRIPTEN__
++            ::glBlitFramebuffer(
++#else
+             ext->glBlitFramebuffer(
++#endif
+                 static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
+                 static_cast<GLint>(_viewport->x() + _viewport->width()), static_cast<GLint>(_viewport->y() + _viewport->height()),
+                 static_cast<GLint>(_viewport->x()), static_cast<GLint>(_viewport->y()),
 diff --git a/src/osgUtil/tristripper/include/detail/graph_array.h b/src/osgUtil/tristripper/include/detail/graph_array.h
 index dc1f380..7c4ad76 100644
 --- a/src/osgUtil/tristripper/include/detail/graph_array.h
