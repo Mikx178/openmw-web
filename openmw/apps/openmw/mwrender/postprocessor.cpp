@@ -307,18 +307,10 @@ namespace MWRender
         // depth->texture resolve (WebGL2 forbids resolving MSAA depth, which PP needs as a
         // sampleable depth texture) plus the HDR luminance float-target path. The GLES port
         // (createObjectsForFrame: PP scene forced single-sample on web; loadChain: HDR float
-        // targets gated) makes the base + tonemap/bloom chain safe. Kept behind an opt-in env
-        // flag so the DEFAULT stays off until a build is smoke-verified; index.html sets it on
-        // ?pp=1. Remove the gate (always-on) once the curated chain ships as a web default.
-        if (!getenv("OPENMW_ENABLE_PP"))
-        {
-            Log(Debug::Info) << "Post-processing disabled on this platform (set OPENMW_ENABLE_PP=1 to opt in).";
-            Settings::postProcessing().mEnabled.set(false);
-            mUsePostProcessing = false;
-            mReload = false;
-            return;
-        }
-        Log(Debug::Info) << "Post-processing ENABLED via OPENMW_ENABLE_PP (experimental GLES path).";
+        // targets gated) makes the base + tonemap/bloom chain safe. The curated chain is now a
+        // verified web default, so PP honors the [Post Processing] setting exactly like desktop
+        // (the old OPENMW_ENABLE_PP opt-in gate has been removed). The Options-menu toggle works.
+        Log(Debug::Info) << "Post-processing enabled (GLES path).";
 #endif
         mReload = true;
         mUsePostProcessing = true;

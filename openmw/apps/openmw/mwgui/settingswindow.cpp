@@ -750,19 +750,8 @@ namespace MWGui
 
         if (getSettingType(sender) == checkButtonType)
         {
-#ifdef __EMSCRIPTEN__
-            // Post-processing hangs the WebGL2 build (see PostProcessor::enable). Refuse to turn it
-            // on: revert the toggle back to Off and tell the user, instead of freezing the game.
-            if (newState && getSettingCategory(sender) == "Post Processing"
-                && getSettingName(sender) == "enabled")
-            {
-                sender->castType<MyGUI::Button>()->setCaption(MyGUI::UString(off));
-                Settings::postProcessing().mEnabled.set(false);
-                MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
-                    "Post-processing is not supported in the browser version.", { "#{Interface:OK}" }, true);
-                return;
-            }
-#endif
+            // Post-processing now runs on the WebGL2/GLES build (curated chain), so the
+            // Options-menu "Post Processing > enabled" toggle is honored on web as on desktop.
             Settings::get<bool>(getSettingCategory(sender), getSettingName(sender)).set(newState);
             apply();
             return;

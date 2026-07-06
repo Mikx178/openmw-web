@@ -510,10 +510,10 @@
        // ?forcemrt (QA) reproduces the pre-fix pass-normals-MRT indexed-blend bug (opaque-black
        // smoke) for A/B comparison. Never used in normal play.
        if (/[?&]forcemrt\b/.test(location.search)) ENV.OMW_FORCE_NORMALS_RT='1';
-       // ?pp=1 opts into the experimental GLES post-processing path (PostProcessor::enable gates
-       // on this env var). PP renders the scene single-sample (no MSAA-depth-resolve freeze); AA
-       // under PP comes from SSAA. Off by default until the curated chain is a verified web default.
-       if (/[?&]pp=1\b/.test(location.search)) ENV.OPENMW_ENABLE_PP='1';
+       // Post-processing now ships on by default on web (PostProcessor::enable no longer gates on
+       // an env var; the [Post Processing] setting drives it, see settingsCfg below). PP renders
+       // the scene single-sample (no MSAA-depth-resolve freeze); AA under PP comes from SSAA.
+       // ?pp=0 disables it for A/B testing.
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
        // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
@@ -636,11 +636,14 @@
            //   ?pp=1&ppchain=bloomlinear,adjustments  -> bloom + color grade
            //   ?pp=1&ppchain=              -> empty chain (framework-only smoke)
            // Techniques are the built-in .omwfx baked into openmw.data (shaders/*.omwfx).
-           (/[?&]pp=1\b/.test(location.search)
-             ? ('[Post Processing]\nenabled = true\nchain = ' +
+           // PP now ships ENABLED by default on web (curated GLES chain verified). ?pp=0 turns it
+           // off for A/B; ?ppchain=<csv> overrides the chain. The Options-menu toggle also works,
+           // and since this is only a defaults layer, a user's saved setting overrides it.
+           (/[?&]pp=0\b/.test(location.search)
+             ? ''
+             : ('[Post Processing]\nenabled = true\nchain = ' +
                 (function(){ var m=/[?&]ppchain=([^&]*)/.exec(location.search);
-                   return m ? decodeURIComponent(m[1]) : 'adjustments'; })() + '\n')
-             : '');
+                   return m ? decodeURIComponent(m[1]) : 'adjustments'; })() + '\n'));
          // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
          // config dir) as additional defaults and layers the PERSISTENT user settings from
          // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,
