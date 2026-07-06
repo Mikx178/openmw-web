@@ -308,6 +308,23 @@ namespace MWRender
                     lastApplied = mFbos[buffer[0] - GL_COLOR_ATTACHMENT0_EXT]->getHandle(cid);
                 }
 
+#ifdef __EMSCRIPTEN__
+                // The viewport is not reset per pass, so it leaks across passes: a render-target
+                // pass at a downscaled size (e.g. bloom's 0.25-res blur targets) followed by a
+                // full-screen pass would sample/draw with the wrong viewport, collapsing the
+                // fullscreen triangle's texcoord range (bloom rendered as a flat tint on web).
+                // Set the viewport to match the current draw target explicitly.
+                if (pass.mRenderTarget)
+                {
+                    const osg::Texture* rtTex
+                        = pass.mRenderTarget->getAttachment(osg::Camera::COLOR_BUFFER0).getTexture();
+                    if (rtTex)
+                        glViewport(0, 0, rtTex->getTextureWidth(), rtTex->getTextureHeight());
+                }
+                else if (resolveViewport)
+                    resolveViewport->apply(state);
+#endif
+
                 state.pushStateSet(pass.mStateSet);
                 state.apply();
 
