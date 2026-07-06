@@ -124,6 +124,16 @@ namespace Std140
             return structDefinition + "};";
         }
 
+        // Flat individual-uniform declarations (`uniform <type> <prefix><name>;`) used instead of a
+        // struct uniform on GL implementations (ANGLE/WebGL2) that read struct-member uniforms as 0.
+        static std::string getFlatDefinition(const std::string& prefix)
+        {
+            std::string out;
+            ((out += ("uniform " + std::string(CArgs::sTypeName) + " " + prefix + std::string(CArgs::sName) + ";\n")),
+                ...);
+            return out;
+        }
+
         using BufferType = std::array<char, getGPUSize()>;
         using TupleType = std::tuple<CArgs...>;
 

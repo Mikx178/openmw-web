@@ -114,6 +114,11 @@
      // GL_INVALID_ENUM. Calling it here lets the OSG anisotropy path work (see Texture.cpp).
      if (ctx && (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl')) {
        try { ctx.getExtension('EXT_texture_filter_anisotropic'); } catch (e) {}
+       // EXT_color_buffer_float: makes RGBA16F/RGBA32F color-renderable so post-processing float
+       // render targets (e.g. bloom) are FBO-complete instead of rendering black.
+       try { ctx.getExtension('EXT_color_buffer_float'); } catch (e) {}
+       try { ctx.getExtension('EXT_color_buffer_half_float'); } catch (e) {}
+       try { ctx.getExtension('OES_texture_float_linear'); } catch (e) {}
      }
      return ctx;
    };
@@ -505,6 +510,10 @@
        // ?forcemrt (QA) reproduces the pre-fix pass-normals-MRT indexed-blend bug (opaque-black
        // smoke) for A/B comparison. Never used in normal play.
        if (/[?&]forcemrt\b/.test(location.search)) ENV.OMW_FORCE_NORMALS_RT='1';
+       // ?pp=1 opts into the experimental GLES post-processing path (PostProcessor::enable gates
+       // on this env var). PP renders the scene single-sample (no MSAA-depth-resolve freeze); AA
+       // under PP comes from SSAA. Off by default until the curated chain is a verified web default.
+       if (/[?&]pp=1\b/.test(location.search)) ENV.OPENMW_ENABLE_PP='1';
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
        // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
@@ -564,6 +573,22 @@
            'refraction = true\n' +
            'rtt size = 512\n' +
            'small feature culling pixel size = 30.0\n' +
+           '[Fog]\n' +
+           // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
+           // Free (same osg_Fog_* uniforms, just a distance formula) and it kills the artifact
+           // where the screen corners fog differently from the center on a wide FOV. Pure win.
+           'radial fog = true\n' +
+           // Distant fog fades the QuadTree LOD terrain (distant terrain=true above, out to the
+           // 16384 view distance) into fog so far chunks stop hard-popping at the vista edge.
+           // Land fog is tuned to the web view distance: fully fogged by ~16384 so the LOD
+           // boundary is hidden; interior/underwater keep engine defaults.
+           'use distant fog = true\n' +
+           'distant land fog start = 8192\n' +
+           'distant land fog end = 16384\n' +
+           // Sky blending: blend the far clip plane into the sky dome (via a small sky RTT) for a
+           // smooth horizon instead of a hard land/sky seam where distant terrain meets the sky.
+           'sky blending = true\n' +
+           'sky blending start = 0.8\n' +
            '[Shadows]\n' +
            'enable shadows = true\n' +             // WebGL2 depth-texture shadow maps
            'shadow map resolution = 2048\n' +      // finer texels -> less shadow swim on camera turn
@@ -578,6 +603,18 @@
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
            'max lights = 8\n' +                    // fewer dynamic lights per object -> faster shading
+           // Per-pixel lighting: MW geometry is low-poly, so per-VERTEX lighting looks faceted
+           // (flat-shaded walls, banding on terrain). Per-pixel smooths the gradients across each
+           // face. Pure fragment-shader path (already GLES-ported); fill cost is bounded by
+           // max lights=8. Big look upgrade for lit interiors and sunlit exteriors alike.
+           'force per pixel lighting = true\n' +
+           // Alpha-to-coverage: convert alpha-TEST edges (foliage, fences, grates, hair) to
+           // alpha-to-coverage so they smooth under MSAA instead of aliasing as hard cutouts.
+           // A no-op unless MSAA is on (shouldAddMSAAIntermediateTarget = this && antialiasing>1),
+           // so it costs nothing by default and only kicks in when the player enables AA.
+           // NOTE: with MSAA on it also routes the water/sky RTTs through an MSAA-resolve path
+           // (util.cpp:shouldAddMSAAIntermediateTarget) — smoke-test ?aa=4 for water/sky regressions.
+           'antialias alpha test = true\n' +
            // Interiors are lit by a low ambient floor + point-light lamps. The stock 0.08 floor
            // reads near-black on the web build; raise it so interiors are navigable (OpenMW's
            // sanctioned "increase if interiors are too dark" knob; needs classic falloff=false).
@@ -586,9 +623,24 @@
            // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
            // light) renders as a black quad. Cheap at max lights=8.
            'particle point lighting = true\n' +
-           // ?pp=1 (QA) enables post-processing so the Fx pipeline (incl. internal_distortion) is
-           // exercised — verifies the GLES Fx-shader transform. Off by default.
-           (/[?&]pp=1\b/.test(location.search) ? '[Post Processing]\nenabled = true\n' : '');
+           '[General]\n' +
+           // Anisotropic filtering: EXT_texture_filter_anisotropic is already enabled at context
+           // creation and applied per-texture by the patched OSG. The engine default is only 4x;
+           // bump the web build to 16x for crisp ground/road/floor textures at grazing angles
+           // (the single biggest cheap sharpness win, near-zero cost on modern GPUs).
+           'anisotropy = 16\n' +
+           // ?pp=1 enables the experimental GLES post-processing path (also sets OPENMW_ENABLE_PP
+           // env — see preRun). PP renders the scene single-sample (no MSAA-depth-resolve freeze).
+           // The curated chain is controllable with ?ppchain=<csv> for A/B testing:
+           //   ?pp=1                       -> default chain 'adjustments' (color/contrast pass)
+           //   ?pp=1&ppchain=bloomlinear,adjustments  -> bloom + color grade
+           //   ?pp=1&ppchain=              -> empty chain (framework-only smoke)
+           // Techniques are the built-in .omwfx baked into openmw.data (shaders/*.omwfx).
+           (/[?&]pp=1\b/.test(location.search)
+             ? ('[Post Processing]\nenabled = true\nchain = ' +
+                (function(){ var m=/[?&]ppchain=([^&]*)/.exec(location.search);
+                   return m ? decodeURIComponent(m[1]) : 'adjustments'; })() + '\n')
+             : '');
          // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
          // config dir) as additional defaults and layers the PERSISTENT user settings from
          // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,

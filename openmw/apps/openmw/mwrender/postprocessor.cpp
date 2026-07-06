@@ -228,6 +228,14 @@ namespace MWRender
 
         mGLSLVersion = static_cast<int>(ext->glslLanguageVersion * 100);
         mUBO = ext->isUniformBufferObjectSupported && mGLSLVersion >= 330;
+#ifdef __EMSCRIPTEN__
+        // Protective: keep the fx uniform path off the std140 nested-struct UBO on WebGL2. WebGL2 is
+        // GLSL ES 3.00 (mGLSLVersion==300) so this is already false, but pin it so a driver reporting
+        // a higher glslLanguageVersion can't flip on the `layout(std140) uniform _data { _omw_data
+        // omw; }` path (nested struct + bool members), which ANGLE's Metal backend handles poorly.
+        // The non-UBO path uses a plain `uniform _omw_data omw;` filled by StateUpdater.
+        mUBO = false;
+#endif
         mStateUpdater = new Fx::StateUpdater(mUBO);
 
         createObjectsForFrame(0);
@@ -295,21 +303,25 @@ namespace MWRender
     void PostProcessor::enable()
     {
 #ifdef __EMSCRIPTEN__
-        // Post-processing is not functional on the WebGL2/GLES build: enabling it rebuilds the
-        // technique chain (HDR luminance/tonemap passes + a multisample-resolve reconfigure) and
-        // the first PP render hangs the main thread — a hard freeze at cell load / on toggling
-        // "Post Processing" (or any "max settings" preset that includes it) in Options. Force it
-        // OFF and keep the setting consistent so the UI doesn't show a lie. Remove this guard once
-        // the PP chain is ported to GLES.
-        Log(Debug::Info) << "Post-processing is not supported on this platform (WebGL2); ignoring.";
-        Settings::postProcessing().mEnabled.set(false);
-        mUsePostProcessing = false;
-        mReload = false;
-        return;
-#else
+        // Post-processing on WebGL2/GLES. The historical hard-freeze was the multisample
+        // depth->texture resolve (WebGL2 forbids resolving MSAA depth, which PP needs as a
+        // sampleable depth texture) plus the HDR luminance float-target path. The GLES port
+        // (createObjectsForFrame: PP scene forced single-sample on web; loadChain: HDR float
+        // targets gated) makes the base + tonemap/bloom chain safe. Kept behind an opt-in env
+        // flag so the DEFAULT stays off until a build is smoke-verified; index.html sets it on
+        // ?pp=1. Remove the gate (always-on) once the curated chain ships as a web default.
+        if (!getenv("OPENMW_ENABLE_PP"))
+        {
+            Log(Debug::Info) << "Post-processing disabled on this platform (set OPENMW_ENABLE_PP=1 to opt in).";
+            Settings::postProcessing().mEnabled.set(false);
+            mUsePostProcessing = false;
+            mReload = false;
+            return;
+        }
+        Log(Debug::Info) << "Post-processing ENABLED via OPENMW_ENABLE_PP (experimental GLES path).";
+#endif
         mReload = true;
         mUsePostProcessing = true;
-#endif
     }
 
     void PostProcessor::disable()
@@ -526,6 +538,17 @@ namespace MWRender
         int width = renderWidth();
         int height = renderHeight();
 
+#ifdef __EMSCRIPTEN__
+        // WebGL2 forbids resolving a multisampled DEPTH buffer into a texture, and PP needs a
+        // sampleable depth texture (opaque depth, soft particles, distortion). Historically the
+        // first PP render hung the main thread on exactly this resolve. Render the PP scene
+        // SINGLE-SAMPLE so depth goes straight to a texture with no resolve; AA under PP is
+        // provided by SSAA (?ss=N supersampling) instead of hardware MSAA.
+        const int effectiveSamples = 1;
+#else
+        const int effectiveSamples = mSamples;
+#endif
+
         for (osg::ref_ptr<osg::Texture>& texture : textures)
         {
             if (!texture)
@@ -596,11 +619,11 @@ namespace MWRender
         fbos[FBO_FirstPerson] = new osg::FrameBufferObject;
 
         auto fpDepthRb = createFrameBufferAttachmentFromTemplate(
-            Usage::RENDER_BUFFER, width, height, textures[Tex_Depth], mSamples);
+            Usage::RENDER_BUFFER, width, height, textures[Tex_Depth], effectiveSamples);
         fbos[FBO_FirstPerson]->setAttachment(osg::FrameBufferObject::BufferComponent::PACKED_DEPTH_STENCIL_BUFFER,
             osg::FrameBufferAttachment(fpDepthRb));
 
-        if (mSamples > 1)
+        if (effectiveSamples > 1)
         {
 #ifdef __EMSCRIPTEN__
             // Proof that the chosen MSAA level actually reaches the scene render target: the scene
@@ -611,18 +634,18 @@ namespace MWRender
             fbos[FBO_Multisample] = new osg::FrameBufferObject;
             fbos[FBO_Intercept] = new osg::FrameBufferObject;
             auto colorRB = createFrameBufferAttachmentFromTemplate(
-                Usage::RENDER_BUFFER, width, height, textures[Tex_Scene], mSamples);
+                Usage::RENDER_BUFFER, width, height, textures[Tex_Scene], effectiveSamples);
             if (mNormals && mNormalsSupported)
             {
                 auto normalRB = createFrameBufferAttachmentFromTemplate(
-                    Usage::RENDER_BUFFER, width, height, textures[Tex_Normal], mSamples);
+                    Usage::RENDER_BUFFER, width, height, textures[Tex_Normal], effectiveSamples);
                 fbos[FBO_Multisample]->setAttachment(osg::FrameBufferObject::BufferComponent::COLOR_BUFFER1, normalRB);
                 fbos[FBO_FirstPerson]->setAttachment(osg::FrameBufferObject::BufferComponent::COLOR_BUFFER1, normalRB);
                 fbos[FBO_Intercept]->setAttachment(osg::FrameBufferObject::BufferComponent::COLOR_BUFFER1,
                     Stereo::createMultiviewCompatibleAttachment(textures[Tex_Normal]));
             }
             auto depthRB = createFrameBufferAttachmentFromTemplate(
-                Usage::RENDER_BUFFER, width, height, textures[Tex_Depth], mSamples);
+                Usage::RENDER_BUFFER, width, height, textures[Tex_Depth], effectiveSamples);
             fbos[FBO_Multisample]->setAttachment(osg::FrameBufferObject::BufferComponent::COLOR_BUFFER0, colorRB);
             fbos[FBO_Multisample]->setAttachment(
                 osg::FrameBufferObject::BufferComponent::PACKED_DEPTH_STENCIL_BUFFER, depthRB);

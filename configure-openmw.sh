@@ -25,7 +25,7 @@ emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
   -DBUILD_DOCS=OFF -DBUILD_BENCHMARKS=OFF -DBUILD_UNITTESTS=OFF -DBUILD_COMPONENTS_TESTS=OFF \
   -DBUILD_OPENMW_MP=OFF -DUSE_QT=OFF -DUSE_SYSTEM_TINYXML=OFF \
   -DOPENMW_USE_SYSTEM_SQLITE3=OFF -DOPENMW_USE_SYSTEM_YAML_CPP=OFF -DOPENMW_USE_SYSTEM_ICU=ON \
-  -DCMAKE_CXX_FLAGS="-D_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES -DBT_USE_DOUBLE_PRECISION -fexceptions -include $DW/include/mygui_char_traits_fix.h -include $DW/include/gl_compat.h -Wno-missing-template-arg-list-after-template-kw -Wno-error=missing-template-arg-list-after-template-kw -pthread -I$BOOST/../bullet3/src -I$DW/include -I$BOOST" \
+  -DCMAKE_CXX_FLAGS="-D_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES -DBT_USE_DOUBLE_PRECISION -fwasm-exceptions -include $DW/include/mygui_char_traits_fix.h -include $DW/include/gl_compat.h -Wno-missing-template-arg-list-after-template-kw -Wno-error=missing-template-arg-list-after-template-kw -pthread -I$BOOST/../bullet3/src -I$DW/include -I$BOOST" \
   -DCMAKE_C_FLAGS="-pthread" \
   -DBoost_INCLUDE_DIR="$BOOST" -DBoost_NO_BOOST_CMAKE=OFF \
   -DBoost_USE_STATIC_RUNTIME=ON -DBoost_USE_STATIC_LIBS=ON \
@@ -34,7 +34,7 @@ emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
   -DLUA_MATH_LIBRARY="$DW/lib/libopenal_stub.a" \
   -DLZ4_LIBRARY="$DW/lib/liblz4.a" -DLZ4_INCLUDE_DIR="$DW/include" \
   -DOPENAL_LIBRARY="$DW/lib/libopenal_stub.a" -DOPENAL_INCLUDE_DIR="$SR/include/AL" \
-  -DCMAKE_EXE_LINKER_FLAGS="-fexceptions -lopenal --use-port=sdl2 --use-port=freetype --use-port=harfbuzz --use-port=libpng --use-port=libjpeg --use-port=zlib --use-port=ogg --use-port=vorbis -sALLOW_MEMORY_GROWTH=1 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 -sEXIT_RUNTIME=0 -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=1610612736 -sASSERTIONS=0" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fwasm-exceptions -lopenal --use-port=sdl2 --use-port=freetype --use-port=harfbuzz --use-port=libpng --use-port=libjpeg --use-port=zlib --use-port=ogg --use-port=vorbis -sALLOW_MEMORY_GROWTH=1 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 -sEXIT_RUNTIME=0 -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=1610612736 -sASSERTIONS=0" \
   -DZLIB_LIBRARY="$W32/libz.a" -DZLIB_INCLUDE_DIR="$SR/include" \
   -DOPENGL_INCLUDE_DIR="$SR/include" \
   -DOPENGL_opengl_LIBRARY="$W32/libGL-getprocaddr.a" \

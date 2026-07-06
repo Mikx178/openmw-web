@@ -111,6 +111,10 @@ namespace Fx
 
         static const std::string& getStructDefinition() { return sDefinition; }
 
+        // Flat `uniform <type> omw_<name>;` declarations used instead of the struct uniform on
+        // ANGLE/WebGL2, which reads struct-member uniforms as 0.
+        static const std::string& getFlatDefinition() { return sFlatDefinition; }
+
         void setDefaults(osg::StateSet* stateset) override;
 
         void apply(osg::StateSet* stateset, osg::NodeVisitor* nv) override;
@@ -291,6 +295,7 @@ namespace Fx
         bool mUseUBO;
 
         static std::string sDefinition;
+        static std::string sFlatDefinition;
 
         std::shared_ptr<SceneUtil::PPLightBuffer> mPointLightBuffer;
     };
