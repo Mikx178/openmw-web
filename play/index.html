@@ -582,13 +582,21 @@
            // 16384 view distance) into fog so far chunks stop hard-popping at the vista edge.
            // Land fog is tuned to the web view distance: fully fogged by ~16384 so the LOD
            // boundary is hidden; interior/underwater keep engine defaults.
-           'use distant fog = true\n' +
-           'distant land fog start = 8192\n' +
-           'distant land fog end = 16384\n' +
+           // NOTE: fog start pushed OUT (8192->12288, ~0.75 of the vista) so the near/mid scene
+           // stays clear and only the far LOD edge fades -- the old 0.5 start hazed too much of the
+           // frame (read as "washed out"). ?modernfog=0 turns the distant-fog + sky-blend haze off
+           // entirely for A/B.
+           (/[?&]modernfog=0\b/.test(location.search)
+             ? 'use distant fog = false\n'
+             : ('use distant fog = true\n' +
+                'distant land fog start = 12288\n' +
+                'distant land fog end = 16384\n' +
            // Sky blending: blend the far clip plane into the sky dome (via a small sky RTT) for a
            // smooth horizon instead of a hard land/sky seam where distant terrain meets the sky.
-           'sky blending = true\n' +
-           'sky blending start = 0.8\n' +
+           // start pushed 0.8->0.9 so only the last sliver of the vista melts into the sky (0.8
+           // washed a visible band of distant land into the sky tone).
+                'sky blending = true\n' +
+                'sky blending start = 0.9\n')) +
            '[Shadows]\n' +
            'enable shadows = true\n' +             // WebGL2 depth-texture shadow maps
            'shadow map resolution = 2048\n' +      // finer texels -> less shadow swim on camera turn
