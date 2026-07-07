@@ -56,6 +56,13 @@ namespace SDLUtil
 
         mHasSetGammaContrast = true;
 
+#ifdef __EMSCRIPTEN__
+        // WebGL has no hardware gamma ramp (SDL_SetWindowGammaRamp always fails "not supported"),
+        // and it spammed the log on every gamma/contrast apply. Gamma is instead applied in-shader
+        // (uGamma, driven by [Video] gamma), so the ramp is redundant here — skip it silently.
+        (void)gamma;
+        (void)contrast;
+#else
         Uint16 red[256], green[256], blue[256];
         for (int i = 0; i < 256; i++)
         {
@@ -73,6 +80,7 @@ namespace SDLUtil
         }
         if (SDL_SetWindowGammaRamp(mWindow, red, green, blue) < 0)
             Log(Debug::Warning) << "Couldn't set gamma: " << SDL_GetError();
+#endif
     }
 
     void VideoWrapper::setVideoMode(int width, int height, Settings::WindowMode windowMode, bool windowBorder)

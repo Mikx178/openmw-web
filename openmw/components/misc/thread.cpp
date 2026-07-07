@@ -66,7 +66,9 @@ namespace Misc
 {
     void setCurrentThreadIdlePriority()
     {
-        Log(Debug::Warning) << "Idle thread priority is not supported on this system";
+        // Not actionable — a statement of platform capability (e.g. Emscripten has no thread
+        // priority API), not a problem. Debug level so it doesn't read as a warning in the log.
+        Log(Debug::Debug) << "Idle thread priority is not supported on this system";
     }
 }
 
