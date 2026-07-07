@@ -850,12 +850,33 @@
              return bounce('Morrowind.esm / Morrowind.bsa were not found.');
            append('[local] mounted '+count+' files (streaming from disk)');
 
-           // Build the load order from what's actually present (official masters only).
+           // Build the load order. Official masters first (fixed canonical order)…
            var masters=['morrowind.esm','tribunal.esm','bloodmoon.esm'];
            var archives=['morrowind.bsa','tribunal.bsa','bloodmoon.bsa'];
            var content=[], fbarch=[];
            masters.forEach(function(m){ if(rootFiles.has(m)) content.push(rootFiles.get(m)); });
            archives.forEach(function(a){ if(rootFiles.has(a)) fbarch.push(rootFiles.get(a)); });
+
+           // …then any USER MODS dropped in the folder: extra .esm load as masters (after the
+           // official ones), then .esp plugins; both alphabetical. Mod .bsa archives are registered
+           // too. This covers "I put some mods in Data Files"; a precise custom load order still
+           // needs a desktop mod manager. ?nomods=1 ignores them (play vanilla).
+           var official=new Set(masters.concat(archives)), modEsm=[], modEsp=[], modBsa=[];
+           if (!/[?&]nomods=1\b/.test(location.search))
+             rootFiles.forEach(function(orig, lower){
+               if (official.has(lower)) return;
+               if (/\.esm$/.test(lower)) modEsm.push(orig);
+               else if (/\.esp$/.test(lower)) modEsp.push(orig);
+               else if (/\.bsa$/.test(lower)) modBsa.push(orig);
+             });
+           var byName=function(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; };
+           modEsm.sort(byName); modEsp.sort(byName); modBsa.sort(byName);
+           modBsa.forEach(function(a){ fbarch.push(a); });
+           modEsm.forEach(function(c){ content.push(c); });
+           modEsp.forEach(function(c){ content.push(c); });
+           var mods=modEsm.concat(modEsp);
+           if (mods.length) append('[local] + '+mods.length+' mod plugin(s): '+mods.join(', '));
+
            var wantMovies = hasVideoBik && !/[?&]novid\b/.test(location.search);
 
            (function waitCfg(){
