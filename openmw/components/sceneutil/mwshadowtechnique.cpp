@@ -2030,10 +2030,20 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
                 double mapRes = static_cast<double>(settings->getTextureSize().x());
                 if (mapRes < 1.0) mapRes = 1024.0;
                 double texelSize = (2.0 * half) / mapRes;
+                double cxRaw = cx, cyRaw = cy;
                 if (texelSize > 0.0)
                 {
                     cx = std::floor(cx / texelSize) * texelSize;
                     cy = std::floor(cy / texelSize) * texelSize;
+                }
+                if (getenv("OMW_SHADOW_DEBUG"))
+                {
+                    static int sDbgBase = 0;
+                    if ((sDbgBase++ % 6) == 0)
+                        OSG_NOTICE << "[shadowdbg BASE] cam=" << _emsLatchViewCamera
+                            << " half=" << half << " texel=" << texelSize
+                            << " cxRaw=" << cxRaw << " cxSnap=" << cx
+                            << " cyRaw=" << cyRaw << " cySnap=" << cy << std::endl;
                 }
                 xMin = cx - half; xMax = cx + half;
                 yMin = cy - half; yMax = cy + half;
@@ -2778,10 +2788,20 @@ bool MWShadowTechnique::cropShadowCameraToMainFrustum(Frustum& frustum, osg::Cam
             double mapRes = static_cast<double>(s->getTextureSize().x());
             if (mapRes < 1.0) mapRes = 1024.0;
             double texel = (2.0 * half) / mapRes;
+            double cxRawC = cx, cyRawC = cy;
             if (texel > 0.0)
             {
                 cx = std::floor(cx / texel) * texel;
                 cy = std::floor(cy / texel) * texel;
+            }
+            if (getenv("OMW_SHADOW_DEBUG"))
+            {
+                static std::map<const osg::Camera*, int> sDbgCropN;
+                if ((sDbgCropN[camera]++ % 12) == 0)
+                    OSG_NOTICE << "[shadowdbg CROP] cam=" << camera
+                        << " half=" << half << " texel=" << texel
+                        << " cxRaw=" << cxRawC << " cxSnap=" << cx
+                        << " cyRaw=" << cyRawC << " cySnap=" << cy << std::endl;
             }
             xMin = cx - half; xMax = cx + half;
             yMin = cy - half; yMax = cy + half;

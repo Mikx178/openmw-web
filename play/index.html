@@ -516,6 +516,8 @@
        // ?pp=0 disables it for A/B testing.
        // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
        if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
+       // ?shadowdbg -> per-frame shadow texel/latch diagnostics (mwshadowtechnique BASE/CROP logs)
+       if (/[?&]shadowdbg\b/.test(location.search)) ENV.OMW_SHADOW_DEBUG='1';
        // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
        // and the HUD status line); ?debuglog restores full Verbose logging.
        // NOTE: toLevel() in debugging.cpp only matches UPPERCASE names; 'Info' silently fell
@@ -601,12 +603,19 @@
            // ?noshadow=1 (QA) disables shadows entirely for A/B — confirms whether the hard-edged
            // "swimming" patches on flat surfaces (esp. water) are the shadow cascade boundary.
            'enable shadows = ' + (/[?&]noshadow=1\b/.test(location.search) ? 'false' : 'true') + '\n' +
-           'shadow map resolution = 2048\n' +      // finer texels -> less shadow swim on camera turn
+           // SWIM FIX (live-confirmed 2026-07-06): the residual shadow "swim" was CASCADE TRANSITIONS —
+           // per-cascade texel grids are world-locked (verified by telemetry), but with 3 PSSM cascades
+           // objects crossing the split boundaries get re-shadowed at a different cascade resolution as
+           // the camera moves, which reads as swimming. ONE cascade = no transitions = rock-steady
+           // shadows; a high-res single map (16384, fits WebGL2's common 16384 max-texture-size) makes
+           // up the resolution a cascade stack would have provided. ?shadowres=N / ?shadowmaps=N override (QA).
+           'shadow map resolution = ' + ((/[?&]shadowres=(\d+)/.exec(location.search)||[])[1] || '16384') + '\n' +
+           'number of shadow maps = ' + ((/[?&]shadowmaps=(\d+)/.exec(location.search)||[])[1] || '1') + '\n' +
            'actor shadows = true\n' +
            'player shadows = true\n' +
            'object shadows = false\n' +            // biggest perf cost; leave off by default
            'terrain shadows = true\n' +
-           'maximum shadow map distance = 4096\n' +
+           'maximum shadow map distance = ' + ((/[?&]shadowdist=(\d+)/.exec(location.search)||[])[1] || '4096') + '\n' +   // ?shadowdist=N (QA)
            '[Cells]\n' +
            'preload cell cache max = 18\n' +   // engine asked for 18 for exterior preloading
            '[Game]\n' +
