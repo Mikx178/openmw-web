@@ -483,6 +483,24 @@ namespace MWRender
 
         reloadIfRequired();
 
+#ifdef __EMSCRIPTEN__
+        // Web brightness control: SDL gamma ramps don't exist in a browser, so the Options
+        // "Gamma" slider ([Video] gamma) is applied here instead, driving the always-available
+        // 'adjustments' technique's uGamma. Re-applied every frame (a trivial CPU-side value
+        // store) so it survives chain reloads and technique recompiles without extra plumbing.
+        {
+            const float gamma = std::max(0.1f, Settings::video().mGamma.get());
+            for (auto& technique : mTechniques)
+            {
+                if (technique && technique->getName() == "adjustments")
+                {
+                    setUniform(technique, "uGamma", gamma);
+                    break;
+                }
+            }
+        }
+#endif
+
         mCanvases[frameId]->setNodeMask(~0u);
         mCanvases[!frameId]->setNodeMask(0);
 

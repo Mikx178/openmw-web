@@ -1,5 +1,6 @@
 uniform_float uGamma {
     default = 1.0;
+    static = false;
     step = 0.01;
     min = 0.0;
     max = 5.0;

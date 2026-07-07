@@ -283,8 +283,11 @@ namespace MWGui
         getWidget(mMinimumBrightnessText, "MinimumBrightnessText");
         getWidget(mMinimumBrightnessScroll, "MinimumBrightnessScroll");
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__EMSCRIPTEN__)
         // hide gamma controls since it currently does not work under Linux
+        // (on the web build the slider IS shown: [Video] gamma drives the post-processing
+        // 'adjustments' uGamma each frame — see PostProcessor — so it works as a real
+        // brightness control there.)
         MyGUI::ScrollBar* gammaSlider;
         getWidget(gammaSlider, "GammaSlider");
         gammaSlider->setVisible(false);
@@ -450,13 +453,16 @@ namespace MWGui
         // can't supply, so window-mode/border/VSync are meaningless-to-misleading here. Disable
         // them (the canvas is always "windowed", CSS-scaled to fill; VSync is browser-controlled
         // via requestAnimationFrame) rather than presenting silent no-ops. Resolution still works.
+        // Hide the hint texts entirely (the F3 frame-rate hint and the window-mode hint read as
+        // clutter over the menu).
         mWindowModeList->setEnabled(false);
         mWindowBorderButton->setEnabled(false);
         mVSyncModeList->setEnabled(false);
-        if (auto* hint = mWindowModeHint->castType<MyGUI::TextBox>(false))
-            hint->setCaption(
-                "Browser: always windowed (double-click the canvas for fullscreen). VSync is browser-controlled.");
-        mWindowModeHint->setVisible(true);
+        mWindowModeHint->setVisible(false);
+        MyGUI::TextBox* frameRateHint = nullptr;
+        getWidget(frameRateHint, "FrameRateHint");
+        if (frameRateHint)
+            frameRateHint->setVisible(false);
 #endif
 
         mKeyboardSwitch->setStateSelected(true);

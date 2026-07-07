@@ -558,6 +558,11 @@
            'resolution x = ' + rW + '\n' +
            'resolution y = ' + rH + '\n' +
            'window mode = 2\n' +                   // 2 = windowed (canvas); CSS scales it to fill
+           // Default brightness: [Video] gamma drives the PP 'adjustments' uGamma every frame
+           // (PostProcessor::update), and the Options "Gamma" slider controls it live. 1.2 lifts
+           // shadows/midtones so dim areas are readable without washing out daylight; a user's
+           // saved slider value overrides this baseline. ?gamma=N (QA).
+           'gamma = ' + ((/[?&]gamma=([0-9.]+)/.exec(location.search)||[])[1] || '1.2') + '\n' +
            // ?aa=N (QA) sets [Video] antialiasing so scene MSAA can be exercised headlessly
            // (default off = 1:1 with desktop). Normal play leaves AA to the Options menu.
            (/[?&]aa=(\d+)/.test(location.search) ? 'antialiasing = ' + RegExp.$1 + '\n' : '') +
