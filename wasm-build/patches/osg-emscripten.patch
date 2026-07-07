@@ -724,3 +724,23 @@ index 8b4ffe2..1ff41f7 100644
      OSG_INFO<<"Viewer::startThreading() - starting threading"<<std::endl;
  
      // release any context held by the main thread.
+diff --git a/src/osgUtil/GLObjectsVisitor.cpp b/src/osgUtil/GLObjectsVisitor.cpp
+index 472179b..3a715bb 100644
+--- a/src/osgUtil/GLObjectsVisitor.cpp
++++ b/src/osgUtil/GLObjectsVisitor.cpp
+@@ -28,7 +28,15 @@ GLObjectsVisitor::GLObjectsVisitor(Mode mode)
+     setTraversalMode(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN);
+ 
+     _mode = mode;
++#ifdef __EMSCRIPTEN__
++    // The rest of the web build runs NEVER_CHECK_GL_ERRORS (glGetError is a hard flush+wait sync
++    // in WebGL, and ANGLE surfaces benign 'invalid operation' from the per-attribute compile-time
++    // probe here — a boot-time warning with no functional effect). This visitor hardcoded
++    // ONCE_PER_ATTRIBUTE, ignoring that global policy; match it so the boot log stays clean.
++    _checkGLErrors = osg::State::NEVER_CHECK_GL_ERRORS;
++#else
+     _checkGLErrors = osg::State::ONCE_PER_ATTRIBUTE;
++#endif
+ }
+ 
+ void GLObjectsVisitor::apply(osg::Node& node)
