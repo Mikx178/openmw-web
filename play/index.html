@@ -692,9 +692,15 @@
            'object paging merge factor = ' + ((/[?&]merge=(\d+)/.exec(location.search)||[])[1] || '250') + '\n' +
            '[Water]\n' +
            'shader = true\n' +                     // real water shader (reflections/refractions)
-           'reflection detail = ' + (/[?&]norefl=1\b/.test(location.search) ? '0' : '2') + '\n' +   // 2 = reflect statics+terrain; ?norefl=1 disables (QA: isolate whether a boxy artifact is the reflection or the refraction/shoreline).
+           // reflection detail: 2=statics+terrain, 3=World, 4=Objects, 5=Groundcover. Higher = more
+           // draw calls in the reflection pass (CPU cost). ?refldetail=N / ?norefl=1 (QA).
+           'reflection detail = ' + ((/[?&]refldetail=(\d+)/.exec(location.search)||[])[1] || (/[?&]norefl=1\b/.test(location.search) ? '0' : '3')) + '\n' +
            'refraction = ' + (/[?&]norefr=1\b/.test(location.search) ? 'false' : 'true') + '\n' +   // ?norefr=1 disables refraction (QA isolation).
-           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '512') + '\n' +   // reflection/refraction RTT size. 512 keeps detail; the reflected-edge aliasing (RTT can't be MSAA'd on GLES) is smoothed by a multi-tap blur in water.frag (reflectionBlur define). ?rtt=N overrides (QA).
+           // rtt size 1024 (was 512): sharper reflection/refraction (max-fidelity default). GPU cost
+           // only (we're CPU-bound), and water.frag's reflectionBlur is rtt-aware (~3 texels) so the
+           // sharper buffer reads sharper instead of over-blurring. ?rtt=N overrides (QA).
+           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '1024') + '\n' +
+           'rain ripple detail = 2\n' +            // dense rain ripples (cheap)
            'small feature culling pixel size = 30.0\n' +
            '[Fog]\n' +
            // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
@@ -744,7 +750,9 @@
            '[Game]\n' +
            'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
            '[Shaders]\n' +
-           'max lights = 8\n' +                    // fewer dynamic lights per object -> faster shading
+           // max lights: dynamic point lights evaluated per object. Higher = richer lit scenes but
+           // more per-object shading cost. ?maxlights=N overrides (QA); default measured for 60fps.
+           'max lights = ' + ((/[?&]maxlights=(\d+)/.exec(location.search)||[])[1] || '16') + '\n' +
            // Per-pixel lighting: MW geometry is low-poly, so per-VERTEX lighting looks faceted
            // (flat-shaded walls, banding on terrain). Per-pixel smooths the gradients across each
            // face. Pure fragment-shader path (already GLES-ported); fill cost is bounded by
@@ -798,6 +806,9 @@
            // bump the web build to 16x for crisp ground/road/floor textures at grazing angles
            // (the single biggest cheap sharpness win, near-zero cost on modern GPUs).
            'anisotropy = 16\n' +
+           // Trilinear mip filtering (engine default is 'nearest' mip = visible mip seams). Smooth
+           // blending between mip levels; pairs with anisotropy=16. Cheap. ?mipnearest=1 reverts (QA).
+           'texture mipmap = ' + (/[?&]mipnearest=1\b/.test(location.search) ? 'nearest' : 'linear') + '\n' +
            // ?pp=1 enables the experimental GLES post-processing path (also sets OPENMW_ENABLE_PP
            // env — see preRun). PP renders the scene single-sample (no MSAA-depth-resolve freeze).
            // The curated chain is controllable with ?ppchain=<csv> for A/B testing:
