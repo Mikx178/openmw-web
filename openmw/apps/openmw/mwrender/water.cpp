@@ -331,6 +331,10 @@ namespace MWRender
     {
     public:
         Reflection(uint32_t rttSize, bool isInterior)
+            // NOTE (web): multisampling this RTT (samples>0) is silently ignored by the WebGL2/OSG-GLES
+            // path — it neither errors nor antialiases — so reflected-geometry edge aliasing can't be
+            // fixed here with MSAA. Higher rtt size makes the aliasing sharper/worse; the web build keeps
+            // 'rtt size' low (play/index.html) so the reflection stays naturally soft and smooth.
             : RTTNode(rttSize, rttSize, 0, false, 0, StereoAwareness::Aware, shouldAddMSAAIntermediateTarget())
         {
             setInterior(isInterior);

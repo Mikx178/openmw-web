@@ -571,7 +571,7 @@
            'shader = true\n' +                     // real water shader (reflections/refractions)
            'reflection detail = 2\n' +             // 2 = reflect statics+terrain (0 disabled it)
            'refraction = true\n' +
-           'rtt size = 1024\n' +   // reflection/refraction RTT: 512 looked grainy/pixelated upscaled onto the device-pixel (retina) canvas, esp. with sharp anisotropic terrain reflected in; 1024 halves the magnification
+           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '256') + '\n' +   // reflection/refraction RTT size. Kept LOW deliberately: the reflection RTT can't be MSAA'd on this WebGL2/OSG build (multisampled RTTs are silently ignored), so a HIGHER res just makes the reflected-shoreline edge alias into a boxy stair-step. A low res is naturally soft/smooth (how real water reads). ?rtt=N overrides (QA).
            'small feature culling pixel size = 30.0\n' +
            '[Fog]\n' +
            // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
