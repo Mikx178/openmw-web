@@ -14,9 +14,13 @@
  #log.show{display:block}
  .err{color:#f38ba8}
  /* Always-visible compact status: FPS + latest phase. Toggle full log with backtick (`). */
- #hud{position:fixed;top:0;left:0;z-index:11;padding:3px 9px;cursor:pointer;max-width:100vw;
+ /* Debug HUD (FPS / status / log toggle) is hidden by default — a clean screen for players.
+    Opt in with ?hud=1 (adds .show); it's also auto-revealed on the first fault so errors stay
+    reachable. See the boot script. */
+ #hud{display:none;position:fixed;top:0;left:0;z-index:11;padding:3px 9px;cursor:pointer;max-width:100vw;
       overflow:hidden;white-space:pre;background:rgba(10,10,15,.72);color:#89b4fa;
       font:11px/1.35 ui-monospace,Menlo,monospace;text-shadow:0 1px 2px #000;user-select:none}
+ #hud.show{display:block}
  #hud:hover{background:rgba(20,20,30,.9)}
  /* Save backup/restore controls — top-right, appear once the game is running. */
  #savetools{position:fixed;top:0;right:0;z-index:11;display:none;gap:6px;padding:3px 8px;
@@ -171,6 +175,9 @@
    });
  })();
  const hudEl = document.getElementById('hud');
+ // Debug HUD is opt-in: ?hud=1 (or ?debug) shows the FPS/status bar + log toggle. Hidden otherwise
+ // so players get a clean screen. It is also auto-revealed on the first fault (see showLogOnce).
+ if (/[?&](hud=1|debug)\b/.test(location.search)) hudEl.classList.add('show');
  let lastMsg = 'booting…';
  function append(t, cls){ if(!started){logEl.textContent='';started=true;}
    const s=document.createElement('span'); if(cls)s.className=cls; s.textContent=t+"\n"; logEl.appendChild(s);
@@ -266,7 +273,7 @@
  // the FIRST time a genuine JS fault occurs — NOT on routine engine warnings (OpenMW routes
  // Debug::Warning through printErr, which would otherwise pop the log open constantly).
  var __firstFaultShown = false;
- function showLogOnce(){ if(!__firstFaultShown){ __firstFaultShown = true; logEl.classList.add('show'); } }
+ function showLogOnce(){ if(!__firstFaultShown){ __firstFaultShown = true; hudEl.classList.add('show'); logEl.classList.add('show'); } }
  window.addEventListener('unhandledrejection', function(e){
    append('unhandled rejection: ' + (e.reason && e.reason.message || e.reason), 'err');
    showLogOnce();
@@ -781,9 +788,11 @@
            // per-cascade texel grids are world-locked (verified by telemetry), but with 3 PSSM cascades
            // objects crossing the split boundaries get re-shadowed at a different cascade resolution as
            // the camera moves, which reads as swimming. ONE cascade = no transitions = rock-steady
-           // shadows; a high-res single map (16384, fits WebGL2's common 16384 max-texture-size) makes
-           // up the resolution a cascade stack would have provided. ?shadowres=N / ?shadowmaps=N override (QA).
-           'shadow map resolution = ' + ((/[?&]shadowres=(\d+)/.exec(location.search)||[])[1] || '16384') + '\n' +
+           // shadows; a high-res single map makes up the resolution a cascade stack would have provided.
+           // 8192 (was 16384, user request 2026-07-07): a 16384 depth map is ~1GB — the single biggest
+           // memory consumer — and 8192 (~256MB) frees that headroom (e.g. for SSAA) at a still-crisp
+           // texel density over the 2048 shadow range. ?shadowres=N / ?shadowmaps=N override (QA).
+           'shadow map resolution = ' + ((/[?&]shadowres=(\d+)/.exec(location.search)||[])[1] || '8192') + '\n' +
            'number of shadow maps = ' + ((/[?&]shadowmaps=(\d+)/.exec(location.search)||[])[1] || '1') + '\n' +
            'actor shadows = true\n' +
            'player shadows = true\n' +
