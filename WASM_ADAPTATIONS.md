@@ -227,13 +227,30 @@ Emscripten's virtual filesystem and persisted in browser storage:
 
 Honest boundaries of the port. None are correctness bugs; each is a documented trade-off.
 
-- **MSAA anti-aliasing is off.** The build runs a reverse-Z depth buffer (see §1), and a
-  multisampled depth resolve does not compose correctly with reverse-Z through WebGL2/ANGLE's
-  blit-resolve — it renders the 3D scene black. Proper web MSAA needs a reverse-Z-aware resolve pass;
-  until then the AA option is clamped to 0 so users can't select a black screen.
-- **RTT color buffers are RGBA8** where desktop uses RGB (a few bytes/pixel more, no visual change).
+- **Water reflections can't be hardware-antialiased.** The reflection render target is single-sampled:
+  WebGL2 has no multisample *textures*, and the alpha-to-coverage MSAA-intermediate path only smooths
+  alpha-test edges, not the opaque reflected geometry. So reflected shoreline/pillar edges alias into a
+  faint stair-step. Mitigated with a small multi-tap blur on the reflection sample in `water.frag`
+  (Emscripten-only). A true fix needs a bespoke multisample-renderbuffer resolve wired to the reflection
+  camera like the main scene has.
+- **Clustered lighting is unavailable** — it requires GLSL 430 SSBOs, which WebGL2 (GLSL ES 3.00) has no
+  equivalent for. The engine detects this and falls back to the per-object-uniform shader light path, which
+  is what the web build uses (per-pixel, unclamped falloff, up to `max lights` per object).
+- **RTT color buffers are RGBA8** where desktop uses RGB (a few bytes/pixel more, no visual change) —
+  WebGL2 rejects unsized RGB as a color-renderable FBO attachment.
 - **Desktop Chrome / Chromium only.** Several workarounds are gated specifically to Chrome's ANGLE
   behavior; Firefox and Safari are untested. Mobile/touch is out of scope (no on-screen controls).
-- **No facial blink/talk animation.** Vertex morphing (`MorphGeometry`) is disabled on the web
-  because its per-frame VBO rewrite mis-uploads under WebGL2/ANGLE (it rendered heads as a cone); see
-  §1. Heads render as their static base mesh — correct shape, just no eyelid/mouth micro-animation.
+
+**Resolved since earlier drafts** (were limitations, now working):
+
+- **Hardware MSAA works** (`?aa=N`, off by default). Two stacked OSG-on-GLES resolve bugs in
+  `RenderStage.cpp` were patched — a compiled-out per-attachment resolve blit (COLOR_BUFFER0 folded into
+  the main color-only blit; WebGL2 rejects MSAA depth resolve) and a null `ext->glBlitFramebuffer` (the raw
+  WebGL2 symbol is called directly). Verified antialiased at `?aa=4`. SSAA (`?ss=N`) is also available.
+- **Facial blink/talk animation is re-enabled.** `MorphGeometry`'s per-frame VBO rewrite was mis-uploading
+  under ANGLE (heads rendered as a cone); the fix puts all morph arrays on one dedicated VBO like
+  `RigGeometry`. Faces animate normally.
+- **Post-processing works and ships on by default** (curated colour-grade + bloom-capable chain), with a
+  working Options → Video → Gamma slider driving brightness.
+- **Shadows are stable** — a single high-res (16384) cascade eliminated the cascade-transition "swim";
+  world-locked texel grid, no crawl on movement.
