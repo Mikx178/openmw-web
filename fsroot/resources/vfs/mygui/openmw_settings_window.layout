@@ -460,12 +460,12 @@
                         </Widget>
 
                         <Widget type="AutoSizedTextBox" skin="NormalText" position="0 176 200 18" align="Left Top" name="AntialiasingLabel">
-                            <Property key="Caption" value="Anti-aliasing"/>
+                            <Property key="Caption" value="Anti-aliasing (SSAA)"/>
                         </Widget>
                         <Widget type="ComboBox" align="Left Top" skin="MW_ComboBox" position="0 198 200 24" name="AntialiasingButton">
                             <Property key="AddItem" value="Off"/>
-                            <Property key="AddItem" value="MSAA 2x"/>
-                            <Property key="AddItem" value="MSAA 4x"/>
+                            <Property key="AddItem" value="1.5x"/>
+                            <Property key="AddItem" value="2x"/>
                         </Widget>
 
                     </Widget>

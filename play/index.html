@@ -289,7 +289,9 @@
      const rendering = !!(window.Module && window.Module.__omwRunning !== undefined);
      const running = rendering || !!(window.Module && window.Module._omw_pump_frame);
      if (rendering && window.__omwLoading) window.__omwLoading.done();
-     if (rendering) { var st=document.getElementById('savetools'); if (st) st.classList.add('show'); }
+     // Save Backup/Restore toolbar is opt-in (?savetools=1) — hidden by default so it never sits in
+     // the chrome. The tar backup/restore functionality stays wired up; only the buttons are gated.
+     if (rendering && /[?&]savetools=1\b/.test(location.search)) { var st=document.getElementById('savetools'); if (st) st.classList.add('show'); }
      const open = logEl.classList.contains('show');
      hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
      // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
@@ -437,7 +439,17 @@
      else { ss = parseFloat(localStorage.getItem('omw_ss')) || 1; }
    } catch (e) { ss = _ssm ? parseFloat(_ssm[1]) : 1; }
    ss = Math.max(1, Math.min(2, ss));
+   window.__baseScale = scale;   // budget-capped scale BEFORE SSAA (basis for the live SSAA resize)
    scale *= ss;
+   // MEMORY-SAFETY CEILING. SSAA multiplies the drawing buffer past the pixel budget, and the whole
+   // post-processing target stack scales with it. On top of the fixed ~1GB shadow map and ~1.5GB
+   // working set, a persisted 2x on a big retina display allocated a framebuffer that OOM'd the heap
+   // and FROZE the tab on boot. Clamp the FINAL buffer to a hard pixel count so SSAA degrades (less
+   // supersampling on big displays) instead of crashing. Small displays still get the full factor.
+   var __hardMax = window.__maxRenderPixels || 5500000;
+   if (w * h * scale * scale > __hardMax)
+     scale = Math.sqrt(__hardMax / (w * h));
+   window.__ssaaCurrent = scale / (window.__baseScale || scale);   // EFFECTIVE factor actually applied (<= ss after the clamp)
    window.__renderW = Math.max(320, Math.round(w * scale));
    window.__renderH = Math.max(240, Math.round(h * scale));
    // GUI scale = drawing-buffer px per CSS px. When the buffer is DPR-bigger than the CSS window,
@@ -491,6 +503,38 @@
        try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[resize err] '+e,'err'); }
      }, 300);
    });
+
+   // --- Live SSAA (supersampling) bridge. Hardware MSAA can't run under post-processing on WebGL2
+   // (can't resolve a multisampled depth buffer into the texture PP needs — postprocessor.cpp), so the
+   // in-game Options "Antialiasing" dropdown drives SSAA instead: the engine calls this with a factor
+   // (sqrt of the sample count, capped 2x) whenever the setting changes. We rescale the drawing buffer
+   // by newFactor/oldFactor and push it through the same omw_set_resolution path the window-resize uses
+   // — tier-agnostic (composes with the 50%/33% resolution tiers). Measured free at 60fps (CPU-bound,
+   // GPU absorbs the 4x fragments). Persisted to localStorage so it sticks across reloads. ---
+   window.__omwSetSSAA = function(factor){
+     factor = Math.max(1, Math.min(2, +factor || 1));
+     try { localStorage.setItem('omw_ss', String(factor)); } catch(e){}
+     // Recompute the buffer from scratch each call (display size × budget-capped base × factor), then
+     // apply the SAME memory-safety ceiling as boot, so the live path can never OOM either and there's
+     // no drift from repeated relative rescales.
+     var dpr = window.devicePixelRatio || 1;
+     var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+     var dw = cssW * dpr, dh = cssH * dpr;
+     var base = window.__baseScale || Math.min(1, Math.sqrt((window.__maxPixels || 4000000) / (dw * dh)));
+     var scl = base * factor;
+     var hardMax = window.__maxRenderPixels || 5500000;
+     if (dw * dh * scl * scl > hardMax)
+       scl = Math.sqrt(hardMax / (dw * dh));
+     var eff = scl / base;   // effective factor after the clamp
+     if (Math.abs(eff - (window.__ssaaCurrent || 1)) < 0.02) { window.__ssaaCurrent = eff; return; }
+     window.__ssaaCurrent = eff;
+     if (!(window.Module && Module._omw_set_resolution)) return; // engine not up yet; boot reads omw_ss
+     var rw = Math.max(320, Math.round(dw * scl)), rh = Math.max(240, Math.round(dh * scl));
+     window.__renderW = rw; window.__renderH = rh;
+     window.__guiScale = rw / cssW;
+     append('[ssaa] ' + factor + 'x (eff ' + eff.toFixed(2) + ') -> ' + rw + 'x' + rh);
+     try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[ssaa err] '+e,'err'); }
+   };
 
    // --- Keyboard capture guards (capture phase, before SDL sees them):
    //  - Tab must stay in-game (GUI navigation), not move browser focus.
@@ -692,9 +736,12 @@
            'object paging merge factor = ' + ((/[?&]merge=(\d+)/.exec(location.search)||[])[1] || '250') + '\n' +
            '[Water]\n' +
            'shader = true\n' +                     // real water shader (reflections/refractions)
-           // reflection detail: 2=statics+terrain, 3=World, 4=Objects, 5=Groundcover. Higher = more
-           // draw calls in the reflection pass (CPU cost). ?refldetail=N / ?norefl=1 (QA).
-           'reflection detail = ' + ((/[?&]refldetail=(\d+)/.exec(location.search)||[])[1] || (/[?&]norefl=1\b/.test(location.search) ? '0' : '3')) + '\n' +
+           // reflection detail: 0=sky only (no scene geometry re-rendered into the reflection),
+           // 2=statics+terrain, 3=World, 4=Objects, 5=Groundcover. Higher = more draw calls in the
+           // reflection pass (CPU cost). DEFAULT 0 for now: reflecting the dark near-shore bank produced
+           // an ugly dark band at the waterline, so we reflect only the sky (clean, vanilla-like) until
+           // that's tuned. ?refldetail=N to opt geometry reflections back in (e.g. 3 = World).
+           'reflection detail = ' + ((/[?&]refldetail=(\d+)/.exec(location.search)||[])[1] || (/[?&]norefl=1\b/.test(location.search) ? '0' : '0')) + '\n' +
            'refraction = ' + (/[?&]norefr=1\b/.test(location.search) ? 'false' : 'true') + '\n' +   // ?norefr=1 disables refraction (QA isolation).
            // rtt size 1024 (was 512): sharper reflection/refraction (max-fidelity default). GPU cost
            // only (we're CPU-bound), and water.frag's reflectionBlur is rtt-aware (~3 texels) so the
@@ -740,7 +787,12 @@
            'number of shadow maps = ' + ((/[?&]shadowmaps=(\d+)/.exec(location.search)||[])[1] || '1') + '\n' +
            'actor shadows = true\n' +
            'player shadows = true\n' +
-           'object shadows = false\n' +            // biggest perf cost; leave off by default
+           // object shadows: OFF by default. It WOULD fix the plank-leak (objects don't write the shadow
+           // map, so a plank can't occlude and the player's shadow passes through to the ground), BUT
+           // turning it on adds every object as a caster, which makes the single 16384 cascade's frustum
+           // fit shift as objects enter/leave view — reintroducing the shadow SWIM. Swim-free wins; the
+           // plank-leak stays. ?objshadow=1 (QA) to opt back in if you accept the swim.
+           'object shadows = ' + (/[?&]objshadow=1\b/.test(location.search) ? 'true' : 'false') + '\n' +
            'terrain shadows = true\n' +
            // 2048 (was 4096): with the single 16384 cascade, a tighter shadow range concentrates the
            // map's texels near the player — visibly crisper + steadier (user-confirmed). ?shadowdist=N (QA).

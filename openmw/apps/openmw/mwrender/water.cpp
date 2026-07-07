@@ -718,17 +718,19 @@ namespace MWRender
         // reflectionBlur: uv radius for the reflection multi-tap AA blur in water.frag. The reflection
         // RTT can't be MSAA'd on WebGL2/OSG-GLES (no multisample textures; the coverage-AA path only
         // touches alpha-test edges), so on web we average a few taps to soften the boxy reflected-edge
-        // aliasing. The radius is a FIXED ~3 reflection texels (3/rttSize in uv) so it tracks the RTT
-        // size — a higher rtt (sharper reflection) keeps the same small edge-smoothing instead of the
-        // old fixed 0.008 uv, which over-blurred (~8 texels) at rtt 1024+. 0 on desktop (real MSAA
-        // available there), so the desktop reflection stays pixel-identical.
+        // aliasing. This radius is SCREEN-SPACE: the reflection RTT maps to the whole screen, so a uv
+        // radius is a fraction of the screen regardless of rtt size. It must therefore be a CONSTANT uv
+        // (0.008, the value confirmed to smooth the boxy reflection), NOT scaled by rttSize — tying it
+        // to texel count (3/rttSize) halved the on-screen softening at rtt 1024 and brought the grainy
+        // reflection back. A larger rtt still helps: it samples the same-radius blur from a sharper base.
+        // 0.006 is tuned as the sweet spot: enough to kill the boxy close-up reflected-edge aliasing,
+        // but small enough that it doesn't over-smear the foreshortened distant reflection into a blob
+        // (0.008 was noticeably blobby at grazing angles; a 2048 rtt would fix both but drops <60fps).
+        // 0 on desktop (real MSAA available there), so the desktop reflection stays pixel-identical.
         // (a separate integer enable-define because the GLSL preprocessor #if is integer-only)
 #ifdef __EMSCRIPTEN__
-        {
-            const unsigned int reflRttSize = Settings::water().mRttSize > 0 ? Settings::water().mRttSize : 512;
-            defineMap["reflectionBlurEnabled"] = "1";
-            defineMap["reflectionBlur"] = std::to_string(3.0f / static_cast<float>(reflRttSize));
-        }
+        defineMap["reflectionBlurEnabled"] = "1";
+        defineMap["reflectionBlur"] = "0.006";
 #else
         defineMap["reflectionBlurEnabled"] = "0";
         defineMap["reflectionBlur"] = "0.0";

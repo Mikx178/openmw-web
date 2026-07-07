@@ -308,10 +308,11 @@ namespace MWGui
         mTextureFilteringButton->eventComboChangePosition
             += MyGUI::newDelegate(this, &SettingsWindow::onTextureFilteringChanged);
         {
-            // Anti-aliasing dropdown: items are Off / MSAA 2x / 4x -> sample counts {0,2,4}. 8x is
-            // omitted because WebGL2/ANGLE (e.g. Apple Metal) caps hardware MSAA at 4x for the
-            // color format OpenMW uses — 8x silently negotiates down to 4x (engine.cpp), which
-            // looked like the setting "not saving". A value of 8 from an old config maps to 4x.
+            // Anti-aliasing dropdown: items are Off / 1.5x / 2x -> stored {0,2,4}. On the web this
+            // drives SSAA (supersampling), not hardware MSAA: MSAA can't run under post-processing on
+            // WebGL2 (can't resolve a multisampled depth buffer to the texture PP needs), so the stored
+            // value is mapped to a supersample factor {1.0,1.5,2.0} in RenderingManager and applied by
+            // rescaling the drawing buffer. Any larger legacy value (8/16) clamps to the 2x entry.
             const int aa = Settings::video().mAntialiasing;
             const size_t aaIdx = aa >= 4 ? 2 : aa >= 2 ? 1 : 0;
             mAntialiasingButton->setIndexSelected(aaIdx);
@@ -663,14 +664,15 @@ namespace MWGui
         if (pos == MyGUI::ITEM_NONE)
             return;
 
-        // Dropdown index -> MSAA sample count.
+        // Dropdown index (Off / 1.5x / 2x) -> stored value. On the web this is mapped to an SSAA
+        // supersample factor (see RenderingManager); on desktop it's a real MSAA sample count.
         static const int samples[] = { 0, 2, 4 };
         Settings::video().mAntialiasing.set(samples[std::min<size_t>(pos, 2)]);
 
 #ifdef __EMSCRIPTEN__
-        // Apply live: RenderingManager::processChangedSettings -> PostProcessor::setSamples rebuilds
-        // the render FBOs with the new sample count immediately — no restart/reload needed (and so
-        // no lost-write race from a fast refresh). The value persists via the normal save path.
+        // Apply live: RenderingManager::processChangedSettings drives window.__omwSetSSAA, which
+        // rescales the drawing buffer immediately — no restart/reload needed (and so no lost-write
+        // race from a fast refresh). The value persists via the normal save path.
         apply();
 #else
         // Desktop reads MSAA at PostProcessor construction, so it takes effect on restart.

@@ -1,6 +1,11 @@
 #include "renderingmanager.hpp"
 
 #include <cstdlib>
+#ifdef __EMSCRIPTEN__
+#include <cmath>
+
+#include <emscripten.h>
+#endif
 
 #include <osg/ClipControl>
 #include <osg/ComputeBoundsVisitor>
@@ -1443,11 +1448,23 @@ namespace MWRender
             }
             else if (it->first == "Video" && it->second == "antialiasing")
             {
+#ifdef __EMSCRIPTEN__
+                // Hardware MSAA can't run under post-processing on WebGL2: PP needs a sampleable depth
+                // texture, and WebGL2 forbids resolving a multisampled depth buffer into one, so the
+                // scene is forced single-sample under PP (postprocessor.cpp) and the sample count is a
+                // no-op. So on the web the Options "Antialiasing (SSAA)" dropdown drives SSAA
+                // (supersampling) instead: render at factor× and let the browser box-downscale. The
+                // dropdown stores {0,2,4} (Off / 1.5× / 2×); map those to the supersample factor
+                // {1.0, 1.5, 2.0}. Capped at 2× (measured free at 60fps — CPU-bound, GPU absorbs the
+                // 4× fragments). The JS bridge resizes the drawing buffer live via omw_set_resolution.
+                const int n = Settings::video().mAntialiasing;
+                const double factor = n >= 4 ? 2.0 : n >= 2 ? 1.5 : 1.0;
+                emscripten_run_script(("if(window.__omwSetSSAA)window.__omwSetSSAA(" + std::to_string(factor) + ")").c_str());
+#else
                 // Live MSAA change (Options anti-aliasing dropdown) — rebuild the render FBOs with
-                // the new sample count instead of requiring a restart. On the web this also dodges
-                // the settings-not-sticking issue: applying live means the player never refreshes,
-                // so the async IDBFS save always has time to persist (no reload-race).
+                // the new sample count instead of requiring a restart.
                 mPostProcessor->setSamples(Settings::video().mAntialiasing);
+#endif
             }
             else if (it->first == "Post Processing" && it->second == "enabled")
             {
