@@ -615,7 +615,9 @@
            'player shadows = true\n' +
            'object shadows = false\n' +            // biggest perf cost; leave off by default
            'terrain shadows = true\n' +
-           'maximum shadow map distance = ' + ((/[?&]shadowdist=(\d+)/.exec(location.search)||[])[1] || '4096') + '\n' +   // ?shadowdist=N (QA)
+           // 2048 (was 4096): with the single 16384 cascade, a tighter shadow range concentrates the
+           // map's texels near the player — visibly crisper + steadier (user-confirmed). ?shadowdist=N (QA).
+           'maximum shadow map distance = ' + ((/[?&]shadowdist=(\d+)/.exec(location.search)||[])[1] || '2048') + '\n' +
            '[Cells]\n' +
            'preload cell cache max = 18\n' +   // engine asked for 18 for exterior preloading
            '[Game]\n' +
