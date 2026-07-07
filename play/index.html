@@ -18,6 +18,13 @@
       overflow:hidden;white-space:pre;background:rgba(10,10,15,.72);color:#89b4fa;
       font:11px/1.35 ui-monospace,Menlo,monospace;text-shadow:0 1px 2px #000;user-select:none}
  #hud:hover{background:rgba(20,20,30,.9)}
+ /* Save backup/restore controls — top-right, appear once the game is running. */
+ #savetools{position:fixed;top:0;right:0;z-index:11;display:none;gap:6px;padding:3px 8px;
+      background:rgba(10,10,15,.72);font:11px/1.35 ui-monospace,Menlo,monospace}
+ #savetools.show{display:flex}
+ #savetools button{cursor:pointer;background:rgba(20,20,30,.6);color:#cba6f7;border:1px solid #45475a;
+      border-radius:4px;padding:2px 8px;font:inherit}
+ #savetools button:hover{background:rgba(40,40,55,.95);color:#f5e0dc}
  /* --- Themed loading overlay (matches launcher.html: ash + Dwemer bronze + Red Mountain
     ember). Covers the canvas during download/boot, fades out on the engine's first frame. --- */
  #loading{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;
@@ -53,6 +60,11 @@
 <body>
 <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
 <div id="hud">☰ starting…</div>
+<div id="savetools" title="Back up or restore your saves and settings">
+  <button id="btn-backup" type="button">⬇ Backup</button>
+  <button id="btn-restore" type="button">⬆ Restore</button>
+  <input id="restore-file" type="file" accept=".tar" style="display:none">
+</div>
 <div id="log">booting…</div>
 <div id="loading" class="indet">
   <div class="ld-inner">
@@ -277,6 +289,7 @@
      const rendering = !!(window.Module && window.Module.__omwRunning !== undefined);
      const running = rendering || !!(window.Module && window.Module._omw_pump_frame);
      if (rendering && window.__omwLoading) window.__omwLoading.done();
+     if (rendering) { var st=document.getElementById('savetools'); if (st) st.classList.add('show'); }
      const open = logEl.classList.contains('show');
      hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
      // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
@@ -286,6 +299,103 @@
        lastFps = fps;
      }
    }, 500);
+ })();
+
+ // --- Save backup / restore. Everything persistent (saves, settings, keybindings, screenshots)
+ // lives under /userdata on IDBFS. Backup tars that whole tree so a player can move machines or
+ // recover from browser-data loss; Restore unpacks a backup and re-syncs it to IndexedDB. Uses a
+ // tiny self-contained USTAR reader/writer (no deps). ---
+ (function(){
+   var ROOT='/userdata';
+   function octal(n,len){ var s=n.toString(8); while(s.length<len-1) s='0'+s; return s+'\0'; }
+   // Walk FS collecting {path,data} for every regular file under dir.
+   function collect(dir, out){
+     var ents; try { ents=FS.readdir(dir); } catch(e){ return; }
+     ents.forEach(function(name){
+       if (name==='.'||name==='..') return;
+       var p=dir+'/'+name, st;
+       try { st=FS.stat(p); } catch(e){ return; }
+       if (FS.isDir(st.mode)) collect(p, out);
+       else if (FS.isFile(st.mode)) { try { out.push({path:p, data:FS.readFile(p)}); } catch(e){} }
+     });
+   }
+   function makeTar(files){
+     var blocks=[];
+     files.forEach(function(f){
+       var name=f.path.replace(/^\//,'');           // tar paths are relative
+       var hdr=new Uint8Array(512);
+       var enc=new TextEncoder();
+       function put(str,off,len){ var b=enc.encode(str); for(var i=0;i<b.length&&i<len;i++) hdr[off+i]=b[i]; }
+       put(name,0,100);
+       put('0000644\0',100,8);                       // mode
+       put('0000000\0',108,8); put('0000000\0',116,8); // uid/gid
+       put(octal(f.data.length,12),124,12);          // size
+       put(octal(0,12),136,12);                      // mtime (0; deterministic)
+       for(var i=148;i<156;i++) hdr[i]=32;           // checksum field = spaces for summing
+       hdr[156]=48;                                  // typeflag '0' = regular file
+       put('ustar\0',257,6); put('00',263,2);
+       var sum=0; for(var j=0;j<512;j++) sum+=hdr[j];
+       var cs=sum.toString(8); while(cs.length<6) cs='0'+cs; cs=cs.slice(-6);
+       put(cs,148,6); hdr[154]=0; hdr[155]=32;        // checksum: 6 octal digits + NUL + space
+       blocks.push(hdr, f.data);
+       var pad=(512-(f.data.length%512))%512; if(pad) blocks.push(new Uint8Array(pad));
+     });
+     blocks.push(new Uint8Array(1024));              // two zero blocks = end
+     var total=blocks.reduce(function(a,b){return a+b.length;},0), buf=new Uint8Array(total), off=0;
+     blocks.forEach(function(b){ buf.set(b,off); off+=b.length; });
+     return buf;
+   }
+   function readTar(buf){
+     var dec=new TextDecoder(), out=[], off=0;
+     while(off+512<=buf.length){
+       var name=dec.decode(buf.subarray(off,off+100)).replace(/\0.*$/,'');
+       if(!name){ break; }                            // zero block = end
+       var size=parseInt(dec.decode(buf.subarray(off+124,off+136)).replace(/[\0 ]/g,''),8)||0;
+       off+=512;
+       out.push({path:'/'+name, data:buf.subarray(off,off+size)});
+       off+=size+((512-(size%512))%512);
+     }
+     return out;
+   }
+   function stamp(){ var d=new Date(); function p(n){return(n<10?'0':'')+n;}
+     return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes()); }
+
+   function backup(){
+     try {
+       if (window.__omwSync) window.__omwSync();     // flush latest state to FS first
+       var files=[]; collect(ROOT, files);
+       if(!files.length){ append('[backup] nothing to back up yet','err'); return; }
+       var tar=makeTar(files);
+       var blob=new Blob([tar],{type:'application/x-tar'});
+       var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+       a.download='morrowind-saves-'+stamp()+'.tar';
+       document.body.appendChild(a); a.click();
+       setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
+       append('[backup] '+files.length+' files ('+(tar.length/1048576).toFixed(1)+' MB) downloaded');
+     } catch(e){ append('[backup err] '+(e&&e.message||e),'err'); }
+   }
+   function restore(file){
+     var r=new FileReader();
+     r.onload=function(){
+       try {
+         var entries=readTar(new Uint8Array(r.result)), n=0;
+         entries.forEach(function(en){
+           if(!/^\/userdata\//.test(en.path)) return; // only touch our own tree
+           var dir=en.path.replace(/\/[^\/]*$/,''); try{ FS.mkdirTree(dir); }catch(e){}
+           FS.writeFile(en.path, en.data); n++;
+         });
+         if (window.__omwSyncfs) window.__omwSyncfs();
+         append('[restore] '+n+' files restored. Reload to load them.');
+         alert('Restored '+n+' files. Reload the page to pick up the restored saves/settings.');
+       } catch(e){ append('[restore err] '+(e&&e.message||e),'err'); }
+     };
+     r.readAsArrayBuffer(file);
+   }
+   var b=document.getElementById('btn-backup'), rb=document.getElementById('btn-restore'),
+       rf=document.getElementById('restore-file');
+   if(b) b.addEventListener('click', backup);
+   if(rb&&rf){ rb.addEventListener('click', function(){ rf.click(); });
+     rf.addEventListener('change', function(){ if(rf.files&&rf.files[0]){ restore(rf.files[0]); rf.value=''; } }); }
  })();
 
  // --- Windowless full-viewport rendering: keep the canvas DRAWING BUFFER matched to the
