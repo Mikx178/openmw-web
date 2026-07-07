@@ -179,7 +179,8 @@
       <div class="kicker">Your copy</div>
       <h2>Bring your own Morrowind</h2>
       <p>Point to the <b>Data Files</b> folder from a legal install. Files stream straight from
-         your disk on demand, with no multi-gigabyte upload or copy.</p>
+         your disk on demand, with no multi-gigabyte upload or copy. <b>Tribunal</b> and
+         <b>Bloodmoon</b> are detected and loaded automatically if they're in the folder.</p>
       <div class="note" id="local-note"></div>
       <div class="go">Choose Data Files <span class="arw">▸</span></div>
     </div>
@@ -228,10 +229,16 @@
      if (h.kind==='directory' && name.toLowerCase()==='data files') return h;
    return dir;
  }
- async function looksLikeMorrowind(dir){
+ // Returns null if the base game is missing, else the detected content set (expansions are
+ // optional — index.html auto-adds Tribunal/Bloodmoon to the load order when present).
+ async function scanMorrowind(dir){
    const files=new Set();
    for await (const [name,h] of dir.entries()) if (h.kind==='file') files.add(name.toLowerCase());
-   return files.has('morrowind.esm') && files.has('morrowind.bsa');
+   if (!(files.has('morrowind.esm') && files.has('morrowind.bsa'))) return null;
+   return {
+     tribunal:  files.has('tribunal.esm')  && files.has('tribunal.bsa'),
+     bloodmoon: files.has('bloodmoon.esm') && files.has('bloodmoon.bsa'),
+   };
  }
 
  async function pickLocal(){
@@ -240,8 +247,9 @@
      const picked = await window.showDirectoryPicker({ id:'morrowind', mode:'read' });
      note('Checking folder…');
      const dir = await resolveDataDir(picked);
-     if (!(await looksLikeMorrowind(dir))){
-       note('That doesn’t look like a Morrowind Data Files folder. It must contain Morrowind.esm and Morrowind.bsa.','err');
+     const scan = await scanMorrowind(dir);
+     if (!scan){
+       note('That doesn’t look like a Morrowind Data Files folder. It must contain Morrowind.esm and Morrowind.bsa. (Tribunal and Bloodmoon are optional and picked up automatically.)','err');
        return;
      }
      // Grant read permission while we still hold the user gesture, then remember the handle.
@@ -249,7 +257,8 @@
        note('Read permission was denied.','err'); return;
      }
      await idbSet(KEY, dir);
-     note('Found Morrowind. Starting…','ok');
+     const exps=[scan.tribunal&&'Tribunal', scan.bloodmoon&&'Bloodmoon'].filter(Boolean);
+     note('Found Morrowind'+(exps.length?' + '+exps.join(' + '):' (no expansions detected)')+'. Starting…','ok');
      location.href='index.html?src=local';
    } catch(e){
      if (e && e.name==='AbortError') return; // user cancelled the picker
