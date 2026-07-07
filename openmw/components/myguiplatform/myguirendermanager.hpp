@@ -115,6 +115,10 @@ namespace MyGUIPlatform
 
         void setViewSize(int width, int height) override;
 
+        /** Update the GUI scaling factor at runtime (e.g. when the web render-buffer size changes with
+         * a resolution tier). The next setViewSize() applies it. */
+        void setScalingFactor(float scalingFactor) { mInvScalingFactor = scalingFactor > 0.f ? 1.f / scalingFactor : 1.f; }
+
         void registerShader(const std::string& shaderName, const std::string& vertexProgramFile,
             const std::string& fragmentProgramFile) override;
 

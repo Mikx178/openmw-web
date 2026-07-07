@@ -718,12 +718,17 @@ namespace MWRender
         // reflectionBlur: uv radius for the reflection multi-tap AA blur in water.frag. The reflection
         // RTT can't be MSAA'd on WebGL2/OSG-GLES (no multisample textures; the coverage-AA path only
         // touches alpha-test edges), so on web we average a few taps to soften the boxy reflected-edge
-        // aliasing. ~1 reflection texel at rtt size 512. 0 on desktop (real MSAA is available there), so
-        // the desktop reflection stays pixel-identical.
+        // aliasing. The radius is a FIXED ~3 reflection texels (3/rttSize in uv) so it tracks the RTT
+        // size — a higher rtt (sharper reflection) keeps the same small edge-smoothing instead of the
+        // old fixed 0.008 uv, which over-blurred (~8 texels) at rtt 1024+. 0 on desktop (real MSAA
+        // available there), so the desktop reflection stays pixel-identical.
         // (a separate integer enable-define because the GLSL preprocessor #if is integer-only)
 #ifdef __EMSCRIPTEN__
-        defineMap["reflectionBlurEnabled"] = "1";
-        defineMap["reflectionBlur"] = "0.008";
+        {
+            const unsigned int reflRttSize = Settings::water().mRttSize > 0 ? Settings::water().mRttSize : 512;
+            defineMap["reflectionBlurEnabled"] = "1";
+            defineMap["reflectionBlur"] = std::to_string(3.0f / static_cast<float>(reflRttSize));
+        }
 #else
         defineMap["reflectionBlurEnabled"] = "0";
         defineMap["reflectionBlur"] = "0.0";

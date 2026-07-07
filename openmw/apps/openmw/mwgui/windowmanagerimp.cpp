@@ -1380,6 +1380,21 @@ namespace MWGui
 
         Settings::Manager::resetPendingChanges(filter);
 
+#ifdef __EMSCRIPTEN__
+        // The render buffer (x,y) changes with the Options resolution tier while the canvas still
+        // DISPLAYS at the CSS window size, so the GUI scaling factor must be recomputed here (it was
+        // set once at construction). buffer px / CSS px keeps the GUI a constant on-screen size:
+        // e.g. at "Half (50%)" the 640-wide buffer with mScalingFactor 0.5 gives the same 1280 logical
+        // GUI space as 100%, so windows still fit. Reads window.innerWidth directly (the JS __guiScale
+        // is only refreshed on browser resize, not tier change, so it's stale here). Self-consistent
+        // with the boot formula: at boot x==__renderW and __guiScale==__renderW/innerWidth, so no jump.
+        {
+            const double cssW = EM_ASM_DOUBLE({ return window.innerWidth || 1; });
+            const float ratio = cssW > 0.0 ? static_cast<float>(x / cssW) : 1.f;
+            mScalingFactor = Settings::gui().mScalingFactor * ratio;
+            mGuiPlatform->getRenderManagerPtr()->setScalingFactor(mScalingFactor);
+        }
+#endif
         mGuiPlatform->getRenderManagerPtr()->setViewSize(x, y);
 
         // scaled size
