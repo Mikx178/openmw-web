@@ -331,10 +331,10 @@ namespace MWRender
     {
     public:
         Reflection(uint32_t rttSize, bool isInterior)
-            // NOTE (web): multisampling this RTT (samples>0) is silently ignored by the WebGL2/OSG-GLES
-            // path — it neither errors nor antialiases — so reflected-geometry edge aliasing can't be
-            // fixed here with MSAA. Higher rtt size makes the aliasing sharper/worse; the web build keeps
-            // 'rtt size' low (play/index.html) so the reflection stays naturally soft and smooth.
+            // NOTE (web): the reflection RTT can't get true opaque-edge MSAA on WebGL2/OSG-GLES — plain
+            // samples>0 is a no-op (no multisample textures), and the alpha-to-coverage MSAA-intermediate
+            // path is coverage-AA only (alpha-test edges, not opaque geometry). The reflected-edge aliasing
+            // is instead smoothed in water.frag with a small multi-tap blur on the reflection sample.
             : RTTNode(rttSize, rttSize, 0, false, 0, StereoAwareness::Aware, shouldAddMSAAIntermediateTarget())
         {
             setInterior(isInterior);
@@ -715,6 +715,19 @@ namespace MWRender
         defineMap["rippleMapSize"] = std::to_string(RipplesSurface::sRTTSize) + ".0";
         defineMap["sunlightScattering"] = Settings::water().mSunlightScattering ? "1" : "0";
         defineMap["wobblyShores"] = Settings::water().mWobblyShores ? "1" : "0";
+        // reflectionBlur: uv radius for the reflection multi-tap AA blur in water.frag. The reflection
+        // RTT can't be MSAA'd on WebGL2/OSG-GLES (no multisample textures; the coverage-AA path only
+        // touches alpha-test edges), so on web we average a few taps to soften the boxy reflected-edge
+        // aliasing. ~1 reflection texel at rtt size 512. 0 on desktop (real MSAA is available there), so
+        // the desktop reflection stays pixel-identical.
+        // (a separate integer enable-define because the GLSL preprocessor #if is integer-only)
+#ifdef __EMSCRIPTEN__
+        defineMap["reflectionBlurEnabled"] = "1";
+        defineMap["reflectionBlur"] = "0.008";
+#else
+        defineMap["reflectionBlurEnabled"] = "0";
+        defineMap["reflectionBlur"] = "0.0";
+#endif
 
         Stereo::shaderStereoDefines(defineMap);
 

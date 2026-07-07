@@ -164,7 +164,21 @@ void main(void)
     screenCoordsOffset *= clamp(realWaterDepth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
 #endif
     // reflection
-    vec3 reflection = sampleReflectionMap(screenCoords + screenCoordsOffset).rgb;
+    vec2 reflCoord = screenCoords + screenCoordsOffset;
+#if @reflectionBlurEnabled
+    // The reflection RTT is single-sampled (it can't be MSAA'd on this GLES build), so reflected
+    // geometry edges alias into a boxy stair-step. Average a small 5-tap tent around the sample to
+    // antialias those edges while keeping the reflection detailed. Radius (@reflectionBlur) is ~1
+    // reflection texel; 0 disables (desktop, where the RTT has real MSAA).
+    const float rAA = @reflectionBlur;
+    vec3 reflection = sampleReflectionMap(reflCoord).rgb * 0.4
+        + sampleReflectionMap(reflCoord + vec2( rAA,  rAA)).rgb * 0.15
+        + sampleReflectionMap(reflCoord + vec2(-rAA,  rAA)).rgb * 0.15
+        + sampleReflectionMap(reflCoord + vec2( rAA, -rAA)).rgb * 0.15
+        + sampleReflectionMap(reflCoord + vec2(-rAA, -rAA)).rgb * 0.15;
+#else
+    vec3 reflection = sampleReflectionMap(reflCoord).rgb;
+#endif
 
     vec3 waterColor = WATER_COLOR * sunFade;
 

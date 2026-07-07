@@ -569,9 +569,9 @@
            'object paging min size = 0.005\n' +   // render/merge the distant backdrop rocks + trees
            '[Water]\n' +
            'shader = true\n' +                     // real water shader (reflections/refractions)
-           'reflection detail = 2\n' +             // 2 = reflect statics+terrain (0 disabled it)
-           'refraction = true\n' +
-           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '256') + '\n' +   // reflection/refraction RTT size. Kept LOW deliberately: the reflection RTT can't be MSAA'd on this WebGL2/OSG build (multisampled RTTs are silently ignored), so a HIGHER res just makes the reflected-shoreline edge alias into a boxy stair-step. A low res is naturally soft/smooth (how real water reads). ?rtt=N overrides (QA).
+           'reflection detail = ' + (/[?&]norefl=1\b/.test(location.search) ? '0' : '2') + '\n' +   // 2 = reflect statics+terrain; ?norefl=1 disables (QA: isolate whether a boxy artifact is the reflection or the refraction/shoreline).
+           'refraction = ' + (/[?&]norefr=1\b/.test(location.search) ? 'false' : 'true') + '\n' +   // ?norefr=1 disables refraction (QA isolation).
+           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '512') + '\n' +   // reflection/refraction RTT size. 512 keeps detail; the reflected-edge aliasing (RTT can't be MSAA'd on GLES) is smoothed by a multi-tap blur in water.frag (reflectionBlur define). ?rtt=N overrides (QA).
            'small feature culling pixel size = 30.0\n' +
            '[Fog]\n' +
            // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
