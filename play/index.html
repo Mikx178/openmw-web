@@ -571,7 +571,7 @@
            'shader = true\n' +                     // real water shader (reflections/refractions)
            'reflection detail = 2\n' +             // 2 = reflect statics+terrain (0 disabled it)
            'refraction = true\n' +
-           'rtt size = 512\n' +
+           'rtt size = 1024\n' +   // reflection/refraction RTT: 512 looked grainy/pixelated upscaled onto the device-pixel (retina) canvas, esp. with sharp anisotropic terrain reflected in; 1024 halves the magnification
            'small feature culling pixel size = 30.0\n' +
            '[Fog]\n' +
            // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
@@ -598,7 +598,9 @@
                 'sky blending = true\n' +
                 'sky blending start = 0.9\n')) +
            '[Shadows]\n' +
-           'enable shadows = true\n' +             // WebGL2 depth-texture shadow maps
+           // ?noshadow=1 (QA) disables shadows entirely for A/B — confirms whether the hard-edged
+           // "swimming" patches on flat surfaces (esp. water) are the shadow cascade boundary.
+           'enable shadows = ' + (/[?&]noshadow=1\b/.test(location.search) ? 'false' : 'true') + '\n' +
            'shadow map resolution = 2048\n' +      // finer texels -> less shadow swim on camera turn
            'actor shadows = true\n' +
            'player shadows = true\n' +

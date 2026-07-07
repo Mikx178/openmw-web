@@ -1238,6 +1238,12 @@ void MWShadowTechnique::cull(osgUtil::CullVisitor& cv)
 
         // 3.2 compute RTT camera view+projection matrix settings
         //
+#ifdef __EMSCRIPTEN__
+        // Key the base-ortho stabilization latch to whichever VIEW is being culled this pass
+        // (main / water-reflection / local-map) so each keeps its own grow-only max instead of
+        // sharing one global that the auxiliary passes inflate every frame (shadow swim).
+        _emsLatchViewCamera = cv.getCurrentCamera();
+#endif
         osg::Matrixd projectionMatrix;
         osg::Matrixd viewMatrix;
         if (!computeShadowCameraSettings(frustum, pl, projectionMatrix, viewMatrix))
@@ -2010,11 +2016,17 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
                 // Latch half to its running maximum so texelSize becomes constant after the first
                 // frames and the grid stays locked. Cost: shadows a touch softer (slightly oversized
                 // ortho); benefit: no orientation-driven texel-size changes.
-                static double sStableBaseHalf = 0.0;
-                if (half < sStableBaseHalf)
-                    half = sStableBaseHalf;
+                // KEYED PER VIEW CAMERA (main / water-reflection / local-map): a single shared latch
+                // let the reflection & localmap passes — which cull the scene from a different
+                // viewpoint every frame — inflate the main view's half, so texelSize (hence the
+                // whole snapped shadow grid) shifted each frame = swim on ALL geometry, worst with
+                // water reflection enabled. Per-view keying gives each pass its own stable max.
+                static std::map<const osg::Camera*, double> sStableBaseHalf;
+                double& stableBase = sStableBaseHalf[_emsLatchViewCamera];
+                if (half < stableBase)
+                    half = stableBase;
                 else
-                    sStableBaseHalf = half;
+                    stableBase = half;
                 double mapRes = static_cast<double>(settings->getTextureSize().x());
                 if (mapRes < 1.0) mapRes = 1024.0;
                 double texelSize = (2.0 * half) / mapRes;
