@@ -574,6 +574,12 @@
            'object paging = true\n' +
            'object paging active grid = true\n' +
            'object paging min size = 0.005\n' +   // render/merge the distant backdrop rocks + trees
+           // Merge factor: how aggressively object paging batches statics into single merged
+           // meshes. Profiling showed the frame is CPU-bound on GL draw submission (~1770
+           // drawables, Draw 5-7ms), and distance rendering is the driver — more merging =
+           // fewer draw calls with IDENTICAL visuals (same objects, just pre-combined).
+           // ?merge=N overrides for A/B.
+           'object paging merge factor = ' + ((/[?&]merge=(\d+)/.exec(location.search)||[])[1] || '250') + '\n' +
            '[Water]\n' +
            'shader = true\n' +                     // real water shader (reflections/refractions)
            'reflection detail = ' + (/[?&]norefl=1\b/.test(location.search) ? '0' : '2') + '\n' +   // 2 = reflect statics+terrain; ?norefl=1 disables (QA: isolate whether a boxy artifact is the reflection or the refraction/shoreline).
