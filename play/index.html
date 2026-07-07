@@ -644,6 +644,20 @@
            // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
            // light) renders as a black quad. Cheap at max lights=8.
            'particle point lighting = true\n' +
+           // MODERN LIGHTING knobs (the pipeline itself is already modern: per-object-uniform
+           // shader point lights + forced per-pixel; clustered lighting needs GLSL-430 SSBOs so
+           // it's impossible on WebGL2 and the engine falls back automatically):
+           // - clamp lighting=false: drop the legacy fixed-function 0..1 light clamp so point
+           //   lights keep their smooth quadratic falloff instead of plateauing (OpenMW's
+           //   documented "modern look" switch; pairs with the raised interior floor above).
+           //   ?clamplight=1 restores the clamped legacy look (QA).
+           'clamp lighting = ' + (/[?&]clamplight=1\b/.test(location.search) ? 'true' : 'false') + '\n' +
+           // - match sunlight to sun=true: specular glints + water sun-glare track the VISIBLE
+           //   sun disc instead of the light vector's authored offset.
+           'match sunlight to sun = true\n' +
+           // - apply lighting to environment maps=true: env-mapped gear (glass armor, enchanted
+           //   items) is shaded by scene lighting instead of glowing fullbright in dark rooms.
+           'apply lighting to environment maps = true\n' +
            '[General]\n' +
            // Anisotropic filtering: EXT_texture_filter_anisotropic is already enabled at context
            // creation and applied per-texture by the patched OSG. The engine default is only 4x;
