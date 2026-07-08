@@ -22,10 +22,15 @@
 	@wasm path *.wasm *.wasm.br
 	header @wasm Content-Type application/wasm
 
-	# Launcher gate: bare "/" and "/index.html" (no explicit page) → the demo/upload chooser.
-	# Any deeper path or query string passes straight through.
-	@root path / /index.html
-	rewrite @root /launcher.html
+	# Launcher gate: ONLY the bare "/" or "/index.html" with NO query string → the demo/upload
+	# chooser. The launcher then navigates to index.html?nomw (demo) / ?src=local (upload) etc., and
+	# those MUST pass through to the game — so the query-string guard is essential (without it,
+	# index.html?nomw gets rewritten back to the launcher and the demo just "reloads" the chooser).
+	@bareroot {
+		path / /index.html
+		expression `{http.request.uri.query} == ""`
+	}
+	rewrite @bareroot /launcher.html
 
 	# Caching: the engine binaries are content-built and effectively immutable; the HTML is the only
 	# thing that should re-fetch. (Cloudflare's Cache Rule mirrors this at the edge.)
