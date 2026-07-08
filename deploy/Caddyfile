@@ -1,0 +1,42 @@
+# Container-internal Caddy for morrowind.virtastic.app (baked into the runtime image).
+# Serves the OpenMW-WASM web root (/srv) statically. The shared edge Caddy (nl-caddy) reverse-proxies
+# to this on the `nostalgia` docker network; this process handles the app's serving contract.
+#
+# Contract (see play/server.py, which this replaces): cross-origin isolation (COOP/COEP) for
+# SharedArrayBuffer, HTTP Range for streamfs chunking, brotli precompressed .br negotiation, and the
+# application/wasm MIME. Range and brotli are mutually exclusive (a Range request serves the raw file),
+# so BOTH the raw and .br siblings must be present in /srv.
+:8080 {
+	root * /srv
+
+	# Cross-origin isolation — MANDATORY. Without both of these, index.html:251 hard-fails with a
+	# "Browser not supported" overlay (crossOriginIsolated is false, SharedArrayBuffer unavailable).
+	# CORP lets the isolated context load its own same-origin subresources/workers.
+	header {
+		Cross-Origin-Opener-Policy   "same-origin"
+		Cross-Origin-Embedder-Policy "require-corp"
+		Cross-Origin-Resource-Policy "cross-origin"
+	}
+
+	# Correct MIME for WebAssembly (both the raw file and, transparently, its .br sibling).
+	@wasm path *.wasm *.wasm.br
+	header @wasm Content-Type application/wasm
+
+	# Launcher gate: bare "/" and "/index.html" (no explicit page) → the demo/upload chooser.
+	# Any deeper path or query string passes straight through.
+	@root path / /index.html
+	rewrite @root /launcher.html
+
+	# Caching: the engine binaries are content-built and effectively immutable; the HTML is the only
+	# thing that should re-fetch. (Cloudflare's Cache Rule mirrors this at the edge.)
+	@immutable path *.wasm *.data *.js *.br *.bsa *.esm *.tar
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+	@html path *.html
+	header @html Cache-Control "no-cache"
+
+	# file_server handles Range natively (on the raw file) and, with `precompressed br`, serves
+	# <file>.br as Content-Encoding: br + the base file's Content-Type when the client accepts br.
+	file_server {
+		precompressed br
+	}
+}

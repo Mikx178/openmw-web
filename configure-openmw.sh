@@ -1,9 +1,12 @@
 #!/bin/bash
 # Configure OpenMW for WebAssembly against our cross-compiled dep stack.
 set -e
-ROOT=/Users/mstavridis/Downloads/CS-Web
+# ROOT and the emscripten libexec dir are env-overridable so this runs both locally (macOS/Homebrew
+# defaults below) and inside the CI builder image (which exports ROOT + EM_LIBEXEC).
+ROOT="${ROOT:-/Users/mstavridis/Downloads/CS-Web}"
 DW=$ROOT/deps/wasm
-SR=/opt/homebrew/Cellar/emscripten/6.0.1/libexec/cache/sysroot
+EM_LIBEXEC="${EM_LIBEXEC:-/opt/homebrew/Cellar/emscripten/6.0.1/libexec}"
+SR="$EM_LIBEXEC/cache/sysroot"
 W32=$SR/lib/wasm32-emscripten
 BOOST=$ROOT/deps/src/boost_1_85_0
 
@@ -13,7 +16,7 @@ export MYGUI_HOME="$DW"
 # INITIAL_MEMORY (1.5 GB) and ASSERTIONS (off) here in sync with that script so a stray cmake-driven
 # link can't clobber them with different values.
 emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
-  -DMYGUI_STATIC=ON -DUSE_LUAJIT=OFF -DOSG_STATIC=ON -DOPENMW_USE_SYSTEM_OSG=ON -DOSGPlugins_LIB_DIR=/Users/mstavridis/Downloads/CS-Web/deps/wasm/lib -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
+  -DMYGUI_STATIC=ON -DUSE_LUAJIT=OFF -DOSG_STATIC=ON -DOPENMW_USE_SYSTEM_OSG=ON -DOSGPlugins_LIB_DIR=$DW/lib -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
   -DSDL2_DIR="$DW/lib/cmake/SDL2" \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$DW;$SR;$SR/include" \

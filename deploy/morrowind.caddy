@@ -1,0 +1,20 @@
+# Edge vhost for morrowind.virtastic.app — deployed into the SHARED Caddy's
+# /etc/caddy/sites-extra/ (synced to /opt/nostalgia/caddy/sites-extra/morrowind.caddy by CI).
+# The shared edge terminates TLS (Cloudflare origin cert) and reverse-proxies to the morrowind
+# container by name on the `nostalgia` network.
+morrowind.virtastic.app {
+	tls /certs/virtastic-origin.crt /certs/virtastic-origin.key
+
+	# Shared security-header snippet from the Nostalgia base Caddyfile.
+	# IMPORTANT: verify `sec_headers` does NOT set Cross-Origin-Opener-Policy / -Embedder-Policy.
+	# The container already sets COOP=same-origin / COEP=require-corp and they pass through this
+	# reverse_proxy; a conflicting/duplicate value from sec_headers would break crossOriginIsolated
+	# and the app would show "Browser not supported". If sec_headers sets them, drop them there for
+	# this host (or set the three isolation headers here explicitly instead).
+	import sec_headers
+
+	# Transparent proxy. Deliberately NO `encode` here: the container serves precompressed .br with
+	# Content-Encoding: br, and it must reach the browser un-re-encoded; `encode` would double-encode
+	# the wasm and interfere with Range. Cloudflare caches the already-br-encoded response.
+	reverse_proxy morrowind:8080
+}

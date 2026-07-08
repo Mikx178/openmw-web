@@ -112,9 +112,15 @@ All deps are cross-compiled to static libs in `deps/wasm/lib` (+ headers in
 Lua 5.4, LZ4, RecastNavigation. SDL2/FreeType/HarfBuzz/png/jpeg/zlib/ogg/vorbis
 come from emscripten ports at link time; OpenAL is emscripten's built-in.
 
-OSG is the hardest one and is fully scripted: apply
+The whole stack is scripted from source by `./wasm-build/build-deps.sh` (one function per dep,
+staging into `deps/wasm/{lib,include}`; run with no args to build everything, or pass targets like
+`build-deps.sh bullet lua`). It consolidates the standard emscripten cross-compiles for Bullet,
+Recast, MyGUI, FFmpeg, Boost, Lua, LZ4, the empty OpenAL stub, the ICU-mt / libGL-getprocaddr
+emscripten ports, and OSG.
+
+OSG is the hardest one and has its own script (`build-deps.sh` calls it): apply
 `wasm-build/patches/osg-emscripten.patch` to an `OpenSceneGraph-3.6.5` checkout at
-`deps/src/osg`, then run `./wasm-build/build-osg.sh`. The patch carries critical
+`deps/src/osg`, then `./wasm-build/build-osg.sh`. The patch carries critical
 fixes — most importantly the RTT `drawBuffers` fix in `FrameBufferObject.cpp`
 (without it every render-to-texture camera silently discards its color output).
 
