@@ -1,10 +1,28 @@
-# Build context is the repo root, but the image only needs infra/nginx.conf + a few play/
-# files. Allow-list them so Docker doesn't ship the whole engine source tree to the daemon.
-*
-!infra/nginx.conf
-!play/launcher.html
-!play/index.html
-!play/streamfs.js
-!play/openmw.js
-!play/openmw.wasm
-!play/openmw.data
+# Keep the build context lean. The multi-stage Dockerfile builds OpenMW FROM SOURCE (needs openmw/,
+# fsroot/, wasm-build/, configure-openmw.sh) inside the prebaked builder image, then serves play/
+# statics via caddy. So exclude vcs, the dep tree (baked into openmw-builder), build outputs, and the
+# large prebuilt/game binaries — none of which belong in the context.
+.git
+.github
+openmw/.git-upstream
+deps
+build-wasm
+archive
+source-mw
+content
+node_modules
+infra
+**/*.bak
+**/*.simd.bak
+# play/: keep only the tracked static web files; the engine artifacts come from the builder stage,
+# and game data / brotli blobs are shipped/mounted separately.
+play/openmw.wasm
+play/openmw.data
+play/openmw.js.br
+play/openmw.wasm.br
+play/openmw.data.br
+play/mwdata
+play/*.tar
+*.7z
+*.zip
+.DS_Store

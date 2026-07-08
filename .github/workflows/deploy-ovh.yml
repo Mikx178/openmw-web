@@ -2,6 +2,12 @@ name: deploy-ovh (morrowind.virtastic.app)
 
 # Deploys the OpenMW-WASM game to the OVH VPS via the self-hosted runner in the Virtastic org.
 # The runner executes ON the VPS with docker access, so steps use docker/docker compose directly.
+#
+# Prereqs on the box (one-time): the `openmw-builder:1` image (see Dockerfile.builder), the shared
+# `edge-caddy` container + `nostalgia` network, and /opt/edge/certs/virtastic.{crt,key}.
+# NOTE: the deploy image bakes fsroot/gamedata (the ?nomw demo) into openmw.data — that dir is
+# gitignored, so a clean `actions/checkout` will NOT include it. Ensure fsroot/gamedata is present
+# in the build context (e.g. rsynced onto the runner workspace) or the demo won't be baked.
 on:
   push:
     branches: [ovhcloud]
@@ -17,32 +23,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Fast incremental build FROM the prebaked openmw-builder image (see Dockerfile.builder).
+      # Incremental OpenMW build FROM the prebaked openmw-builder image. --network=host: OpenMW's
+      # cmake FetchContent (recastnavigation) needs egress, which the default build bridge lacks here.
       - name: Build image
-        run: docker build -t morrowind:ovh -f Dockerfile .
+        run: DOCKER_BUILDKIT=1 docker build --network=host -t morrowind:ovh -f Dockerfile .
 
-      # Sync the deploy dir (compose file) + demo dataset placeholder to /opt/morrowind.
       - name: Sync compose to /opt/morrowind
         run: |
           sudo mkdir -p /opt/morrowind/data
           sudo cp docker-compose.prod.yml /opt/morrowind/docker-compose.prod.yml
 
-      # Drop the edge vhost into the SHARED Caddy's sites-extra (mounted read-only into nl-caddy).
+      # Drop the vhost into the shared edge's sites dir (imported by /opt/edge/Caddyfile).
       - name: Install edge vhost
-        run: sudo cp deploy/morrowind.caddy /opt/nostalgia/caddy/sites-extra/morrowind.caddy
+        run: sudo cp deploy/morrowind.caddy /opt/edge/sites/morrowind.caddy
 
       - name: Start / update container
         run: docker compose -f /opt/morrowind/docker-compose.prod.yml up -d
 
-      # Validate + hot-reload the shared edge (no downtime for other sites).
-      - name: Reload shared Caddy
+      # Validate, then restart the shared edge to apply (admin API is disabled, so `caddy reload`
+      # can't be used — restart re-reads the Caddyfile; ~3s blip). Validate first to protect the
+      # other sites on this edge.
+      - name: Apply edge config
         run: |
-          docker exec nl-caddy caddy validate --config /etc/caddy/Caddyfile
-          docker exec nl-caddy caddy reload   --config /etc/caddy/Caddyfile
+          docker exec edge-caddy caddy validate --config /etc/caddy/Caddyfile
+          docker restart edge-caddy
 
-      # Health check on the nostalgia network: 200 + cross-origin-isolation header present.
+      # Health check on the shared network: 200 + cross-origin-isolation header present.
       - name: Health check
         run: |
+          sleep 4
           docker run --rm --network nostalgia curlimages/curl:latest \
             -fsS -D - -o /dev/null http://morrowind:8080/ \
             | tee /dev/stderr | grep -qi '^cross-origin-opener-policy: same-origin'

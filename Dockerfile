@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # =============================================================================================
 # Per-push deploy image for morrowind.virtastic.app.
 #  - builder stage: incremental OpenMW→WASM build (fast, FROM the prebaked openmw-builder image).
@@ -7,7 +8,8 @@
 
 # ---- builder ---------------------------------------------------------------------------------
 FROM openmw-builder:1 AS builder
-ENV ROOT=/build EM_LIBEXEC=/emsdk/upstream/emscripten
+# ROOT + EM_LIBEXEC drive configure-openmw.sh; EMSDK_BIN drives link-openmw.sh (emcc/em++ + sysroot).
+ENV ROOT=/build EM_LIBEXEC=/emsdk/upstream/emscripten EMSDK_BIN=/emsdk/upstream/emscripten
 WORKDIR /build
 
 # Engine source + build recipe (deps/ already baked into openmw-builder).
@@ -19,7 +21,10 @@ COPY play/index.html play/launcher.html play/streamfs.js /build/play/
 
 # configure → incremental compile → out-of-band link (emits openmw.{js,wasm,data}, preloads fsroot@/)
 # → brotli siblings. Mirrors the local build (configure-openmw.sh + wasm-build/{link-openmw.sh,make_br.sh}).
-RUN bash configure-openmw.sh \
+# build-wasm is a cache mount so cmake configure + ninja objects persist across builds — a re-run
+# (e.g. after a link tweak) is then incremental instead of a full ~13-min recompile.
+RUN --mount=type=cache,target=/build/build-wasm \
+    bash configure-openmw.sh \
  && ninja -C build-wasm components openmw-lib \
  && bash wasm-build/link-openmw.sh \
  && cp build-wasm/openmw.js build-wasm/openmw.wasm build-wasm/openmw.data play/ \

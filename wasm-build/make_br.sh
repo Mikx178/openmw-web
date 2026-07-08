@@ -17,4 +17,6 @@ for f in "$ROOT"/play/openmw.js "$ROOT"/play/openmw.wasm "$ROOT"/play/openmw.dat
   echo "brotli -q $Q: $f"
   brotli -f -q "$Q" -o "$f.br" "$f"
 done
-ls -lh "$ROOT"/play/*.br "$ROOT"/play/mwdata/*.br 2>/dev/null | awk '{print $5, $9}'
+# Summary only — never fail the script here (mwdata/*.br is absent in the CI build context, and
+# under `set -euo pipefail` a non-zero ls would abort the whole build).
+ls -lh "$ROOT"/play/*.br "$ROOT"/play/mwdata/*.br 2>/dev/null | awk '{print $5, $9}' || true

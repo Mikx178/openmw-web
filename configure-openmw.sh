@@ -11,6 +11,10 @@ W32=$SR/lib/wasm32-emscripten
 BOOST=$ROOT/deps/src/boost_1_85_0
 
 export MYGUI_HOME="$DW"
+# FFmpeg is located by OpenMW's FindFFmpeg via pkg-config (the component VERSIONS come from the .pc
+# files). Point pkg-config at our cross-built .pc dir so the version check passes — without this the
+# clean builder image reports "FFmpeg too old" (empty version). Locally this dir also carries the .pc.
+export PKG_CONFIG_PATH="$DW/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 # NOTE: CMAKE_EXE_LINKER_FLAGS below only affects CMake's own compile/link test executables. The
 # final openmw.{js,wasm} is linked out-of-band by wasm-build/link-openmw.sh (authoritative). Keep
 # INITIAL_MEMORY (1.5 GB) and ASSERTIONS (off) here in sync with that script so a stray cmake-driven
@@ -52,4 +56,7 @@ emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
   -DBULLET_INCLUDE_DIR="$ROOT/deps/src/bullet3/src" -DBULLET_USE_DOUBLE_PRECISION=ON \
   -DBULLET_DYNAMICS_LIBRARY="$DW/lib/libBulletDynamics.a" -DBULLET_COLLISION_LIBRARY="$DW/lib/libBulletCollision.a" \
   -DBULLET_MATH_LIBRARY="$DW/lib/libLinearMath.a" -DBULLET_SOFTBODY_LIBRARY="$DW/lib/libBulletSoftBody.a" \
+  `# Skip CheckBulletPrecision.cmake's try_compile probe (flaky under emscripten); our Bullet is` \
+  `# built double-precision (-DUSE_DOUBLE_PRECISION=ON). See openmw/cmake/CheckBulletPrecision.cmake.` \
+  -DOPENMW_ASSUME_BULLET_DOUBLE_PRECISION:BOOL=TRUE \
   "$@" 2>&1
