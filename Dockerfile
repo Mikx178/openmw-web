@@ -17,7 +17,8 @@ COPY openmw            /build/openmw
 COPY fsroot            /build/fsroot
 COPY wasm-build        /build/wasm-build
 COPY configure-openmw.sh /build/configure-openmw.sh
-COPY play/index.html play/launcher.html play/streamfs.js /build/play/
+# NOTE: the static play/*.html + streamfs.js are copied in the RUNTIME stage (from context), NOT here
+# — editing them must not invalidate this compile layer and trigger a full ~13-min recompile.
 
 # configure → incremental compile → out-of-band link (emits openmw.{js,wasm,data}, preloads fsroot@/)
 # → brotli siblings. Mirrors the local build (configure-openmw.sh + wasm-build/{link-openmw.sh,make_br.sh}).
@@ -34,9 +35,9 @@ RUN --mount=type=cache,target=/build/build-wasm \
 FROM caddy:2-alpine AS runtime
 # Web root: the built engine artifacts (raw + .br — both needed; Range uses raw, full GET uses .br)
 # plus the tracked HTML/JS. The demo dataset is mounted at /srv/data by docker-compose.prod.yml.
-COPY --from=builder /build/play/index.html    /srv/index.html
-COPY --from=builder /build/play/launcher.html /srv/launcher.html
-COPY --from=builder /build/play/streamfs.js   /srv/streamfs.js
+# Static web files straight from the build context (editing them = a fast runtime-only rebuild).
+COPY play/index.html play/launcher.html play/streamfs.js /srv/
+# Built engine artifacts from the builder stage (raw + .br).
 COPY --from=builder /build/play/openmw.js      /build/play/openmw.js.br      /srv/
 COPY --from=builder /build/play/openmw.wasm    /build/play/openmw.wasm.br    /srv/
 COPY --from=builder /build/play/openmw.data    /build/play/openmw.data.br    /srv/

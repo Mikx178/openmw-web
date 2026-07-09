@@ -175,9 +175,12 @@
    });
  })();
  const hudEl = document.getElementById('hud');
- // Debug HUD is opt-in: ?hud=1 (or ?debug) shows the FPS/status bar + log toggle. Hidden otherwise
- // so players get a clean screen. It is also auto-revealed on the first fault (see showLogOnce).
- if (/[?&](hud=1|debug)\b/.test(location.search)) hudEl.classList.add('show');
+ // Debug HUD is opt-in: ?hud=1 (or ?debug) shows the FPS/status bar + the log toggle (backtick) +
+ // auto-reveal on fault. When it's OFF (the default player experience) NONE of that shows — no
+ // initial bar, no fault reveal, and backtick/Esc do NOT open our overlay (backtick passes through
+ // to the engine so the in-game Morrowind console opens as normal).
+ const __hudEnabled = /[?&](hud=1|debug)\b/.test(location.search);
+ if (__hudEnabled) hudEl.classList.add('show');
  let lastMsg = 'booting…';
  function append(t, cls){ if(!started){logEl.textContent='';started=true;}
    const s=document.createElement('span'); if(cls)s.className=cls; s.textContent=t+"\n"; logEl.appendChild(s);
@@ -273,16 +276,20 @@
  // the FIRST time a genuine JS fault occurs — NOT on routine engine warnings (OpenMW routes
  // Debug::Warning through printErr, which would otherwise pop the log open constantly).
  var __firstFaultShown = false;
- function showLogOnce(){ if(!__firstFaultShown){ __firstFaultShown = true; hudEl.classList.add('show'); logEl.classList.add('show'); } }
+ // Only auto-reveal on a fault when the debug HUD is enabled — otherwise players never see our
+ // overlay (an Esc-triggered pointer-lock rejection used to pop the FPS bar up here).
+ function showLogOnce(){ if(__hudEnabled && !__firstFaultShown){ __firstFaultShown = true; hudEl.classList.add('show'); logEl.classList.add('show'); } }
  window.addEventListener('unhandledrejection', function(e){
    append('unhandled rejection: ' + (e.reason && e.reason.message || e.reason), 'err');
    showLogOnce();
  });
- // Log is hidden by default so it doesn't cover the screen. Open/close it by CLICKING the
- // status bar (top-left) or pressing ` (backtick). Clicking the status bar again closes it.
+ // Log is hidden by default. When the debug HUD is enabled (?hud=1/?debug) it can be toggled by
+ // CLICKING the status bar or pressing ` (backtick). When the HUD is OFF, backtick is NOT captured
+ // here — it falls through to the engine so the in-game Morrowind console opens normally.
  function toggleLog(){ logEl.classList.toggle('show'); }
  hudEl.addEventListener('click', toggleLog);
- window.addEventListener('keydown', function(e){ if (e.key === '`') toggleLog(); });
+ if (__hudEnabled)
+   window.addEventListener('keydown', function(e){ if (e.key === '`') toggleLog(); });
  // Live status HUD + periodic console logging so you can SEE what's happening / the FPS.
  (function(){
    let lastFps = -1, tick = 0;
