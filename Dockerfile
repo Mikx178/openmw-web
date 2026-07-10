@@ -32,6 +32,7 @@ RUN --mount=type=cache,target=/build/build-wasm \
  && bash configure-openmw.sh \
  && ninja -C build-wasm components openmw-lib \
  && bash wasm-build/link-openmw.sh \
+ && mkdir -p play \
  && cp build-wasm/openmw.js build-wasm/openmw.wasm build-wasm/openmw.data play/ \
  && bash wasm-build/make_br.sh
 
