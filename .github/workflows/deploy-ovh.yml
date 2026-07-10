@@ -23,6 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Stage the gitignored ?nomw demo data (fsroot/gamedata) from the box's canonical source tree
+      # into the build context — a clean checkout omits it, and the Dockerfile now FAILS LOUD rather
+      # than baking an empty demo. ~/morrowind-src is the rsync'd source of truth on this runner.
+      - name: Stage demo data into build context
+        run: |
+          test -n "$(ls -A "$HOME/morrowind-src/fsroot/gamedata" 2>/dev/null)" \
+            || { echo "FATAL: ~/morrowind-src/fsroot/gamedata missing on the runner — cannot bake the ?nomw demo." >&2; exit 1; }
+          mkdir -p fsroot/gamedata
+          rsync -a --delete "$HOME/morrowind-src/fsroot/gamedata/" fsroot/gamedata/
+          echo "staged $(find fsroot/gamedata -type f | wc -l) demo files"
+
       # Incremental OpenMW build FROM the prebaked openmw-builder image. --network=host: OpenMW's
       # cmake FetchContent (recastnavigation) needs egress, which the default build bridge lacks here.
       - name: Build image
