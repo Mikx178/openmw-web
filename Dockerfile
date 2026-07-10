@@ -25,7 +25,11 @@ COPY configure-openmw.sh /build/configure-openmw.sh
 # build-wasm is a cache mount so cmake configure + ninja objects persist across builds — a re-run
 # (e.g. after a link tweak) is then incremental instead of a full ~13-min recompile.
 RUN --mount=type=cache,target=/build/build-wasm \
-    bash configure-openmw.sh \
+    # Hermetic guard: fsroot/gamedata (the ?nomw demo) is gitignored, so a clean actions/checkout
+    # omits it and the link would silently bake an EMPTY demo (green build, broken ?nomw). Fail loud
+    # instead — the build context must carry the rsynced gamedata.
+    { test -n "$(ls -A fsroot/gamedata 2>/dev/null)" || { echo 'FATAL: fsroot/gamedata is missing/empty — the ?nomw demo would bake empty. Ensure it is rsynced into the build context.' >&2; exit 1; }; } \
+ && bash configure-openmw.sh \
  && ninja -C build-wasm components openmw-lib \
  && bash wasm-build/link-openmw.sh \
  && cp build-wasm/openmw.js build-wasm/openmw.wasm build-wasm/openmw.data play/ \

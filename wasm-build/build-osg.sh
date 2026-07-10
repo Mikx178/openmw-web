@@ -21,7 +21,10 @@
 set -euo pipefail
 
 ROOT="${ROOT:-/Users/mstavridis/Downloads/CS-Web}"
-SYSROOT_LIBGL="/opt/homebrew/Cellar/emscripten/6.0.1/libexec/cache/sysroot/lib/wasm32-emscripten/libGL-getprocaddr.a"
+# Honor the EM_LIBEXEC the caller exports (build-deps.sh:146) so the CI/Linux builder — where
+# emscripten lives under a different prefix — finds libGL. Falls back to the local Homebrew path.
+EM_LIBEXEC="${EM_LIBEXEC:-/opt/homebrew/Cellar/emscripten/6.0.1/libexec}"
+SYSROOT_LIBGL="$EM_LIBEXEC/cache/sysroot/lib/wasm32-emscripten/libGL-getprocaddr.a"
 SRC="$ROOT/deps/src/osg"
 BUILD="$SRC/build-wasm"
 

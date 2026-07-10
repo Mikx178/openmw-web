@@ -155,11 +155,14 @@ build_em_ports() {
   log "emscripten ports (ICU-mt, libGL-getprocaddr)"
   local t; t="$(mktemp -d)"
   echo 'int main(){return 0;}' > "$t/p.c"
-  emcc -pthread -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 "$t/p.c" -o "$t/gl.js" || true    # GL -> libGL-getprocaddr.a
+  emcc -pthread -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 "$t/p.c" -o "$t/gl.js"    # GL -> libGL-getprocaddr.a
   echo 'int main(){return 0;}' > "$t/i.c"
-  emcc -pthread -sUSE_ICU=1 "$t/i.c" -o "$t/icu.js" || true                          # ICU port -> libicu_*-mt.a
-  ls -1 "$LIBGL" "$SR/lib/wasm32-emscripten/"libicu_*-mt.a 2>/dev/null || \
-    echo "!! ICU-mt / libGL-getprocaddr not staged — see VERIFY note above"
+  emcc -pthread -sUSE_ICU=1 "$t/i.c" -o "$t/icu.js"                          # ICU port -> libicu_*-mt.a
+  # FATAL if the sysroot archives aren't staged — otherwise build-deps reports success and the
+  # failure only surfaces much later as a cryptic link-openmw.sh "file not found" (or links a stale
+  # cached variant). (Previously `emcc ... || true` + `ls ... || echo` masked this and returned 0.)
+  ls -1 "$LIBGL" "$SR/lib/wasm32-emscripten/"libicu_*-mt.a >/dev/null 2>&1 || {
+    echo "!! ICU-mt / libGL-getprocaddr not staged — see VERIFY note above" >&2; exit 1; }
 }
 
 ALL=(em_ports openal_stub lz4 lua boost bullet recast mygui ffmpeg osg)

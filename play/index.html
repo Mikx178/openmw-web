@@ -279,10 +279,9 @@
  // Only auto-reveal on a fault when the debug HUD is enabled — otherwise players never see our
  // overlay (an Esc-triggered pointer-lock rejection used to pop the FPS bar up here).
  function showLogOnce(){ if(__hudEnabled && !__firstFaultShown){ __firstFaultShown = true; hudEl.classList.add('show'); logEl.classList.add('show'); } }
- window.addEventListener('unhandledrejection', function(e){
-   append('unhandled rejection: ' + (e.reason && e.reason.message || e.reason), 'err');
-   showLogOnce();
- });
+ // NOTE: the single 'unhandledrejection' handler lives at the bottom of this script — it filters the
+ // benign pointer-lock rejection BEFORE logging. (There used to be a second handler here that
+ // double-logged every rejection and popped the log open on the pointer-lock case it was meant to hide.)
  // Log is hidden by default. When the debug HUD is enabled (?hud=1/?debug) it can be toggled by
  // CLICKING the status bar or pressing ` (backtick). When the HUD is OFF, backtick is NOT captured
  // here — it falls through to the engine so the in-game Morrowind console opens normally.
@@ -306,6 +305,10 @@
      // Save Backup/Restore toolbar is opt-in (?savetools=1) — hidden by default so it never sits in
      // the chrome. The tar backup/restore functionality stays wired up; only the buttons are gated.
      if (rendering && /[?&]savetools=1\b/.test(location.search)) { var st=document.getElementById('savetools'); if (st) st.classList.add('show'); }
+     // The visible HUD text + console heartbeat only matter when the debug HUD is on. For the default
+     // player (HUD hidden) skip both — no point writing textContent to a display:none node twice a
+     // second or growing the console forever. (The loading-overlay fade + savetools above still run.)
+     if (!__hudEnabled) return;
      const open = logEl.classList.contains('show');
      hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
      // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
@@ -324,6 +327,25 @@
  (function(){
    var ROOT='/userdata';
    function octal(n,len){ var s=n.toString(8); while(s.length<len-1) s='0'+s; return s+'\0'; }
+   // Build a 512-byte tar header. typeflag 48='0' (regular file), 76='L' (GNU @LongLink). Names >100
+   // bytes are carried by a preceding '@LongLink' record (see makeTar) so NOTHING is truncated — long
+   // OpenMW save filenames round-trip intact. (FS paths are ASCII, so char length == byte length.)
+   function tarHeader(name, size, typeflag){
+     var hdr=new Uint8Array(512), enc=new TextEncoder();
+     function put(str,off,len){ var b=enc.encode(str); for(var i=0;i<b.length&&i<len;i++) hdr[off+i]=b[i]; }
+     put(name,0,100);
+     put('0000644\0',100,8);                           // mode
+     put('0000000\0',108,8); put('0000000\0',116,8);   // uid/gid
+     put(octal(size,12),124,12);                       // size
+     put(octal(0,12),136,12);                          // mtime (0; deterministic)
+     for(var i=148;i<156;i++) hdr[i]=32;               // checksum field = spaces while summing
+     hdr[156]=typeflag;
+     put('ustar\0',257,6); put('00',263,2);
+     var sum=0; for(var j=0;j<512;j++) sum+=hdr[j];
+     var cs=sum.toString(8); while(cs.length<6) cs='0'+cs; cs=cs.slice(-6);
+     put(cs,148,6); hdr[154]=0; hdr[155]=32;           // checksum: 6 octal digits + NUL + space
+     return hdr;
+   }
    // Walk FS collecting {path,data} for every regular file under dir.
    function collect(dir, out){
      var ents; try { ents=FS.readdir(dir); } catch(e){ return; }
@@ -336,39 +358,35 @@
      });
    }
    function makeTar(files){
-     var blocks=[];
+     var blocks=[], enc=new TextEncoder();
+     function pad(n){ var p=(512-(n%512))%512; if(p) blocks.push(new Uint8Array(p)); }
      files.forEach(function(f){
-       var name=f.path.replace(/^\//,'');           // tar paths are relative
-       var hdr=new Uint8Array(512);
-       var enc=new TextEncoder();
-       function put(str,off,len){ var b=enc.encode(str); for(var i=0;i<b.length&&i<len;i++) hdr[off+i]=b[i]; }
-       put(name,0,100);
-       put('0000644\0',100,8);                       // mode
-       put('0000000\0',108,8); put('0000000\0',116,8); // uid/gid
-       put(octal(f.data.length,12),124,12);          // size
-       put(octal(0,12),136,12);                      // mtime (0; deterministic)
-       for(var i=148;i<156;i++) hdr[i]=32;           // checksum field = spaces for summing
-       hdr[156]=48;                                  // typeflag '0' = regular file
-       put('ustar\0',257,6); put('00',263,2);
-       var sum=0; for(var j=0;j<512;j++) sum+=hdr[j];
-       var cs=sum.toString(8); while(cs.length<6) cs='0'+cs; cs=cs.slice(-6);
-       put(cs,148,6); hdr[154]=0; hdr[155]=32;        // checksum: 6 octal digits + NUL + space
-       blocks.push(hdr, f.data);
-       var pad=(512-(f.data.length%512))%512; if(pad) blocks.push(new Uint8Array(pad));
+       var name=f.path.replace(/^\//,'');             // tar paths are relative
+       if(name.length>100){                           // GNU longname: carry the full path in an
+         var lb=enc.encode(name+'\0');                // '@LongLink' record so nothing is truncated
+         blocks.push(tarHeader('././@LongLink', lb.length, 76 /* 'L' */), lb); pad(lb.length);
+       }
+       blocks.push(tarHeader(name.slice(0,100), f.data.length, 48 /* '0' */), f.data); pad(f.data.length);
      });
-     blocks.push(new Uint8Array(1024));              // two zero blocks = end
+     blocks.push(new Uint8Array(1024));               // two zero blocks = end
      var total=blocks.reduce(function(a,b){return a+b.length;},0), buf=new Uint8Array(total), off=0;
      blocks.forEach(function(b){ buf.set(b,off); off+=b.length; });
      return buf;
    }
    function readTar(buf){
-     var dec=new TextDecoder(), out=[], off=0;
+     var dec=new TextDecoder(), out=[], off=0, longName=null;
      while(off+512<=buf.length){
        var name=dec.decode(buf.subarray(off,off+100)).replace(/\0.*$/,'');
-       if(!name){ break; }                            // zero block = end
+       var typeflag=buf[off+156];
        var size=parseInt(dec.decode(buf.subarray(off+124,off+136)).replace(/[\0 ]/g,''),8)||0;
+       if(!name && typeflag!==76){ break; }            // zero block = end of archive
        off+=512;
-       out.push({path:'/'+name, data:buf.subarray(off,off+size)});
+       if(typeflag===76){                              // 'L' GNU longname: this record's DATA is the
+         longName=dec.decode(buf.subarray(off,off+size)).replace(/\0.*$/,''); // real path for the next entry
+         off+=size+((512-(size%512))%512); continue;
+       }
+       var real=longName||name; longName=null;
+       out.push({path:'/'+real, data:buf.subarray(off,off+size)});
        off+=size+((512-(size%512))%512);
      }
      return out;
@@ -1038,6 +1056,21 @@
            if (!rootFiles.has('morrowind.esm') || !rootFiles.has('morrowind.bsa'))
              return bounce('Morrowind.esm / Morrowind.bsa were not found.');
            append('[local] mounted '+count+' files (streaming from disk)');
+           // Diagnostic: report what top-level folders actually got mounted. Retail audio/voice/video
+           // are LOOSE files (Sound/, Music/, Video/, Splash/) — NOT in the BSA — so if any of these
+           // read 0 the picked folder is missing them (or a subfolder wasn't granted/readable).
+           try {
+             var __want=['sound','music','video','splash'], __log=function(m){ append(m); console.log(m); };
+             FS.readdir('/mwdata').forEach(function(d){
+               if (d==='.'||d==='..') return;
+               var p='/mwdata/'+d; try { if (!FS.isDir(FS.stat(p).mode)) return; } catch(e){ return; }
+               var n=0; (function cnt(dir){ FS.readdir(dir).forEach(function(e){ if(e==='.'||e==='..')return;
+                 var f=dir+'/'+e; try{ FS.isDir(FS.stat(f).mode)?cnt(f):n++; }catch(_){} }); })(p);
+               var lc=d.toLowerCase(), tag=(__want.indexOf(lc)>=0)?(n?'':' ⚠ EMPTY'):'';
+               __log('[local]   '+d+'/ = '+n+' files'+tag);
+             });
+             __log('[local] intro video (.bik in Video/) '+(hasVideoBik?'FOUND':'NOT found'));
+           } catch(e){ console.log('[local] tree summary failed: '+e); }
 
            // Build the load order. Official masters first (fixed canonical order)…
            var masters=['morrowind.esm','tribunal.esm','bloodmoon.esm'];
@@ -1252,7 +1285,16 @@
                removeRunDependency('mw-data');
              } else { setTimeout(waitCfg, 25); }
            })();
-         }).catch(function(e){ append('[mw load err] '+e,'err'); removeRunDependency('mw-data'); });
+         }).catch(function(e){
+           // A file failed to download/unpack. Do NOT removeRunDependency here: booting now would
+           // start the engine on the still-baked example-suite openmw.cfg (data=/gamedata) — i.e. the
+           // WRONG game, and any save would write to the wrong state. Hard-stop with a clear message
+           // and keep the run dependency held so the engine never boots on the stale config.
+           append('[mw load err] '+e,'err');
+           fatalOverlay('Could not load Morrowind data',
+             'A game file failed to download or unpack (' + (e && e.message || e) + '). '
+             + 'Check your connection and reload — your saves are safe.');
+         });
        } catch(e){ if(!(e&&e.__skip)) append('[mw setup err] '+e,'err'); }
 
        append('[preRun] env + user dirs ready');
@@ -1294,7 +1336,10 @@
        var scheduled = false;
        function scheduleNext(){
          if (scheduled) return; scheduled = true;
-         if (document.hidden) mc.port2.postMessage(0);
+         // Visible: vsync-align via rAF. Hidden: pace with a timer (~30fps target; browsers throttle
+         // background timers further) instead of an immediate postMessage — an unpaced background
+         // MessageChannel loop pins a CPU core at 100% for a tab nobody is looking at.
+         if (document.hidden) setTimeout(function(){ mc.port2.postMessage(0); }, 33);
          else requestAnimationFrame(function(){ mc.port2.postMessage(0); });
        }
        mc.port1.onmessage = function(){
@@ -1323,8 +1368,12 @@
  // rejection surfaces as console noise right when the game grabs the mouse (e.g. new-game start).
  // Expected + self-healing (the pointerdown helper re-requests on the next click) — silence it.
  window.addEventListener('unhandledrejection', function(e){
+   // Filter the benign, self-healing pointer-lock rejection FIRST (SDL re-requests on the next
+   // click). e.preventDefault() only suppresses the browser's own console logging, so this must be
+   // the ONLY unhandledrejection handler or the filtered case still gets logged/opens the debug log.
    if (String(e.reason && e.reason.message || e.reason).indexOf('Pointer lock') !== -1) { e.preventDefault(); return; }
    append('unhandled rejection: '+(e.reason && e.reason.message || e.reason),'err');
+   showLogOnce();
  });
 </script>
 <script src="streamfs.js"></script>

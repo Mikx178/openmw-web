@@ -26,7 +26,9 @@
   const CHUNK = 2 * 1024 * 1024; // 2MB chunks
   const LRU_MAX = 48;            // ~96MB resident chunk cache per file set
 
-  const S = { worker: null, ctrl: null, data: null, lru: [], cache: new Map(), nextId: 1 };
+  // cache is a Map used as an LRU: insertion order IS the recency order (delete+set moves to end),
+  // so eviction pops the first (oldest) key. No separate order array → O(1) hit path, no linear scan.
+  const S = { worker: null, ctrl: null, data: null, cache: new Map(), nextId: 1 };
 
   function workerSource() {
     return `
@@ -67,10 +69,7 @@
   function fetchChunkSync(src, cacheKey, start, end) {
     const hit = S.cache.get(cacheKey);
     if (hit) {
-      // refresh LRU position
-      const i = S.lru.indexOf(cacheKey);
-      if (i >= 0) S.lru.splice(i, 1);
-      S.lru.push(cacheKey);
+      S.cache.delete(cacheKey); S.cache.set(cacheKey, hit); // move-to-end (most-recently-used)
       return hit;
     }
     const gen = ++generation;
@@ -87,8 +86,7 @@
     const chunk = new Uint8Array(n);
     chunk.set(S.data.subarray(0, n));
     S.cache.set(cacheKey, chunk);
-    S.lru.push(cacheKey);
-    if (S.lru.length > LRU_MAX) S.cache.delete(S.lru.shift());
+    if (S.cache.size > LRU_MAX) S.cache.delete(S.cache.keys().next().value); // evict oldest
     return chunk;
   }
 

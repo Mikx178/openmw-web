@@ -20,7 +20,7 @@ export PKG_CONFIG_PATH="$DW/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 # INITIAL_MEMORY (1.5 GB) and ASSERTIONS (off) here in sync with that script so a stray cmake-driven
 # link can't clobber them with different values.
 emcmake cmake -S "$ROOT/openmw" -B "$ROOT/build-wasm" -G Ninja \
-  -DMYGUI_STATIC=ON -DUSE_LUAJIT=OFF -DOSG_STATIC=ON -DOPENMW_USE_SYSTEM_OSG=ON -DOSGPlugins_LIB_DIR=$DW/lib -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
+  -DMYGUI_STATIC=ON -DUSE_LUAJIT=OFF -DOSG_STATIC=ON -DOPENMW_USE_SYSTEM_OSG=ON -DOSGPlugins_LIB_DIR="$DW/lib" -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
   -DSDL2_DIR="$DW/lib/cmake/SDL2" \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$DW;$SR;$SR/include" \

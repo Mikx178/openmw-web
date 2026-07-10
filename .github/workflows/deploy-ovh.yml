@@ -48,10 +48,57 @@ jobs:
           docker exec edge-caddy caddy validate --config /etc/caddy/Caddyfile
           docker restart edge-caddy
 
-      # Health check on the shared network: 200 + cross-origin-isolation header present.
-      - name: Health check
+      # Fast internal gate: the container itself answers 200 + COOP on the shared network.
+      - name: Health check (container)
         run: |
           sleep 4
           docker run --rm --network nostalgia curlimages/curl:latest \
             -fsS -D - -o /dev/null http://morrowind:8080/ \
             | tee /dev/stderr | grep -qi '^cross-origin-opener-policy: same-origin'
+
+      # Real end-to-end gate: probe the PUBLIC url through the shared edge (TLS + sec_headers +
+      # reverse_proxy) and Cloudflare. Catches what the internal check can't — a bad cert mount, a
+      # duplicate/conflicting COOP/COEP from the edge (which silently kills crossOriginIsolated), a
+      # proxy typo, or the wasm MIME being lost. Retries while the just-restarted edge comes up.
+      - name: Health check (edge + Cloudflare)
+        run: |
+          set -e
+          for i in $(seq 1 12); do
+            curl -fsS -D /tmp/h -o /dev/null https://morrowind.virtastic.app/ && break
+            echo "edge not ready yet ($i)…"; sleep 3
+          done
+          echo "--- / headers ---"; cat /tmp/h
+          grep -qi '^cross-origin-opener-policy: same-origin'    /tmp/h
+          grep -qi '^cross-origin-embedder-policy: require-corp'  /tmp/h
+          # engine wasm carries the correct MIME through the edge/CF
+          curl -fsS -D - -o /dev/null https://morrowind.virtastic.app/openmw.wasm \
+            | tee /tmp/w | grep -qi '^content-type: *application/wasm'
+          # launcher gate: bare / and ?nomw both reachable (200)
+          curl -fsS -o /dev/null https://morrowind.virtastic.app/
+          curl -fsS -o /dev/null "https://morrowind.virtastic.app/index.html?nomw"
+
+      # Purge the edge cache for the engine binaries — they keep STABLE names but change every build,
+      # and Cache-Control: immutable does NOT invalidate Cloudflare's edge cache (browser-only). Without
+      # this, returning users keep running stale bytes and an ABI change hard-fails their boot. Best
+      # effort: no-op unless CF_PURGE_TOKEN + CF_ZONE_ID secrets are set. (The real fix is content-hashed
+      # filenames; this purge is the pragmatic interim.)
+      - name: Purge Cloudflare cache
+        continue-on-error: true
+        env:
+          CF_PURGE_TOKEN: ${{ secrets.CF_PURGE_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        run: |
+          if [ -z "$CF_PURGE_TOKEN" ] || [ -z "$CF_ZONE_ID" ]; then
+            echo "CF_PURGE_TOKEN/CF_ZONE_ID not set — skipping edge purge (purge manually on redeploy)."
+            exit 0
+          fi
+          curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CF_PURGE_TOKEN}" -H "Content-Type: application/json" \
+            --data '{"files":[
+              "https://morrowind.virtastic.app/openmw.js",
+              "https://morrowind.virtastic.app/openmw.wasm",
+              "https://morrowind.virtastic.app/openmw.data",
+              "https://morrowind.virtastic.app/openmw.js.br",
+              "https://morrowind.virtastic.app/openmw.wasm.br",
+              "https://morrowind.virtastic.app/openmw.data.br"
+            ]}'
