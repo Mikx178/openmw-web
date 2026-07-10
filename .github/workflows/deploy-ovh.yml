@@ -67,26 +67,32 @@ jobs:
             -fsS -D - -o /dev/null http://morrowind:8080/ \
             | tee /dev/stderr | grep -qi '^cross-origin-opener-policy: same-origin'
 
-      # Real end-to-end gate: probe the PUBLIC url through the shared edge (TLS + sec_headers +
-      # reverse_proxy) and Cloudflare. Catches what the internal check can't — a bad cert mount, a
-      # duplicate/conflicting COOP/COEP from the edge (which silently kills crossOriginIsolated), a
-      # proxy typo, or the wasm MIME being lost. Retries while the just-restarted edge comes up.
-      - name: Health check (edge + Cloudflare)
+      # Real end-to-end gate for the config THIS deploy controls: the shared edge (TLS with the origin
+      # cert + sec_headers + reverse_proxy to the container). We hit the edge DIRECTLY via --resolve to
+      # 127.0.0.1, bypassing Cloudflare — CF serves a bot challenge (cf-mitigated) to the runner's
+      # headless curl, and CF's edge policy isn't what a deploy validates anyway. -k because the edge
+      # presents the Cloudflare Origin CA cert (not a public CA). Catches what the container-only check
+      # can't: a bad cert mount, a duplicate/conflicting COOP/COEP from the edge (silently kills
+      # crossOriginIsolated), a proxy typo, a lost wasm MIME, or a broken launcher gate.
+      - name: Health check (edge, bypassing Cloudflare)
         run: |
           set -e
+          E() { curl -sS -k --resolve morrowind.virtastic.app:443:127.0.0.1 "$@"; }
           for i in $(seq 1 12); do
-            curl -fsS -D /tmp/h -o /dev/null https://morrowind.virtastic.app/ && break
+            E -o /dev/null https://morrowind.virtastic.app/ && break
             echo "edge not ready yet ($i)…"; sleep 3
           done
-          echo "--- / headers ---"; cat /tmp/h
+          E -D /tmp/h -o /dev/null https://morrowind.virtastic.app/
+          echo "--- / headers (edge, pre-CF) ---"; cat /tmp/h
           grep -qi '^cross-origin-opener-policy: same-origin'    /tmp/h
           grep -qi '^cross-origin-embedder-policy: require-corp'  /tmp/h
-          # engine wasm carries the correct MIME through the edge/CF
-          curl -fsS -D - -o /dev/null https://morrowind.virtastic.app/openmw.wasm \
+          # engine wasm carries the correct MIME through the edge
+          E -D - -o /dev/null https://morrowind.virtastic.app/openmw.wasm \
             | tee /tmp/w | grep -qi '^content-type: *application/wasm'
           # launcher gate: bare / and ?nomw both reachable (200)
-          curl -fsS -o /dev/null https://morrowind.virtastic.app/
-          curl -fsS -o /dev/null "https://morrowind.virtastic.app/index.html?nomw"
+          E -f -o /dev/null https://morrowind.virtastic.app/
+          E -f -o /dev/null "https://morrowind.virtastic.app/index.html?nomw"
+          echo "edge health OK"
 
       # Purge the edge cache for the engine binaries — they keep STABLE names but change every build,
       # and Cache-Control: immutable does NOT invalidate Cloudflare's edge cache (browser-only). Without
