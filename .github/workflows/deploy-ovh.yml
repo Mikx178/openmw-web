@@ -35,7 +35,11 @@ jobs:
             || { echo "FATAL: ~/morrowind-src/fsroot/gamedata missing on the runner — cannot bake the ?nomw demo." >&2; exit 1; }
           mkdir -p fsroot/gamedata
           rsync -a --delete "$HOME/morrowind-src/fsroot/gamedata/" fsroot/gamedata/
-          echo "staged $(find fsroot/gamedata -type f | wc -l) demo files"
+          # ICU data is gitignored too (fsroot/*.dat) and the engine aborts at boot without it.
+          test -f "$HOME/morrowind-src/fsroot/icudt68l.dat" \
+            || { echo "FATAL: ~/morrowind-src/fsroot/icudt68l.dat missing on the runner." >&2; exit 1; }
+          cp "$HOME/morrowind-src/fsroot/icudt68l.dat" fsroot/
+          echo "staged $(find fsroot/gamedata -type f | wc -l) demo files + icudt68l.dat"
 
       # Incremental OpenMW build FROM the prebaked openmw-builder image. --network=host: OpenMW's
       # cmake FetchContent (recastnavigation) needs egress, which the default build bridge lacks here.

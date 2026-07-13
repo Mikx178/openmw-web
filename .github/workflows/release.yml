@@ -47,6 +47,10 @@ jobs:
             || { echo "FATAL: ~/morrowind-src/fsroot/gamedata missing on the runner." >&2; exit 1; }
           mkdir -p fsroot/gamedata
           rsync -a --delete "$HOME/morrowind-src/fsroot/gamedata/" fsroot/gamedata/
+          # ICU data is gitignored too (fsroot/*.dat) and the engine aborts at boot without it.
+          test -f "$HOME/morrowind-src/fsroot/icudt68l.dat" \
+            || { echo "FATAL: ~/morrowind-src/fsroot/icudt68l.dat missing on the runner." >&2; exit 1; }
+          cp "$HOME/morrowind-src/fsroot/icudt68l.dat" fsroot/
           # The demo must carry its attribution files — refuse to release without them.
           for f in CREDITS-DEMO-DATA.txt ExampleSuiteAuthors.txt LinksToLicenses.txt; do
             test -f "fsroot/gamedata/$f" || { echo "FATAL: fsroot/gamedata/$f missing — demo attribution incomplete." >&2; exit 1; }
@@ -76,7 +80,9 @@ jobs:
           cp fsroot/gamedata/CREDITS-DEMO-DATA.txt fsroot/gamedata/ExampleSuiteAuthors.txt fsroot/gamedata/LinksToLicenses.txt dist/web/
           # No proprietary content may ever appear in a release asset.
           ! ls dist/web | grep -qiE 'morrowind\.(esm|bsa)|tribunal|bloodmoon|mwdata'
-          (cd dist/web && zip -q -r "../openmw-wasm-web-$TAG.zip" .)
+          # python3 -m zipfile: the runner has no `zip` binary. Run from inside web/
+          # so entries land at the zip root (unzip → serve, no nested dir).
+          (cd dist/web && python3 -m zipfile -c "../openmw-wasm-web-$TAG.zip" *)
 
       - name: Assemble source tarball (Complete Corresponding Source)
         run: |
