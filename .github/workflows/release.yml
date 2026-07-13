@@ -1,0 +1,107 @@
+name: release (grab-and-go bundles)
+
+# Builds the engine exactly like the live deploy and publishes two assets to the
+# GitHub Release for the pushed tag:
+#   openmw-wasm-web-<tag>.zip     — prebuilt engine + web shell + demo: unzip and serve
+#   openmw-wasm-src-<tag>.tar.gz  — the exact source snapshot (GPLv3 Complete Corresponding Source)
+# plus SHA256SUMS.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v1.0.0)"
+        required: true
+
+concurrency:
+  group: release-openmw-wasm
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # create the release + upload assets
+
+jobs:
+  release:
+    # Public-repo hardening: never run on forks or PR-triggered events — this job
+    # executes on the production VPS runner.
+    if: github.repository == 'Virtastic/openmw-wasm' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, ovh, virtastic]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || { echo "FATAL: tag $TAG not found" >&2; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # Same staging as deploy-ovh.yml: the demo data is gitignored; the runner's
+      # ~/morrowind-src is the canonical source of truth for it.
+      - name: Stage demo data into build context
+        run: |
+          test -n "$(ls -A "$HOME/morrowind-src/fsroot/gamedata" 2>/dev/null)" \
+            || { echo "FATAL: ~/morrowind-src/fsroot/gamedata missing on the runner." >&2; exit 1; }
+          mkdir -p fsroot/gamedata
+          rsync -a --delete "$HOME/morrowind-src/fsroot/gamedata/" fsroot/gamedata/
+          # The demo must carry its attribution files — refuse to release without them.
+          for f in CREDITS-DEMO-DATA.txt ExampleSuiteAuthors.txt LinksToLicenses.txt; do
+            test -f "fsroot/gamedata/$f" || { echo "FATAL: fsroot/gamedata/$f missing — demo attribution incomplete." >&2; exit 1; }
+          done
+          echo "staged $(find fsroot/gamedata -type f | wc -l) demo files"
+
+      - name: Build engine image
+        run: DOCKER_BUILDKIT=1 docker build --network=host -t morrowind:release -f Dockerfile .
+
+      - name: Extract engine artifacts
+        run: |
+          set -e
+          rm -rf dist && mkdir -p dist/web
+          CID=$(docker create morrowind:release)
+          trap 'docker rm -f "$CID" >/dev/null' EXIT
+          for f in openmw.js openmw.wasm openmw.data openmw.js.br openmw.wasm.br openmw.data.br; do
+            docker cp "$CID:/srv/$f" dist/web/
+          done
+          ls -la dist/web
+
+      - name: Assemble web bundle
+        run: |
+          set -e
+          TAG='${{ steps.tag.outputs.tag }}'
+          cp play/index.html play/launcher.html play/streamfs.js play/server.py play/.env.example dist/web/
+          cp LICENSE NOTICE AUTHORS.md THIRD-PARTY-LICENSES.md SELF_HOSTING.md dist/web/
+          cp fsroot/gamedata/CREDITS-DEMO-DATA.txt fsroot/gamedata/ExampleSuiteAuthors.txt fsroot/gamedata/LinksToLicenses.txt dist/web/
+          # No proprietary content may ever appear in a release asset.
+          ! ls dist/web | grep -qiE 'morrowind\.(esm|bsa)|tribunal|bloodmoon|mwdata'
+          (cd dist/web && zip -q -r "../openmw-wasm-web-$TAG.zip" .)
+
+      - name: Assemble source tarball (Complete Corresponding Source)
+        run: |
+          TAG='${{ steps.tag.outputs.tag }}'
+          # git archive packs tracked files only — game data, deps caches, and local
+          # blobs are gitignored and can never leak through this path.
+          git archive --format=tar.gz --prefix="openmw-wasm-$TAG/" -o "dist/openmw-wasm-src-$TAG.tar.gz" "$TAG"
+          tar tzf "dist/openmw-wasm-src-$TAG.tar.gz" | grep -qiE 'mwdata|\.esm$|\.bsa$' && { echo "FATAL: suspicious file in source tarball" >&2; exit 1; } || true
+
+      - name: Checksums
+        run: cd dist && shasum -a 256 openmw-wasm-*.zip openmw-wasm-*.tar.gz > SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "OpenMW-WASM ${{ steps.tag.outputs.tag }} — by Virtastic"
+          body: |
+            **Play Morrowind in your browser.** Prebuilt WebAssembly engine — unzip the web bundle, run `python3 server.py`, open desktop Chrome. See [SELF_HOSTING.md](https://github.com/Virtastic/openmw-wasm/blob/${{ steps.tag.outputs.tag }}/SELF_HOSTING.md).
+
+            - `openmw-wasm-web-*.zip` — grab-and-go: prebuilt engine + web shell + free demo world
+            - `openmw-wasm-src-*.tar.gz` — the exact source snapshot (GPLv3 Corresponding Source)
+
+            WASM port © 2025–2026 [Virtastic](https://virtastic.app) · GPL-3.0-or-later · No Morrowind game data included.
+          files: |
+            dist/openmw-wasm-web-${{ steps.tag.outputs.tag }}.zip
+            dist/openmw-wasm-src-${{ steps.tag.outputs.tag }}.tar.gz
+            dist/SHA256SUMS

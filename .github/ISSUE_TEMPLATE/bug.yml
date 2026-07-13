@@ -1,0 +1,48 @@
+name: Bug report
+description: Something broke in openmw-wasm
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Note: openmw-wasm targets **desktop Chrome/Chromium only** —
+        Firefox/Safari/mobile issues will be closed as out of scope.
+  - type: input
+    id: url
+    attributes:
+      label: Where did it happen?
+      description: morrowind.virtastic.app, a self-hosted instance, or a local build — include any URL flags (?nomw, ?pp=1, …)
+      placeholder: https://morrowind.virtastic.app/?nomw
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & version
+      placeholder: Chrome 138.0.7204.93 (arm64)
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU / OS
+      description: Paste the "GL_RENDERER" line from chrome://gpu if you can
+      placeholder: Apple M4 / macOS 15.5, or RTX 4070 / Windows 11
+    validations:
+      required: true
+  - type: dropdown
+    id: data
+    attributes:
+      label: Game data
+      options:
+        - Bundled demo (example world / ?nomw)
+        - My own Morrowind data (File System Access)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected, what you got. Console output (F12) is gold.
+    validations:
+      required: true

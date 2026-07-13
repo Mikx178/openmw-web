@@ -1,3 +1,5 @@
+# Modified by Virtastic (https://virtastic.app) for the OpenMW-WASM port, 2025-2026.
+# See WASM_ADAPTATIONS.md at the repository root for details of the changes.
 # Escape hatch for cross-compilation (emscripten/WASM): the try_compile below links a standalone
 # pthread executable, which is flaky under emscripten even though the linked Bullet IS double
 # precision. When we already know the precision (prebuilt dep stack), skip the probe.

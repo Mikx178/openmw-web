@@ -1,4 +1,4 @@
-<!doctype html><html><head><!-- SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm --><meta charset="utf-8"><title>OpenMW — Morrowind</title>
+<!doctype html><html><head><!-- Copyright (C) 2025-2026 Virtastic - https://virtastic.app | SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm --><meta charset="utf-8"><title>OpenMW — Morrowind</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <link rel="icon" href="data:,"><!-- empty favicon: stop the browser's auto /favicon.ico request 404 -->
 <style>
@@ -56,6 +56,8 @@
  #loading.indet .ld-fill{width:34%;animation:ldSlide 1.25s ease-in-out infinite}
  @keyframes ldSlide{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
  #loading .ld-detail{margin-top:13px;min-height:16px;font:12px/1.4 ui-monospace,Menlo,monospace;color:#7c705c}
+ #loading .ld-credit{margin-top:26px;font-size:11px;letter-spacing:.08em;color:#6a5f4d}
+ #loading .ld-credit a{color:#8a6838;text-decoration:none;border-bottom:1px solid rgba(138,104,56,.45)}
  @media (prefers-reduced-motion:reduce){
    #loading::before,#loading .ld-glyph{animation:none}
    #loading.indet .ld-fill{animation:none;width:100%}
@@ -84,6 +86,8 @@
     <div class="ld-status" id="ld-status">Preparing…</div>
     <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
     <div class="ld-detail" id="ld-detail"></div>
+    <div class="ld-credit">OpenMW-WASM by <a href="https://virtastic.app" target="_blank" rel="noopener">Virtastic</a>
+      &middot; GPLv3 &middot; <a href="https://github.com/Virtastic/openmw-wasm" target="_blank" rel="noopener">Source</a></div>
   </div>
 </div>
 <script>

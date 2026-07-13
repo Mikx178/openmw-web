@@ -1,3 +1,5 @@
+# Copyright (C) 2025-2026 Virtastic - https://virtastic.app
+# SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm
 # openmw-builder — one-time builder image that bakes the emscripten toolchain + the WASM dep stack so
 # the per-push deploy build (Dockerfile) is just the fast incremental OpenMW compile+link.
 #

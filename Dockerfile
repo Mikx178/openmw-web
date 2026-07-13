@@ -1,3 +1,5 @@
+# Copyright (C) 2025-2026 Virtastic - https://virtastic.app
+# SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm
 # syntax=docker/dockerfile:1
 # =============================================================================================
 # Per-push deploy image for morrowind.virtastic.app.

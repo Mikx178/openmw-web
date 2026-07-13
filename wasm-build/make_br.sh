@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2025-2026 Virtastic - https://virtastic.app
+# SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm
 # Precompress the big compressible payloads for play/server.py's .br fast path.
 # Run after every deploy (openmw.js/wasm/data change); the .esm files never change.
 # Skips already-fresh .br files. Audio/video tars (mp3/bik) barely compress — skipped.

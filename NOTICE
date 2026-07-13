@@ -1,0 +1,23 @@
+OpenMW-WASM
+===========
+
+Copyright (C) 2025-2026 Virtastic — https://virtastic.app
+
+OpenMW-WASM is the OpenMW game engine (https://openmw.org) cross-compiled to
+WebAssembly by Virtastic, playable in a browser at
+https://morrowind.virtastic.app.
+
+This work is based on OpenMW, Copyright (C) the OpenMW developers (see
+openmw/AUTHORS.md), at upstream commit recorded in .openmw-base-commit.txt.
+All WebAssembly/WebGL2 adaptations, build tooling, and the web shell are by
+Virtastic; see WASM_ADAPTATIONS.md for a complete technical account.
+
+License: GNU General Public License v3.0 or later (see LICENSE).
+
+Additional term under GPLv3 section 7(b): distributions of this work or works
+based on it must preserve the author attributions in this NOTICE file and in
+the source file headers ("Modified by Virtastic" / "Copyright (C) 2025-2026
+Virtastic").
+
+Morrowind is a trademark of ZeniMax Media Inc. This project is not affiliated
+with or endorsed by ZeniMax/Bethesda, and no Morrowind game data is included.

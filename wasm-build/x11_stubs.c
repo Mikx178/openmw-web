@@ -1,3 +1,5 @@
+// Copyright (C) 2025-2026 Virtastic - https://virtastic.app
+// SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-wasm
 /* X11 no-op stubs for the OpenMW WASM build.
  *
  * osgViewer is compiled with its X11 windowing backend (OSG has no "none" backend for

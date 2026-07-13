@@ -1,0 +1,15 @@
+name: Feature request
+description: Suggest an improvement to the WASM port
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: |
+        Note: gameplay/engine features belong upstream at OpenMW
+        (https://gitlab.com/OpenMW/openmw). This tracker is for the
+        web port — rendering on WebGL2, loading, browser integration,
+        the launcher, hosting, performance in the browser.
+    validations:
+      required: true

@@ -1,3 +1,5 @@
+// Modified by Virtastic (https://virtastic.app) for the OpenMW-WASM port, 2025-2026.
+// See WASM_ADAPTATIONS.md at the repository root for details of the changes.
 #ifndef OMW_GUARD_LIB_LIGHT_BINDINGS_GLSL
 #define OMW_GUARD_LIB_LIGHT_BINDINGS_GLSL
 #include "lib/light/struct.glsl"

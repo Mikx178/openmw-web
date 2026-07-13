@@ -3,6 +3,7 @@ source-mw/
 archive/
 content/
 fsroot/gamedata/
+fsroot/gamedata.old-retail-DONOTSHIP/
 fsroot/*.dat
 play/mwdata/
 
@@ -19,6 +20,19 @@ build-wasm/
 *.zip
 *.cab
 *.bak
+play/openmw.js
+*.br
+
+# === Credentials — never commit, regardless of location ===
+*.pem
+*.key
+*.crt
+.env
+.env.*
+!.env.example
+!play/.env.example
+*.tfstate
+*.tfstate.*
 
 # === Preserved upstream OpenMW git dir (local backup, not for this repo) ===
 openmw/.git-upstream/

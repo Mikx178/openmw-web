@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   build:
+    if: github.repository == 'Virtastic/openmw-wasm'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -19,6 +19,9 @@ concurrency:
 
 jobs:
   deploy:
+    # Public-repo hardening: never run on forks or PR-triggered events — this job
+    # executes on the production VPS runner.
+    if: github.repository == 'Virtastic/openmw-wasm' && github.event_name != 'pull_request'
     runs-on: [self-hosted, ovh, virtastic]
     steps:
       - uses: actions/checkout@v4
