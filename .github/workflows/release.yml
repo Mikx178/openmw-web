@@ -82,7 +82,7 @@ jobs:
           ! ls dist/web | grep -qiE 'morrowind\.(esm|bsa)|tribunal|bloodmoon|mwdata'
           # python3 -m zipfile: the runner has no `zip` binary. Run from inside web/
           # so entries land at the zip root (unzip → serve, no nested dir).
-          (cd dist/web && python3 -m zipfile -c "../openmw-wasm-web-$TAG.zip" *)
+          (cd dist/web && python3 -m zipfile -c "../openmw-wasm-web-$TAG.zip" * .env.example)
 
       - name: Assemble source tarball (Complete Corresponding Source)
         run: |
