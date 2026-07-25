@@ -1,0 +1,1633 @@
+<!doctype html><html><head><script src="./coi-serviceworker.js"></script><!-- Copyright (C) 2025-2026 Virtastic - https://virtastic.app | SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-web --><meta charset="utf-8"><title>OpenMW-Web</title><script>/* Lock the tab title: the engine calls SDL_SetWindowTitle (document.title=...) on boot; shadow the property so those writes are ignored and the tab always reads OpenMW-Web. */(function(){var LOCK="OpenMW-Web";try{Object.defineProperty(document,"title",{configurable:true,get:function(){return LOCK},set:function(){}});}catch(e){}try{var t=document.getElementsByTagName("title")[0];if(t)t.textContent=LOCK;}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<link rel="icon" type="image/png" href="data:image/png;base64,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"><!-- empty favicon: stop the browser's auto /favicon.ico request 404 -->
+<style>
+ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+ /* Windowless: the canvas fills the entire browser viewport; its drawing buffer is driven
+    from window.innerWidth/Height in JS so the render resolution always matches the window. */
+ #canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;border:0;outline:none;background:#000}
+ /* Debug log kept in the DOM (readable via devtools console / eval) but hidden;
+    press the ` (backtick) key to toggle it. */
+ #log{position:fixed;left:0;bottom:0;width:100%;max-height:40%;box-sizing:border-box;z-index:10;
+      display:none;overflow:auto;margin:0;padding:6px 10px;white-space:pre-wrap;
+      background:rgba(10,10,15,.85);color:#a6e3a1;font:11px/1.35 ui-monospace,Menlo,monospace}
+ #log.show{display:block}
+ .err{color:#f38ba8}
+ /* Always-visible compact status: FPS + latest phase. Toggle full log with backtick (`). */
+ /* Debug HUD (FPS / status / log toggle) is hidden by default — a clean screen for players.
+    Opt in with ?hud=1 (adds .show); it's also auto-revealed on the first fault so errors stay
+    reachable. See the boot script. */
+ #hud{display:none;position:fixed;top:0;left:0;z-index:11;padding:3px 9px;cursor:pointer;max-width:100vw;
+      overflow:hidden;white-space:pre;background:rgba(10,10,15,.72);color:#89b4fa;
+      font:11px/1.35 ui-monospace,Menlo,monospace;text-shadow:0 1px 2px #000;user-select:none}
+ #hud.show{display:block}
+ #hud:hover{background:rgba(20,20,30,.9)}
+ /* Save backup/restore controls — top-right, appear once the game is running. */
+ #savetools{position:fixed;top:0;right:0;z-index:11;display:none;gap:6px;padding:3px 8px;
+      background:rgba(10,10,15,.72);font:11px/1.35 ui-monospace,Menlo,monospace}
+ #savetools.show{display:flex}
+ #savetools button{cursor:pointer;background:rgba(20,20,30,.6);color:#cba6f7;border:1px solid #45475a;
+      border-radius:4px;padding:2px 8px;font:inherit}
+ #savetools button:hover{background:rgba(40,40,55,.95);color:#f5e0dc}
+ /* --- Themed loading overlay (matches launcher.html: ash + Dwemer bronze + Red Mountain
+    ember). Covers the canvas during download/boot, fades out on the engine's first frame. --- */
+ #loading{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;
+   padding:24px;text-align:center;background:#0c0a09;color:#ece0c6;
+   font:16px/1.6 "Optima","Gill Sans","Gill Sans MT",-apple-system,"Segoe UI",Roboto,sans-serif;
+   transition:opacity .6s ease}
+ #loading.hide{opacity:0;pointer-events:none}
+ #loading::before{content:'';position:absolute;inset:0;pointer-events:none;
+   background:radial-gradient(150% 72% at 50% 132%, rgba(198,90,46,.30), rgba(198,90,46,.05) 34%, transparent 60%),
+     radial-gradient(90% 60% at 50% 134%, rgba(233,180,90,.16), transparent 56%);
+   animation:ldEmber 9s ease-in-out infinite}
+ @keyframes ldEmber{0%,100%{opacity:.82}50%{opacity:1}}
+ #loading .ld-inner{position:relative;width:100%;max-width:440px}
+ #loading .ld-glyph{width:56px;height:56px;margin:0 auto 24px;color:#c69a52;animation:ldSpin 7s linear infinite}
+ #loading .ld-glyph svg{width:100%;height:100%;display:block}
+ @keyframes ldSpin{to{transform:rotate(360deg)}}
+ #loading .ld-title{margin:0 0 10px;font-family:"Hoefler Text","Baskerville","Palatino Linotype",Palatino,Georgia,serif;
+   font-weight:600;font-size:clamp(28px,5vw,40px);letter-spacing:.01em;color:#ece0c6;
+   text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 34px rgba(211,168,78,.10)}
+ #loading .ld-status{margin:0 0 22px;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;
+   font-weight:600;color:#c69a52}
+ #loading .ld-bar{position:relative;height:4px;border-radius:3px;overflow:hidden;background:rgba(138,104,56,.28)}
+ #loading .ld-fill{height:100%;width:0;border-radius:3px;
+   background:linear-gradient(90deg,#8a6838,#d3a84e,#eecb78);transition:width .3s ease}
+ #loading.indet .ld-fill{width:34%;animation:ldSlide 1.25s ease-in-out infinite}
+ @keyframes ldSlide{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
+ #loading .ld-detail{margin-top:13px;min-height:16px;font:12px/1.4 ui-monospace,Menlo,monospace;color:#7c705c}
+ #loading .ld-credit{margin-top:26px;font-size:11px;letter-spacing:.08em;color:#6a5f4d}
+ #loading .ld-credit a{color:#8a6838;text-decoration:none;border-bottom:1px solid rgba(138,104,56,.45)}
+ @media (prefers-reduced-motion:reduce){
+   #loading::before,#loading .ld-glyph{animation:none}
+   #loading.indet .ld-fill{animation:none;width:100%}
+ }
+</style></head>
+<body>
+<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+<div id="hud">☰ starting…</div>
+<div id="savetools" title="Back up or restore your saves and settings">
+  <button id="btn-backup" type="button">⬇ Backup</button>
+  <button id="btn-restore" type="button">⬆ Restore</button>
+  <input id="restore-file" type="file" accept=".tar" style="display:none">
+</div>
+<div id="log">booting…</div>
+<div id="loading" class="indet">
+  <div class="ld-inner">
+    <div class="ld-glyph" aria-hidden="true">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <circle cx="24" cy="24" r="17"/>
+        <circle cx="24" cy="24" r="2.2" fill="currentColor" stroke="none"/>
+        <path d="M24 7 27 24 24 41 21 24Z"/>
+        <path d="M7 24 24 21 41 24 24 27Z"/>
+      </svg>
+    </div>
+    <div class="ld-title" id="ld-title">Elder Scrolls III: Morrowind</div>
+    <div class="ld-status" id="ld-status">Preparing…</div>
+    <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
+    <div class="ld-detail" id="ld-detail"></div>
+    <div class="ld-credit">OpenMW-Web by <a href="https://virtastic.app" target="_blank" rel="noopener">Virtastic</a>
+      &middot; GPLv3 &middot; <a href="https://github.com/Virtastic/openmw-web" target="_blank" rel="noopener">Source</a></div>
+  </div>
+</div>
+<script>
+ // ?wasmdbg: introspect what the glue passes to WebAssembly.instantiate (debug the env-import error)
+ if (/[?&]wasmdbg\b/.test(location.search)) (function(){
+   var oi = WebAssembly.instantiate.bind(WebAssembly);
+   WebAssembly.instantiate = function(bufOrMod, imports){
+     try {
+       console.log('[wasmdbg] instantiate called; imports type:', typeof imports,
+         '| keys:', imports ? Object.keys(imports).join(',') : '(none)',
+         '| env type:', imports && typeof imports.env,
+         '| env keys:', imports && imports.env ? Object.keys(imports.env).length : -1,
+         '| memory:', imports && imports.env && String(imports.env.memory));
+     } catch(e){ console.log('[wasmdbg] introspect err', e); }
+     return oi(bufOrMod, imports);
+   };
+   var os = WebAssembly.instantiateStreaming && WebAssembly.instantiateStreaming.bind(WebAssembly);
+   if (os) WebAssembly.instantiateStreaming = function(src, imports){
+     try { console.log('[wasmdbg] instantiateStreaming; env type:', imports && typeof imports.env, '| env keys:', imports && imports.env ? Object.keys(imports.env).length : -1); } catch(e){}
+     return os(src, imports);
+   };
+ })();
+ // Wrap getContext (installed BEFORE openmw.js loads) to fix the WebGL2 context attributes:
+ //  - alpha:false (CORRECTNESS): the default transparent canvas composites the PAGE BACKGROUND
+ //    through any fragment with dst-alpha<1 (halos on particles/weather/GUI edges) and treats
+ //    canvas pixels as premultiplied while OpenMW blends straight alpha (double-darkening).
+ //    Desktop renders to an opaque framebuffer; so must we.
+ //  - powerPreference:'high-performance' (A2): pick the discrete GPU on dual-GPU machines.
+ (function(){
+   var orig = HTMLCanvasElement.prototype.getContext;
+   HTMLCanvasElement.prototype.getContext = function(type, attrs){
+     if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl'){
+       attrs = attrs || {};
+       attrs.alpha = false;                 // opaque canvas — desktop framebuffer semantics
+       attrs.premultipliedAlpha = false;    // moot with alpha:false; explicit for clarity
+       if (!window.__NO_GPU_HINT && !/[?&]noopt\b/.test(location.search)
+           && attrs.powerPreference == null) attrs.powerPreference = 'high-performance';
+       // desynchronized disabled — suspected first-frame hang in headless preview.
+     }
+     var ctx = orig.call(this, type, attrs);
+     // Enable EXT_texture_filter_anisotropic on the context: WebGL2 reports it in the extension
+     // string (so OSG thinks it's usable) but the GL_TEXTURE_MAX_ANISOTROPY_EXT pname is only
+     // ACCEPTED after getExtension() is called on the context — otherwise glTexParameterf raises
+     // GL_INVALID_ENUM. Calling it here lets the OSG anisotropy path work (see Texture.cpp).
+     if (ctx && (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl')) {
+       try { ctx.getExtension('EXT_texture_filter_anisotropic'); } catch (e) {}
+       // EXT_color_buffer_float: makes RGBA16F/RGBA32F color-renderable so post-processing float
+       // render targets (e.g. bloom) are FBO-complete instead of rendering black.
+       try { ctx.getExtension('EXT_color_buffer_float'); } catch (e) {}
+       try { ctx.getExtension('EXT_color_buffer_half_float'); } catch (e) {}
+       try { ctx.getExtension('OES_texture_float_linear'); } catch (e) {}
+       // ?glcount=1 (QA): count GL calls per frame to attribute the Draw phase. Wrap a curated set
+       // of hot methods (draws + state changes + uniform uploads) with a counter. Pure diagnostic —
+       // the counter increment perturbs timing slightly but COUNTS are exact. window.__glCalls is the
+       // cumulative tally; the frame pump diffs it into window.__glPerFrame each frame.
+       if (/[?&]glcount=1\b/.test(location.search) && !ctx.__glCounted) {
+         ctx.__glCounted = true;
+         window.__glCalls = { total: 0, draw: 0 };
+         var C = window.__glCalls;
+         var DRAWS = ['drawElements','drawArrays','drawElementsInstanced','drawArraysInstanced','drawRangeElements'];
+         var METHS = DRAWS.concat(['useProgram','bindVertexArray','bindBuffer','bindBufferBase','bindTexture',
+           'activeTexture','bindFramebuffer','vertexAttribPointer','enableVertexAttribArray','disableVertexAttribArray',
+           'uniform1i','uniform1f','uniform2f','uniform3f','uniform4f','uniform1fv','uniform2fv','uniform3fv',
+           'uniform4fv','uniform1iv','uniformMatrix3fv','uniformMatrix4fv','uniformBlockBinding']);
+         METHS.forEach(function(name){
+           var fn = ctx[name]; if (typeof fn !== 'function') return;
+           var isDraw = DRAWS.indexOf(name) !== -1;
+           ctx[name] = function(){ C.total++; if (isDraw) C.draw++; C[name] = (C[name]||0)+1; return fn.apply(this, arguments); };
+         });
+       }
+     }
+     return ctx;
+   };
+ })();
+ const logEl = document.getElementById('log');
+ let started = false;
+ // HRTF binaural spatialization: emscripten's OpenAL positions sources with PannerNodes
+ // left at the default 'equalpower' model. Flip every panner the engine creates to the
+ // Web Audio HRTF model — proper binaural 3D audio on headphones, no engine change.
+ // (?nohrtf opts out for A/B comparison or low-end CPUs.)
+ (function(){
+   if (/[?&]nohrtf\b/.test(location.search)) return;
+   ['AudioContext','webkitAudioContext'].forEach(function(k){
+     var C = window[k];
+     if (!C || !C.prototype || !C.prototype.createPanner) return;
+     var orig = C.prototype.createPanner;
+     C.prototype.createPanner = function(){
+       var p = orig.call(this);
+       try { p.panningModel = 'HRTF'; } catch(e){}
+       return p;
+     };
+   });
+ })();
+ // Web Audio contexts start "suspended" until a user gesture. OpenMW opens the OpenAL
+ // device fine, but nothing is audible until we resume. Track every AudioContext the
+ // engine creates and resume them all on the first click/keypress.
+ (function(){
+   const audioCtxs = [];
+   ['AudioContext','webkitAudioContext'].forEach(function(k){
+     const Orig = window[k];
+     if (!Orig) return;
+     window[k] = function(){ const c = new Orig(...arguments); audioCtxs.push(c); return c; };
+     window[k].prototype = Orig.prototype;
+   });
+   function resumeAll(){ audioCtxs.forEach(function(c){ if(c.state==='suspended') c.resume(); }); }
+   ['pointerdown','keydown','touchstart','click'].forEach(function(ev){
+     window.addEventListener(ev, resumeAll, {capture:true});
+   });
+ })();
+ const hudEl = document.getElementById('hud');
+ // Debug HUD is opt-in: ?hud=1 (or ?debug) shows the FPS/status bar + the log toggle (backtick) +
+ // auto-reveal on fault. When it's OFF (the default player experience) NONE of that shows — no
+ // initial bar, no fault reveal, and backtick/Esc do NOT open our overlay (backtick passes through
+ // to the engine so the in-game Morrowind console opens as normal).
+ const __hudEnabled = /[?&](hud=1|debug)\b/.test(location.search);
+ if (__hudEnabled) hudEl.classList.add('show');
+ let lastMsg = 'booting…';
+ function append(t, cls){ if(!started){logEl.textContent='';started=true;}
+   const s=document.createElement('span'); if(cls)s.className=cls; s.textContent=t+"\n"; logEl.appendChild(s);
+   logEl.scrollTop=logEl.scrollHeight;
+   lastMsg = String(t).slice(0, 90);
+   // keep the DOM log from growing unbounded
+   while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild);
+   try { if (window.__omwLoading) window.__omwLoading.fromLog(String(t)); } catch(e){} }
+ // Themed loading overlay controller. Driven by setStatus (engine download %), append()
+ // log lines (game-data download / local mount phases), and hidden on the first engine frame.
+ window.__omwLoading = (function(){
+   var el, titleEl, st, fill, det, done=false, inited=false;
+   function E(){
+     if (inited) return el; inited=true;
+     el=document.getElementById('loading'); titleEl=document.getElementById('ld-title');
+     st=document.getElementById('ld-status'); fill=document.getElementById('ld-fill');
+     det=document.getElementById('ld-detail');
+     // Same themed screen for every path — title stays "Elder Scrolls III: Morrowind".
+     return el;
+   }
+   function set(pct, label, detail){
+     if (done || !E()) return;
+     if (label) st.textContent = label;
+     if (detail != null) det.textContent = detail;
+     if (typeof pct === 'number'){ el.classList.remove('indet'); fill.style.width = Math.max(0,Math.min(100,pct)) + '%'; }
+     else el.classList.add('indet');
+   }
+   function fromLog(t){
+     var m;
+     // Generic, path-agnostic phase labels — same screen whether booting the sample or your files.
+     if ((m = /^\[dl\]\s+(\S+)\s+(\d+)%/.exec(t)))      set(+m[2], 'Downloading', m[1] + ' ' + m[2] + '%');
+     else if (/^\[dl\]/.test(t))                        set(null, 'Downloading', t.replace(/^\[dl\]\s*/, ''));
+     else if (/^\[local\] scanning/.test(t))            set(null, 'Loading');
+     else if ((m = /^\[local\] mounted (\d+) files/.exec(t))) set(null, 'Loading', m[1] + ' files');
+     else if (/^\[(local|mw)\] READY/.test(t))          set(null, 'Entering the world');
+     else if (/SKIPPED \(nomw\)/.test(t))               set(null, 'Loading');
+     else if (/^\[mw\] loading Morrowind/.test(t))      set(null, 'Downloading');
+   }
+   function finish(){
+     if (done || !E()) return; done=true;
+     el.classList.remove('indet'); fill.style.width='100%'; el.classList.add('hide');
+     setTimeout(function(){ if (el) el.style.display='none'; }, 700);
+   }
+   return { set:set, fromLog:fromLog, done:finish };
+ })();
+ // Full-screen fatal overlay: aborts, GPU context loss, unsupported browsers. The hidden dev
+ // log is useless to end users — anything fatal must be VISIBLE with a way forward.
+ function fatalOverlay(title, detail, showReload){
+   try {
+     var o = document.createElement('div');
+     o.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(8,8,12,.96);color:#cdd6f4;'
+       + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'
+       + 'font:15px/1.5 ui-monospace,Menlo,monospace;text-align:center;padding:24px';
+     var h = document.createElement('div'); h.style.cssText='font-size:20px;color:#f38ba8'; h.textContent = title;
+     var d = document.createElement('div'); d.style.maxWidth='640px'; d.textContent = detail || '';
+     o.appendChild(h); o.appendChild(d);
+     if (showReload !== false){
+       var b = document.createElement('button');
+       b.textContent = 'Reload';
+       b.style.cssText = 'font:16px ui-monospace,Menlo,monospace;padding:8px 26px;cursor:pointer;'
+         + 'background:#313244;color:#cdd6f4;border:1px solid #585b70;border-radius:6px';
+       b.addEventListener('click', function(){ location.reload(); });
+       o.appendChild(b);
+     }
+     document.body.appendChild(o);
+   } catch(e){}
+ }
+ // Hard requirement check: this build uses pthreads (SharedArrayBuffer), which needs
+ // cross-origin isolation and a capable browser. Fail with a CLEAR message, not a cryptic
+ // instantiation error (Safari/iOS and non-isolated hosts land here).
+ if (!self.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined'){
+   fatalOverlay('Browser not supported',
+     'This build needs SharedArrayBuffer + cross-origin isolation (COOP/COEP headers). '
+     + 'Use a desktop Chrome/Edge/Firefox, and serve via play/server.py or an HTTPS host '
+     + 'sending COOP: same-origin and COEP: require-corp.', false);
+ }
+ // WebGL context loss: OSG/OpenMW has no GPU-resource restore path, so the correct handling
+ // tier is: sync saves, tell the user, reload cleanly (state comes back from IndexedDB).
+ (function(){
+   var canvas = document.getElementById('canvas');
+   canvas.addEventListener('webglcontextlost', function(e){
+     e.preventDefault();
+     try { if (window.__omwSync) window.__omwSync(); } catch(ex){}
+     append('GPU context lost', 'err');
+     fatalOverlay('Graphics context lost',
+       'The browser reset the GPU context (driver reset or resource pressure). '
+       + 'Your saves are safe. Reloading…');
+     setTimeout(function(){ location.reload(); }, 2500);
+   });
+   canvas.addEventListener('webglcontextrestored', function(){ append('GPU context restored'); });
+ })();
+ // Surface unhandled promise rejections + JS errors (previously silent) and auto-open the log
+ // the FIRST time a genuine JS fault occurs — NOT on routine engine warnings (OpenMW routes
+ // Debug::Warning through printErr, which would otherwise pop the log open constantly).
+ var __firstFaultShown = false;
+ // Only auto-reveal on a fault when the debug HUD is enabled — otherwise players never see our
+ // overlay (an Esc-triggered pointer-lock rejection used to pop the FPS bar up here).
+ function showLogOnce(){ if(__hudEnabled && !__firstFaultShown){ __firstFaultShown = true; hudEl.classList.add('show'); logEl.classList.add('show'); } }
+ // NOTE: the single 'unhandledrejection' handler lives at the bottom of this script — it filters the
+ // benign pointer-lock rejection BEFORE logging. (There used to be a second handler here that
+ // double-logged every rejection and popped the log open on the pointer-lock case it was meant to hide.)
+ // Log is hidden by default. When the debug HUD is enabled (?hud=1/?debug) it can be toggled by
+ // CLICKING the status bar or pressing ` (backtick). When the HUD is OFF, backtick is NOT captured
+ // here — it falls through to the engine so the in-game Morrowind console opens normally.
+ function toggleLog(){ logEl.classList.toggle('show'); }
+ hudEl.addEventListener('click', toggleLog);
+ if (__hudEnabled)
+   window.addEventListener('keydown', function(e){ if (e.key === '`') toggleLog(); });
+ // Live status HUD + periodic console logging so you can SEE what's happening / the FPS.
+ (function(){
+   let lastFps = -1, tick = 0;
+   setInterval(function(){
+     const fps = (window.__fps|0), ms = (window.__frameMs||0);
+     // Fade the loading overlay only when the engine's main loop is ACTUALLY rendering (the start
+     // screen is up), not merely when the pump function exists — _omw_pump_frame is exported the
+     // instant the wasm loads, long before game data downloads/loads and the menu appears, so
+     // gating on it uncovered the rest of the boot. __omwRunning is set by the engine's frame loop
+     // on its first real frame, so it covers the whole boot (wasm + game data + init) end to end.
+     const rendering = !!(window.Module && window.Module.__omwRunning !== undefined);
+     const running = rendering || !!(window.Module && window.Module._omw_pump_frame);
+     if (rendering && window.__omwLoading) window.__omwLoading.done();
+     // Save Backup/Restore toolbar is opt-in (?savetools=1) — hidden by default so it never sits in
+     // the chrome. The tar backup/restore functionality stays wired up; only the buttons are gated.
+     if (rendering && /[?&]savetools=1\b/.test(location.search)) { var st=document.getElementById('savetools'); if (st) st.classList.add('show'); }
+     // The visible HUD text + console heartbeat only matter when the debug HUD is on. For the default
+     // player (HUD hidden) skip both — no point writing textContent to a display:none node twice a
+     // second or growing the console forever. (The loading-overlay fade + savetools above still run.)
+     if (!__hudEnabled) return;
+     const open = logEl.classList.contains('show');
+     hudEl.textContent = '☰ ' + (running ? ('FPS '+fps+'  ('+ms+'ms/frame)') : 'loading…') + '   ' + lastMsg + (open ? '   [click to hide log]' : '   [click for log]');
+     // Console: log on FPS change or every ~4s so devtools shows a live heartbeat.
+     tick++;
+     if (running && (fps !== lastFps || tick % 8 === 0)){
+       console.log('[status] fps='+fps+' frameMs='+ms+' | '+lastMsg);
+       lastFps = fps;
+     }
+   }, 500);
+ })();
+
+ // --- Save backup / restore. Everything persistent (saves, settings, keybindings, screenshots)
+ // lives under /userdata on IDBFS. Backup tars that whole tree so a player can move machines or
+ // recover from browser-data loss; Restore unpacks a backup and re-syncs it to IndexedDB. Uses a
+ // tiny self-contained USTAR reader/writer (no deps). ---
+ (function(){
+   var ROOT='/userdata';
+   function octal(n,len){ var s=n.toString(8); while(s.length<len-1) s='0'+s; return s+'\0'; }
+   // Build a 512-byte tar header. typeflag 48='0' (regular file), 76='L' (GNU @LongLink). Names >100
+   // bytes are carried by a preceding '@LongLink' record (see makeTar) so NOTHING is truncated — long
+   // OpenMW save filenames round-trip intact. (FS paths are ASCII, so char length == byte length.)
+   function tarHeader(name, size, typeflag){
+     var hdr=new Uint8Array(512), enc=new TextEncoder();
+     function put(str,off,len){ var b=enc.encode(str); for(var i=0;i<b.length&&i<len;i++) hdr[off+i]=b[i]; }
+     put(name,0,100);
+     put('0000644\0',100,8);                           // mode
+     put('0000000\0',108,8); put('0000000\0',116,8);   // uid/gid
+     put(octal(size,12),124,12);                       // size
+     put(octal(0,12),136,12);                          // mtime (0; deterministic)
+     for(var i=148;i<156;i++) hdr[i]=32;               // checksum field = spaces while summing
+     hdr[156]=typeflag;
+     put('ustar\0',257,6); put('00',263,2);
+     var sum=0; for(var j=0;j<512;j++) sum+=hdr[j];
+     var cs=sum.toString(8); while(cs.length<6) cs='0'+cs; cs=cs.slice(-6);
+     put(cs,148,6); hdr[154]=0; hdr[155]=32;           // checksum: 6 octal digits + NUL + space
+     return hdr;
+   }
+   // Walk FS collecting {path,data} for every regular file under dir.
+   function collect(dir, out){
+     var ents; try { ents=FS.readdir(dir); } catch(e){ return; }
+     ents.forEach(function(name){
+       if (name==='.'||name==='..') return;
+       var p=dir+'/'+name, st;
+       try { st=FS.stat(p); } catch(e){ return; }
+       if (FS.isDir(st.mode)) collect(p, out);
+       else if (FS.isFile(st.mode)) { try { out.push({path:p, data:FS.readFile(p)}); } catch(e){} }
+     });
+   }
+   function makeTar(files){
+     var blocks=[], enc=new TextEncoder();
+     function pad(n){ var p=(512-(n%512))%512; if(p) blocks.push(new Uint8Array(p)); }
+     files.forEach(function(f){
+       var name=f.path.replace(/^\//,'');             // tar paths are relative
+       if(name.length>100){                           // GNU longname: carry the full path in an
+         var lb=enc.encode(name+'\0');                // '@LongLink' record so nothing is truncated
+         blocks.push(tarHeader('././@LongLink', lb.length, 76 /* 'L' */), lb); pad(lb.length);
+       }
+       blocks.push(tarHeader(name.slice(0,100), f.data.length, 48 /* '0' */), f.data); pad(f.data.length);
+     });
+     blocks.push(new Uint8Array(1024));               // two zero blocks = end
+     var total=blocks.reduce(function(a,b){return a+b.length;},0), buf=new Uint8Array(total), off=0;
+     blocks.forEach(function(b){ buf.set(b,off); off+=b.length; });
+     return buf;
+   }
+   function readTar(buf){
+     var dec=new TextDecoder(), out=[], off=0, longName=null;
+     while(off+512<=buf.length){
+       var name=dec.decode(buf.subarray(off,off+100)).replace(/\0.*$/,'');
+       var typeflag=buf[off+156];
+       var size=parseInt(dec.decode(buf.subarray(off+124,off+136)).replace(/[\0 ]/g,''),8)||0;
+       if(!name && typeflag!==76){ break; }            // zero block = end of archive
+       off+=512;
+       if(typeflag===76){                              // 'L' GNU longname: this record's DATA is the
+         longName=dec.decode(buf.subarray(off,off+size)).replace(/\0.*$/,''); // real path for the next entry
+         off+=size+((512-(size%512))%512); continue;
+       }
+       var real=longName||name; longName=null;
+       out.push({path:'/'+real, data:buf.subarray(off,off+size)});
+       off+=size+((512-(size%512))%512);
+     }
+     return out;
+   }
+   function stamp(){ var d=new Date(); function p(n){return(n<10?'0':'')+n;}
+     return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes()); }
+
+   function backup(){
+     try {
+       if (window.__omwSync) window.__omwSync();     // flush latest state to FS first
+       var files=[]; collect(ROOT, files);
+       if(!files.length){ append('[backup] nothing to back up yet','err'); return; }
+       var tar=makeTar(files);
+       var blob=new Blob([tar],{type:'application/x-tar'});
+       var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+       a.download='morrowind-saves-'+stamp()+'.tar';
+       document.body.appendChild(a); a.click();
+       setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
+       append('[backup] '+files.length+' files ('+(tar.length/1048576).toFixed(1)+' MB) downloaded');
+     } catch(e){ append('[backup err] '+(e&&e.message||e),'err'); }
+   }
+   function restore(file){
+     var r=new FileReader();
+     r.onload=function(){
+       try {
+         var entries=readTar(new Uint8Array(r.result)), n=0;
+         entries.forEach(function(en){
+           if(!/^\/userdata\//.test(en.path)) return; // only touch our own tree
+           var dir=en.path.replace(/\/[^\/]*$/,''); try{ FS.mkdirTree(dir); }catch(e){}
+           FS.writeFile(en.path, en.data); n++;
+         });
+         if (window.__omwSyncfs) window.__omwSyncfs();
+         append('[restore] '+n+' files restored. Reload to load them.');
+         alert('Restored '+n+' files. Reload the page to pick up the restored saves/settings.');
+       } catch(e){ append('[restore err] '+(e&&e.message||e),'err'); }
+     };
+     r.readAsArrayBuffer(file);
+   }
+   var b=document.getElementById('btn-backup'), rb=document.getElementById('btn-restore'),
+       rf=document.getElementById('restore-file');
+   if(b) b.addEventListener('click', backup);
+   if(rb&&rf){ rb.addEventListener('click', function(){ rf.click(); });
+     rf.addEventListener('change', function(){ if(rf.files&&rf.files[0]){ restore(rf.files[0]); rf.value=''; } }); }
+ })();
+
+ // --- Windowless full-viewport rendering: keep the canvas DRAWING BUFFER matched to the
+ // browser window so OpenMW renders at exactly the window resolution and fills it. OpenMW's
+ // SDL2 window is SDL_WINDOW_RESIZABLE and fires SDL_WINDOWEVENT_SIZE_CHANGED -> windowResized()
+ // (resizes viewport + FBOs + GUI) whenever the canvas size changes, so we just drive the size. ---
+ (function(){
+   var canvas = document.getElementById('canvas');
+   // Compute a capped RENDER resolution from the window + a pixel budget, ONCE. OpenMW creates
+   // its SDL window at [Video] resolution x/y (written from these in preRun), so the canvas
+   // drawing buffer matches what SDL expects — NO JS<->SDL resize war (that war recreated the
+   // FBOs repeatedly and froze the engine). CSS (#canvas is 100vw/100vh) scales the capped
+   // render up to fill the window. Perf lever: window.__maxPixels (set before load).
+   // Render at DEVICE pixels, not CSS pixels: on a retina/HiDPI display (devicePixelRatio 2)
+   // a 1710-CSS-px window is 3420 physical px, so rendering at 1710 and letting CSS upscale 2x
+   // looked soft ("not using the resolution"). Multiply by devicePixelRatio so we render at the
+   // display's true pixels, then cap by the pixel budget below.
+   var dpr = window.devicePixelRatio || 1;
+   var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+   var w = cssW * dpr, h = cssH * dpr;
+   // 4MP cap: on retina this lands ~2700x1470 (crisp, perf-safe) instead of the physical 6MP+.
+   // The engine has headroom (wasm-EH + SIMD ~4.4ms/frame at 1.2MP). Override via __maxPixels.
+   var budget = window.__maxPixels || 4000000;
+   var scale = Math.min(1, Math.sqrt(budget / (w * h)));
+   // SUPERSAMPLING anti-aliasing (SSAA): render the canvas at ss× the display size and let the
+   // browser downscale it (#canvas is 100vw/100vh) — the downscale is a high-quality box filter, so
+   // edges (and shader aliasing) are smoothed. This deliberately AVOIDS hardware MSAA, whose
+   // multisample-resolve blit renders black on the web's GLES path; SSAA uses the ordinary
+   // single-sample render path that already works. Opt-in via ?ss=2 or window.__superSample; capped
+   // at 2x (4x fragment cost). Off (ss=1) by default so the default perf is unchanged.
+   // ?ss=N sets the supersample factor AND remembers it (localStorage), so you set it once and it
+   // sticks across reloads without keeping the URL. ?ss=1 turns it back off. Precedence:
+   // window.__superSample > ?ss= (persisted) > last-saved value > 1.
+   var _ssm = /[?&]ss=(\d+(?:\.\d+)?)/.exec(location.search);
+   var ss = 1;
+   try {
+     if (window.__superSample) ss = window.__superSample;
+     else if (_ssm) { ss = parseFloat(_ssm[1]); localStorage.setItem('omw_ss', String(ss)); }
+     else { ss = parseFloat(localStorage.getItem('omw_ss')) || 1; }
+   } catch (e) { ss = _ssm ? parseFloat(_ssm[1]) : 1; }
+   ss = Math.max(1, Math.min(2, ss));
+   window.__baseScale = scale;   // budget-capped scale BEFORE SSAA (basis for the live SSAA resize)
+   scale *= ss;
+   // MEMORY-SAFETY CEILING. SSAA multiplies the drawing buffer past the pixel budget, and the whole
+   // post-processing target stack scales with it. On top of the fixed ~1GB shadow map and ~1.5GB
+   // working set, a persisted 2x on a big retina display allocated a framebuffer that OOM'd the heap
+   // and FROZE the tab on boot. Clamp the FINAL buffer to a hard pixel count so SSAA degrades (less
+   // supersampling on big displays) instead of crashing. Small displays still get the full factor.
+   var __hardMax = window.__maxRenderPixels || 5500000;
+   if (w * h * scale * scale > __hardMax)
+     scale = Math.sqrt(__hardMax / (w * h));
+   window.__ssaaCurrent = scale / (window.__baseScale || scale);   // EFFECTIVE factor actually applied (<= ss after the clamp)
+   window.__renderW = Math.max(320, Math.round(w * scale));
+   window.__renderH = Math.max(240, Math.round(h * scale));
+   // GUI scale = drawing-buffer px per CSS px. When the buffer is DPR-bigger than the CSS window,
+   // MyGUI widgets (sized in buffer px) must scale UP by this ratio to stay the same on-screen size
+   // — the engine multiplies gui.scalingFactor by this (windowmanagerimp.cpp). At DPR=1 it's ~1
+   // (no change); on retina it's ~DPR*budgetScale so menus don't shrink. Inverse of the earlier
+   // "oversized Options on retina" fix, now correct because the canvas really is device-pixel.
+   window.__guiScale = window.__renderW / cssW;
+   // Set the drawing buffer once so it's correct even before SDL_CreateWindow; matches the
+   // resolution we write to settings.cfg, so nothing ever fights over it afterward.
+   canvas.width = window.__renderW; canvas.height = window.__renderH;
+   // NOTE: no double-click->fullscreen handler — a double-click is a normal in-game action
+   // (e.g. attack), and hijacking it to toggle fullscreen is hostile. Fullscreen is available
+   // via the browser's own control / F11.
+   canvas.addEventListener('pointerdown', function(){ canvas.focus(); });
+   window.addEventListener('load', function(){ canvas.focus(); });
+
+   // --- Live browser-window resize (debounced). The old naive per-interval resize caused an
+   // FBO-recreation storm; a single application ~300ms after the LAST resize event is safe.
+   // Applies through the engine (omw_set_resolution -> SDL_SetWindowSize -> windowResized),
+   // which resizes viewport/FBOs/GUI exactly like a desktop window resize. ---
+   var resizeTimer = null;
+   window.addEventListener('resize', function(){
+     if (resizeTimer) clearTimeout(resizeTimer);
+     resizeTimer = setTimeout(function(){
+       resizeTimer = null;
+       if (!(window.Module && Module._omw_set_resolution)) return; // engine not up yet
+       var dpr = window.devicePixelRatio || 1;
+       var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+       var w = cssW * dpr, h = cssH * dpr;   // device pixels (match the boot IIFE)
+       var budget = window.__maxPixels || 4000000;
+       var scale = Math.min(1, Math.sqrt(budget / (w * h)));
+       // New NATIVE (100%) render size for the resized window. The canvas is ALWAYS native now:
+       // the player's chosen resolution tier lives engine-side as the SCENE render scale
+       // ([Video] internal render scale, applied by the post-processor to its FBO chain), so it
+       // survives this resize automatically — and the GUI stays native-crisp at every tier.
+       var rw = Math.max(320, Math.round(w * scale)), rh = Math.max(240, Math.round(h * scale));
+       window.__renderW = rw; window.__renderH = rh;
+       // Keep the GUI-scale ratio current for the new window (buffer px per CSS px).
+       window.__guiScale = rw / cssW;
+       if (rw === canvas.width && rh === canvas.height) return; // window unchanged -> nothing to do
+       append('[resize] ' + rw + 'x' + rh + ' (native; scene tier applies engine-side)');
+       try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[resize err] '+e,'err'); }
+     }, 300);
+   });
+
+   // --- Live SSAA (supersampling) bridge. Hardware MSAA can't run under post-processing on WebGL2
+   // (can't resolve a multisampled depth buffer into the texture PP needs — postprocessor.cpp), so the
+   // in-game Options "Antialiasing" dropdown drives SSAA instead: the engine calls this with a factor
+   // (sqrt of the sample count, capped 2x) whenever the setting changes. We rescale the drawing buffer
+   // by newFactor/oldFactor and push it through the same omw_set_resolution path the window-resize uses
+   // — tier-agnostic (composes with the 50%/33% resolution tiers). Measured free at 60fps (CPU-bound,
+   // GPU absorbs the 4x fragments). Persisted to localStorage so it sticks across reloads. ---
+   window.__omwSetSSAA = function(factor){
+     factor = Math.max(1, Math.min(2, +factor || 1));
+     try { localStorage.setItem('omw_ss', String(factor)); } catch(e){}
+     // Recompute the buffer from scratch each call (display size × budget-capped base × factor), then
+     // apply the SAME memory-safety ceiling as boot, so the live path can never OOM either and there's
+     // no drift from repeated relative rescales.
+     var dpr = window.devicePixelRatio || 1;
+     var cssW = window.innerWidth || 1280, cssH = window.innerHeight || 720;
+     var dw = cssW * dpr, dh = cssH * dpr;
+     var base = window.__baseScale || Math.min(1, Math.sqrt((window.__maxPixels || 4000000) / (dw * dh)));
+     var scl = base * factor;
+     var hardMax = window.__maxRenderPixels || 5500000;
+     if (dw * dh * scl * scl > hardMax)
+       scl = Math.sqrt(hardMax / (dw * dh));
+     var eff = scl / base;   // effective factor after the clamp
+     if (Math.abs(eff - (window.__ssaaCurrent || 1)) < 0.02) { window.__ssaaCurrent = eff; return; }
+     window.__ssaaCurrent = eff;
+     if (!(window.Module && Module._omw_set_resolution)) return; // engine not up yet; boot reads omw_ss
+     var rw = Math.max(320, Math.round(dw * scl)), rh = Math.max(240, Math.round(dh * scl));
+     window.__renderW = rw; window.__renderH = rh;
+     window.__guiScale = rw / cssW;
+     append('[ssaa] ' + factor + 'x (eff ' + eff.toFixed(2) + ') -> ' + rw + 'x' + rh);
+     try { Module._omw_set_resolution(rw, rh); } catch(e){ append('[ssaa err] '+e,'err'); }
+   };
+
+   // --- Keyboard capture guards (capture phase, before SDL sees them):
+   //  - Tab must stay in-game (GUI navigation), not move browser focus.
+   //  - Ctrl/Cmd+S is the browser save-page dialog — swallow it (in-game quicksave is F5-free).
+   //  - F5/Ctrl+R reload the page mid-game — block with a hint (use the menu to quit).
+   //  - Ctrl/Cmd+W cannot be blocked by content JS; the dynamic beforeunload guard (below)
+   //    intercepts the actual tab close instead.
+   window.addEventListener('keydown', function(e){
+     var mod = e.ctrlKey || e.metaKey;
+     if (e.key === 'Tab'){ e.preventDefault(); return; }
+     if (mod && (e.key === 's' || e.key === 'S')){ e.preventDefault(); return; }
+     if (e.key === 'F5' || (mod && (e.key === 'r' || e.key === 'R'))){
+       e.preventDefault();
+       append('[guard] page reload blocked — use the in-game menu to exit (or close the tab)');
+       return;
+     }
+     // Focus resilience: typing while the canvas lost focus -> refocus so input reaches the game.
+     if (document.activeElement !== canvas && !e.metaKey && !e.ctrlKey && !e.altKey) canvas.focus();
+   }, {capture:true});
+   canvas.addEventListener('blur', function(){ append('[focus] canvas lost focus — click to resume'); });
+
+   // --- OS clipboard -> game (paste): browser paste events carry the real OS clipboard; push
+   // the text into SDL's internal clipboard so the in-game Ctrl+V that follows reads it.
+   // (Known race: the SDL Ctrl+V keydown can beat this event — a second Ctrl+V is correct.)
+   document.addEventListener('paste', function(e){
+     try {
+       var t = e.clipboardData && e.clipboardData.getData('text/plain');
+       if (t && window.Module && Module.stringToNewUTF8 && Module._omw_set_clipboard){
+         var p = Module.stringToNewUTF8(t);
+         Module._omw_set_clipboard(p);
+         Module._free(p);
+       }
+     } catch(ex){}
+   });
+
+   // --- Pointer-lock helper: cursor warping is impossible in browsers — pointer lock is the
+   // only correct relative-mouse model. If the engine wants relative mode but the lock was
+   // refused (request arrived before a user gesture), re-request it on the next click.
+   canvas.addEventListener('pointerdown', function(){
+     try {
+       if (window.Module && Module.__omwWantsMouseLock && document.pointerLockElement !== canvas) {
+         // requestPointerLock() returns a promise in modern Chrome; it REJECTS if called too soon
+         // after the user exited the lock (browser rate-limit) — swallow that so it doesn't surface
+         // as an "unhandled rejection" in the console. The next click re-requests successfully.
+         const p = canvas.requestPointerLock();
+         if (p && typeof p.catch === 'function') p.catch(function(){});
+       }
+     } catch(e){}
+   });
+ })();
+
+ // --- Quit hook (engine calls window.__omwOnQuit after syncing saves). A cancelled main loop
+ // leaves a dead tab; rather than a dead-end "exited" page, just RESTART the app (reload the
+ // page) — same as the user hitting refresh. Saves/settings already synced to IndexedDB above.
+ window.__omwOnQuit = function(){
+   append('[quit] engine exited — restarting');
+   try { location.reload(); }
+   catch(e){ fatalOverlay('Morrowind has exited', 'Reload to play again.'); }
+ };
+
+ // --- Page lifecycle (bfcache-safe): visibilitychange->hidden is the LAST RELIABLE signal
+ // (esp. iOS Safari, which never fires beforeunload); pagehide covers navigation. A static
+ // beforeunload handler would make the page bfcache-ineligible, so the unsaved-progress guard
+ // is registered ONLY while a game is running (engine flips Module.__omwRunning).
+ document.addEventListener('visibilitychange', function(){
+   if (document.visibilityState === 'hidden' && window.__omwSync) window.__omwSync();
+ });
+ window.addEventListener('pagehide', function(){ if (window.__omwSync) window.__omwSync(); });
+ (function(){
+   var guard = function(e){ e.preventDefault(); e.returnValue = ''; return ''; };
+   var armed = false;
+   setInterval(function(){
+     var running = !!(window.Module && Module.__omwRunning);
+     if (running && !armed){ window.addEventListener('beforeunload', guard); armed = true; }
+     else if (!running && armed){ window.removeEventListener('beforeunload', guard); armed = false; }
+   }, 2000);
+ })();
+ // Serialized IDBFS persist-sync. Every save path (settings.cfg, saves, keybindings, Lua
+ // storage, the periodic timer, lifecycle handlers) needs to flush MEMFS->IndexedDB. Two
+ // FS.syncfs(false) in flight at once RACE the reconciliation and can silently DROP writes
+ // (root cause of "changed settings in Options, refreshed, everything reverted", and the
+ // 'warning: 2 FS.syncfs operations in flight at once'). Coalesce to exactly one in-flight
+ // sync plus at most one queued re-sync, so a request during a sync still gets flushed after.
+ // ALL callers — JS and the C++ EM_ASM save hooks — route through this.
+ window.__omwSyncing = false;
+ window.__omwSyncAgain = false;
+ window.__omwSyncfs = function(){
+   try {
+     if (typeof FS === 'undefined' || !FS.syncfs) return;
+     if (window.__omwSyncing) { window.__omwSyncAgain = true; return; }
+     window.__omwSyncing = true;
+     FS.syncfs(false, function(){
+       window.__omwSyncing = false;
+       if (window.__omwSyncAgain) { window.__omwSyncAgain = false; window.__omwSyncfs(); }
+     });
+   } catch(e){}
+ };
+ // ?skipintro=1 — hard-skip the new-game intro video (read by worldimp.cpp startNewGame).
+ // A guaranteed-playable path for anyone the cooperative video path still trips up: no video
+ // is played at all, so New Game drops straight into the prison-ship cell.
+ window.__omwSkipIntroFlag = /[?&]skipintro=1/.test(location.search);
+ // --- Content-versioned engine path. The build stamps __ENGINE_VERSION__ with a hash of openmw.wasm
+ // and moves openmw.{js,wasm,data} into e/<hash>/, so every build's engine files live at a UNIQUE
+ // path. Cloudflare therefore can NEVER serve a mismatched mix of two builds' files (the cause of the
+ // "null function" crash). Unstamped (local dev / a raw git checkout) → falls back to flat root paths.
+ var __ENGINE_VER = "__ENGINE_VERSION__";
+ var __ENGINE_DIR = (__ENGINE_VER.charAt(0) === "_") ? "" : ("e/" + __ENGINE_VER + "/");
+ var Module = {
+   // openmw.wasm AND openmw.data both resolve through locateFile → load them from the versioned dir.
+   locateFile: function(path){ return __ENGINE_DIR + path; },
+   canvas: document.getElementById('canvas'),
+   __omwSkipIntro: /[?&]skipintro=1/.test(location.search),
+   // ?start=<cell> deep-links straight into a cell as a fresh default character. Dev/QA aid — only
+   // active when the param is present; normal boots keep the full menu -> intro -> chargen (1:1).
+   // NOTE: --skip-menu WITHOUT --new-game -> newGame(!mNewGame)=newGame(true)=BYPASS in engine.cpp,
+   // which skips the census intro and spawns directly in --start. Passing --new-game forced the
+   // full Imperial-Prison-Ship intro (bypass=false), leaving a headless player stuck in the boat.
+   // Set here (not preRun) because emscripten captures Module.arguments before preRun callbacks.
+   arguments: (function(){
+     try {
+       var m = /[?&]start=([^&]+)/.exec(location.search);
+       if (m) return ['--skip-menu', '--start', decodeURIComponent(m[1])];
+     } catch (e) {}
+     return [];
+   })(),
+   preRun: [function(){
+     try {
+       ENV.HOME='/home/web_user'; ENV.USER='player'; ENV.LOGNAME='player';
+       // ?nomw boots the free example-suite: enable its compat shims (chargen auto-confirm,
+       // +10h daytime start). NEVER set for retail Morrowind — the engine stays 1:1 stock.
+       if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)) ENV.OPENMW_EXAMPLE_SUITE='1';
+       // ?start=<cell> (deep-link) => auto-complete chargen so the new game drops straight into
+       // the target cell (see Module.arguments above + charactercreation.cpp). QA aid only.
+       if (/[?&]start=/.test(location.search)) ENV.OPENMW_QA_AUTOCHARGEN='1';
+       // ?forcemrt (QA) reproduces the pre-fix pass-normals-MRT indexed-blend bug (opaque-black
+       // smoke) for A/B comparison. Never used in normal play.
+       if (/[?&]forcemrt\b/.test(location.search)) ENV.OMW_FORCE_NORMALS_RT='1';
+       // Post-processing now ships on by default on web (PostProcessor::enable no longer gates on
+       // an env var; the [Post Processing] setting drives it, see settingsCfg below). PP renders
+       // the scene single-sample (no MSAA-depth-resolve freeze); AA under PP comes from SSAA.
+       // ?pp=0 disables it for A/B testing.
+       // ?debug -> verbose OSG logs (shows which subsystem is active when boot stalls)
+       if (/[?&]debug\b/.test(location.search)) ENV.OSG_NOTIFY_LEVEL='INFO';
+       // ?shadowdbg -> per-frame shadow texel/latch diagnostics (mwshadowtechnique BASE/CROP logs)
+       if (/[?&]shadowdbg\b/.test(location.search)) ENV.OMW_SHADOW_DEBUG='1';
+       // Engine log level: Info by default (the per-tile navmesh Debug logs flood the console
+       // and the HUD status line); ?debuglog restores full Verbose logging.
+       // NOTE: toLevel() in debugging.cpp only matches UPPERCASE names; 'Info' silently fell
+       // through to the Verbose default, leaking Verbose spam. Use the exact uppercase tokens.
+       ENV.OPENMW_DEBUG_LEVEL = /[?&]debuglog\b/.test(location.search) ? 'VERBOSE' : 'INFO';
+       ENV.ICU_DATA='/'; // directory holding icudt68l.dat (real ICU locale data)
+       // (OPENMW_DONT_PRECOMPILE no longer set: the SingleThreaded viewer runs the
+       //  incremental GL precompile on the main GL thread — smooths cell transitions.)
+       // A1: disable OSG's per-frame glGetError() check. Default is ONCE_PER_FRAME, and glGetError
+       // is a hard GPU sync (flush+wait) in WebGL — a per-frame stall. OFF => NEVER_CHECK_GL_ERRORS.
+       // Also stops the residual "invalid enumerant after RenderBin::draw" warning at its checkpoint.
+       if (!/[?&]noopt\b/.test(location.search)) ENV.OSG_GL_ERROR_CHECKING='OFF';
+       // ?rsdbg=1 (QA): engine logs the scene render-scale plumbing ([rs] lines — FBO/viewport sizes).
+       if (/[?&]rsdbg=1\b/.test(location.search)) ENV.OPENMW_RS_DEBUG='1';
+       // ?perfstats=1 (QA): engine pushes per-frame Cull/Draw ms to window.__omwPhase (no F3 HUD).
+       if (/[?&]perfstats=1\b/.test(location.search)) ENV.OPENMW_PERF_STATS='1';
+       // NOTE: OPENMW_DECOMPRESS_TEXTURES removed — OSG now reports S3TC support (GLExtensions
+       // patch), so DXT textures upload COMPRESSED via glCompressedTexImage2D (no CPU decompress).
+       // USER CONFIG/DATA LIVE ON IDBFS: pointing XDG at the /userdata mount makes the
+       // engine's own writes persistent — Options-menu settings.cfg, keybindings
+       // (input_v3.xml), Lua mod storage (global/player_storage.bin), console history and
+       // screenshots all survive reloads with zero engine changes. (Cache stays in MEMFS.)
+       ENV.XDG_CONFIG_HOME='/userdata/config';
+       ENV.XDG_DATA_HOME='/userdata/data-home';
+       ENV.XDG_CACHE_HOME='/home/web_user/.cache';
+       FS.mkdirTree('/home/web_user/.cache/openmw');
+       // Performance-tuned settings (merged over defaults). Biggest levers for the WASM build:
+       //  - viewing distance: fewer cells/objects culled+drawn (default 7168)
+       //  - water reflection detail 0 + small rtt: water no longer re-renders the whole scene
+       //  - larger small-feature-culling: skip tiny distant objects
+       // All tunable; raise for fidelity, lower for FPS.
+       try {
+         // OpenMW creates its SDL window at this resolution -> matches the canvas drawing buffer
+         // set in the head IIFE, so JS and SDL agree on the size (no resize war / FBO thrash).
+         var rW = (typeof window!=='undefined' && window.__renderW) || 1280;
+         var rH = (typeof window!=='undefined' && window.__renderH) || 720;
+         // IMPORTANT: OpenMW loads user settings from <last active config dir>/settings.cfg.
+         // In this build the only config dir is '/' (where openmw.cfg lives), NOT the XDG
+         // path — write the file to BOTH so the engine actually reads it.
+         var settingsCfg =
+           '[Video]\n' +
+           'resolution x = ' + rW + '\n' +
+           'resolution y = ' + rH + '\n' +
+           'window mode = 2\n' +                   // 2 = windowed (canvas); CSS scales it to fill
+           // Default brightness: [Video] gamma drives the PP 'adjustments' uGamma every frame
+           // (PostProcessor::update), and the Options "Gamma" slider controls it live. 1.2 lifts
+           // shadows/midtones so dim areas are readable without washing out daylight; a user's
+           // saved slider value overrides this baseline. ?gamma=N (QA).
+           'gamma = ' + ((/[?&]gamma=([0-9.]+)/.exec(location.search)||[])[1] || '1.2') + '\n' +
+           // ?aa=N (QA) sets [Video] antialiasing so scene MSAA can be exercised headlessly
+           // (default off = 1:1 with desktop). Normal play leaves AA to the Options menu.
+           (/[?&]aa=(\d+)/.test(location.search) ? 'antialiasing = ' + RegExp.$1 + '\n' : '') +
+           // ?rs=F (QA) seeds the SCENE render scale (0.2..1): the 3D scene renders at F x canvas
+           // and the post-processor upscales; GUI stays native. Same setting the Options
+           // resolution tiers write; a user's saved value overrides this defaults layer.
+           (/[?&]rs=(0?\.\d+|1(?:\.0+)?)/.test(location.search) ? 'internal render scale = ' + RegExp.$1 + '\n' : '') +
+           '[Camera]\n' +
+           'viewing distance = ' + ((/[?&]vd=(\d+)/.exec(location.search)||[])[1] || '16384') + '.0\n' +  // 2 cells: radial distant-terrain vista (paired with 'distant terrain=true' below). ?vd=N overrides (QA)
+           'small feature culling pixel size = 3.0\n' +
+           '[Terrain]\n' +
+           'distant terrain = ' + (/[?&]dt=0/.test(location.search) ? 'false' : 'true') + '\n' +  // QuadTree LOD: radial terrain+statics to the view distance (else only the 3x3 active cells render = square boundary). ?dt=0 disables (QA)
+           'object paging = true\n' +
+           'object paging active grid = true\n' +
+           'object paging min size = 0.005\n' +   // render/merge the distant backdrop rocks + trees
+           // Merge factor: how aggressively object paging batches statics into single merged
+           // meshes. Profiling showed the frame is CPU-bound on GL draw submission (~1770
+           // drawables, Draw 5-7ms), and distance rendering is the driver — more merging =
+           // fewer draw calls with IDENTICAL visuals (same objects, just pre-combined).
+           // ?merge=N overrides for A/B.
+           'object paging merge factor = ' + ((/[?&]merge=(\d+)/.exec(location.search)||[])[1] || '250') + '\n' +
+           '[Water]\n' +
+           'shader = true\n' +                     // real water shader (reflections/refractions)
+           // reflection detail: 0=sky only (no scene geometry re-rendered into the reflection),
+           // 2=statics+terrain, 3=World, 4=Objects, 5=Groundcover. Higher = more draw calls in the
+           // reflection pass (CPU cost). DEFAULT 0 for now: reflecting the dark near-shore bank produced
+           // an ugly dark band at the waterline, so we reflect only the sky (clean, vanilla-like) until
+           // that's tuned. ?refldetail=N to opt geometry reflections back in (e.g. 3 = World).
+           'reflection detail = ' + ((/[?&]refldetail=(\d+)/.exec(location.search)||[])[1] || (/[?&]norefl=1\b/.test(location.search) ? '0' : '0')) + '\n' +
+           'refraction = ' + (/[?&]norefr=1\b/.test(location.search) ? 'false' : 'true') + '\n' +   // ?norefr=1 disables refraction (QA isolation).
+           // rtt size 1024 (was 512): sharper reflection/refraction (max-fidelity default). GPU cost
+           // only (we're CPU-bound), and water.frag's reflectionBlur is rtt-aware (~3 texels) so the
+           // sharper buffer reads sharper instead of over-blurring. ?rtt=N overrides (QA).
+           'rtt size = ' + ((/[?&]rtt=(\d+)/.exec(location.search)||[])[1] || '1024') + '\n' +
+           'rain ripple detail = 2\n' +            // dense rain ripples (cheap)
+           'small feature culling pixel size = 30.0\n' +
+           '[Fog]\n' +
+           // Radial fog: intensity by TRUE eye distance instead of per-vertex planar depth.
+           // Free (same osg_Fog_* uniforms, just a distance formula) and it kills the artifact
+           // where the screen corners fog differently from the center on a wide FOV. Pure win.
+           'radial fog = true\n' +
+           // Distant fog fades the QuadTree LOD terrain (distant terrain=true above, out to the
+           // 16384 view distance) into fog so far chunks stop hard-popping at the vista edge.
+           // Land fog is tuned to the web view distance: fully fogged by ~16384 so the LOD
+           // boundary is hidden; interior/underwater keep engine defaults.
+           // NOTE: fog start pushed OUT (8192->12288, ~0.75 of the vista) so the near/mid scene
+           // stays clear and only the far LOD edge fades -- the old 0.5 start hazed too much of the
+           // frame (read as "washed out"). ?modernfog=0 turns the distant-fog + sky-blend haze off
+           // entirely for A/B.
+           (/[?&]modernfog=0\b/.test(location.search)
+             ? 'use distant fog = false\n'
+             : ('use distant fog = true\n' +
+                'distant land fog start = 12288\n' +
+                'distant land fog end = 16384\n' +
+           // Sky blending: blend the far clip plane into the sky dome (via a small sky RTT) for a
+           // smooth horizon instead of a hard land/sky seam where distant terrain meets the sky.
+           // start pushed 0.8->0.9 so only the last sliver of the vista melts into the sky (0.8
+           // washed a visible band of distant land into the sky tone).
+                'sky blending = true\n' +
+                'sky blending start = 0.9\n')) +
+           '[Shadows]\n' +
+           // ?noshadow=1 (QA) disables shadows entirely for A/B — confirms whether the hard-edged
+           // "swimming" patches on flat surfaces (esp. water) are the shadow cascade boundary.
+           'enable shadows = ' + (/[?&]noshadow=1\b/.test(location.search) ? 'false' : 'true') + '\n' +
+           // SWIM FIX (live-confirmed 2026-07-06): the residual shadow "swim" was CASCADE TRANSITIONS —
+           // per-cascade texel grids are world-locked (verified by telemetry), but with 3 PSSM cascades
+           // objects crossing the split boundaries get re-shadowed at a different cascade resolution as
+           // the camera moves, which reads as swimming. ONE cascade = no transitions = rock-steady
+           // shadows; a high-res single map makes up the resolution a cascade stack would have provided.
+           // 8192 (was 16384, user request 2026-07-07): a 16384 depth map is ~1GB — the single biggest
+           // memory consumer — and 8192 (~256MB) frees that headroom (e.g. for SSAA) at a still-crisp
+           // texel density over the 2048 shadow range. ?shadowres=N / ?shadowmaps=N override (QA).
+           'shadow map resolution = ' + ((/[?&]shadowres=(\d+)/.exec(location.search)||[])[1] || '8192') + '\n' +
+           'number of shadow maps = ' + ((/[?&]shadowmaps=(\d+)/.exec(location.search)||[])[1] || '1') + '\n' +
+           'actor shadows = true\n' +
+           'player shadows = true\n' +
+           // object shadows: OFF by default. It WOULD fix the plank-leak (objects don't write the shadow
+           // map, so a plank can't occlude and the player's shadow passes through to the ground), BUT
+           // turning it on adds every object as a caster, which makes the single 16384 cascade's frustum
+           // fit shift as objects enter/leave view — reintroducing the shadow SWIM. Swim-free wins; the
+           // plank-leak stays. ?objshadow=1 (QA) to opt back in if you accept the swim.
+           'object shadows = ' + (/[?&]objshadow=1\b/.test(location.search) ? 'true' : 'false') + '\n' +
+           'terrain shadows = true\n' +
+           // 2048 (was 4096): with the single 16384 cascade, a tighter shadow range concentrates the
+           // map's texels near the player — visibly crisper + steadier (user-confirmed). ?shadowdist=N (QA).
+           'maximum shadow map distance = ' + ((/[?&]shadowdist=(\d+)/.exec(location.search)||[])[1] || '2048') + '\n' +
+           '[Cells]\n' +
+           'preload cell cache max = 18\n' +   // engine asked for 18 for exterior preloading
+           '[Game]\n' +
+           'actors processing range = 4096\n' +   // AI-process fewer distant NPCs/creatures (towns)
+           '[Shaders]\n' +
+           // max lights: dynamic point lights evaluated per object. Higher = richer lit scenes but
+           // more per-object shading cost. ?maxlights=N overrides (QA); default measured for 60fps.
+           'max lights = ' + ((/[?&]maxlights=(\d+)/.exec(location.search)||[])[1] || '16') + '\n' +
+           // Per-pixel lighting: MW geometry is low-poly, so per-VERTEX lighting looks faceted
+           // (flat-shaded walls, banding on terrain). Per-pixel smooths the gradients across each
+           // face. Pure fragment-shader path (already GLES-ported); fill cost is bounded by
+           // max lights=8. Big look upgrade for lit interiors and sunlit exteriors alike.
+           'force per pixel lighting = true\n' +
+           // Alpha-to-coverage: convert alpha-TEST edges (foliage, fences, grates, hair) to
+           // alpha-to-coverage so they smooth under MSAA instead of aliasing as hard cutouts.
+           // A no-op unless MSAA is on (shouldAddMSAAIntermediateTarget = this && antialiasing>1),
+           // so it costs nothing by default and only kicks in when the player enables AA.
+           // NOTE: with MSAA on it also routes the water/sky RTTs through an MSAA-resolve path
+           // (util.cpp:shouldAddMSAAIntermediateTarget) — smoke-test ?aa=4 for water/sky regressions.
+           'antialias alpha test = true\n' +
+           // Interiors are lit by a low ambient floor + point-light lamps. The stock 0.08 floor
+           // reads near-black on the web build; raise it so interiors are navigable (OpenMW's
+           // sanctioned "increase if interiors are too dark" knob; needs classic falloff=false).
+           'minimum interior brightness = 0.25\n' +
+           // Light particle systems with nearby point lights. Without this, particles get only
+           // ambient+emission, so interior smoke/fire (lit solely by the hearth/torch point
+           // light) renders as a black quad. Cheap at max lights=8.
+           'particle point lighting = true\n' +
+           // MODERN LIGHTING knobs (the pipeline itself is already modern: per-object-uniform
+           // shader point lights + forced per-pixel; clustered lighting needs GLSL-430 SSBOs so
+           // it's impossible on WebGL2 and the engine falls back automatically):
+           // - clamp lighting=false: drop the legacy fixed-function 0..1 light clamp so point
+           //   lights keep their smooth quadratic falloff instead of plateauing (OpenMW's
+           //   documented "modern look" switch; pairs with the raised interior floor above).
+           //   ?clamplight=1 restores the clamped legacy look (QA).
+           'clamp lighting = ' + (/[?&]clamplight=1\b/.test(location.search) ? 'true' : 'false') + '\n' +
+           // - match sunlight to sun=true: specular glints + water sun-glare track the VISIBLE
+           //   sun disc instead of the light vector's authored offset.
+           'match sunlight to sun = true\n' +
+           // - apply lighting to environment maps=true: env-mapped gear (glass armor, enchanted
+           //   items) is shaded by scene lighting instead of glowing fullbright in dark rooms.
+           'apply lighting to environment maps = true\n' +
+           // Auto normal/specular map pickup (object + terrain): a NO-OP with retail Morrowind
+           // data (it ships no _n/_nh/_spec textures) but makes texture-replacer packs light
+           // correctly the moment they're added to the data dir — zero cost until such textures
+           // actually exist. ?nomaps=1 disables (QA).
+           (/[?&]nomaps=1\b/.test(location.search) ? '' :
+             ('auto use object normal maps = true\n' +
+              'auto use object specular maps = true\n' +
+              'auto use terrain normal maps = true\n' +
+              'auto use terrain specular maps = true\n')) +
+           // Soft particles: fade smoke/fire/mist where they intersect solid geometry instead of
+           // a hard clipping seam. Per-pixel opaque-depth sample in the particle shader (the
+           // opaque depth texture already exists on the web pipeline). ?nosoft=1 disables (QA).
+           (/[?&]nosoft=1\b/.test(location.search) ? '' : 'soft particles = true\n') +
+           '[General]\n' +
+           // Anisotropic filtering: EXT_texture_filter_anisotropic is already enabled at context
+           // creation and applied per-texture by the patched OSG. The engine default is only 4x;
+           // bump the web build to 16x for crisp ground/road/floor textures at grazing angles
+           // (the single biggest cheap sharpness win, near-zero cost on modern GPUs).
+           'anisotropy = 16\n' +
+           // Trilinear mip filtering (engine default is 'nearest' mip = visible mip seams). Smooth
+           // blending between mip levels; pairs with anisotropy=16. Cheap. ?mipnearest=1 reverts (QA).
+           'texture mipmap = ' + (/[?&]mipnearest=1\b/.test(location.search) ? 'nearest' : 'linear') + '\n' +
+           // ?pp=1 enables the experimental GLES post-processing path (also sets OPENMW_ENABLE_PP
+           // env — see preRun). PP renders the scene single-sample (no MSAA-depth-resolve freeze).
+           // The curated chain is controllable with ?ppchain=<csv> for A/B testing:
+           //   ?pp=1                       -> default chain 'adjustments' (color/contrast pass)
+           //   ?pp=1&ppchain=bloomlinear,adjustments  -> bloom + color grade
+           //   ?pp=1&ppchain=              -> empty chain (framework-only smoke)
+           // Techniques are the built-in .omwfx baked into openmw.data (shaders/*.omwfx).
+           // PP now ships ENABLED by default on web (curated GLES chain verified). ?pp=0 turns it
+           // off for A/B; ?ppchain=<csv> overrides the chain. The Options-menu toggle also works,
+           // and since this is only a defaults layer, a user's saved setting overrides it.
+           (/[?&]pp=0\b/.test(location.search)
+             ? ''
+             : ('[Post Processing]\nenabled = true\nchain = ' +
+                (function(){ var m=/[?&]ppchain=([^&]*)/.exec(location.search);
+                   return m ? decodeURIComponent(m[1]) : 'adjustments'; })() + '\n'));
+         // Baseline DEFAULTS layer only. The engine reads this ('/' is an earlier active
+         // config dir) as additional defaults and layers the PERSISTENT user settings from
+         // /userdata/config/openmw/settings.cfg (IDBFS) on top — so Options-menu changes,
+         // including a chosen resolution, override these and survive reloads. NEVER write
+         // the baseline to the user path (it would clobber the player's saved options).
+         FS.writeFile('/settings.cfg', settingsCfg);
+         append('[cfg] render resolution ' + rW + 'x' + rH);
+       } catch(e){ append('[settings err] '+e,'err'); }
+       FS.mkdirTree('/userdata');
+       // Ask the browser for durable storage: without persist(), IndexedDB (saves, settings)
+       // and the Cache API archive are LRU-evictable under storage pressure.
+       try {
+         if (navigator.storage && navigator.storage.persist)
+           navigator.storage.persist().then(function(granted){
+             append('[storage] persistent storage ' + (granted ? 'GRANTED' : 'not granted (evictable)'));
+           });
+         if (navigator.storage && navigator.storage.estimate)
+           navigator.storage.estimate().then(function(est){
+             var q = Math.round((est.quota||0)/1048576), u = Math.round((est.usage||0)/1048576);
+             append('[storage] quota ' + q + 'MB, used ' + u + 'MB');
+             if (est.quota && est.quota < 1200*1048576)
+               append('[storage] WARNING: quota below ~1.2GB — the data cache may not fit; ' +
+                      'first load will work but re-downloads on each visit', 'err');
+           });
+       } catch(e){}
+       // --- Folder-backed saves (?src=local) ---------------------------------------------------
+       // When the player brings their own Morrowind, mirror OpenMW's saves to/from a dedicated
+       // openmw-web-saves subfolder INSIDE their chosen folder, so saves live ON DISK and survive
+       // clearing browser data (like desktop OpenMW). The folder is the authoritative copy; IDBFS is
+       // just a working cache. __idbfsReady lets the mount flow wait until IDBFS has loaded before we
+       // write folder saves into MEMFS (otherwise the IDBFS reconcile could wipe them).
+       window.__idbfsReady = new Promise(function(r){ window.__idbfsReadyResolve = r; });
+       var __folderSaves = null, __mirrored = {}, __mirroring = false, __mirrorAgain = false;
+       var __SAVES_DIR = '/userdata/data-home/openmw/saves';
+       async function setupFolderSaves(dir){
+         var perm='prompt'; try { perm = await dir.queryPermission({mode:'readwrite'}); } catch(e){}
+         if (perm !== 'granted'){
+           append('[saves] your folder is read-only this session — saves use browser storage. Re-pick '
+                + 'your folder and allow editing to store saves on disk (use Backup meanwhile).','err');
+           return;
+         }
+         var sh; try { sh = await dir.getDirectoryHandle('openmw-web-saves', {create:true}); }
+         catch(e){ append('[saves] could not open openmw-web-saves in your folder: '+e,'err'); return; }
+         FS.mkdirTree(__SAVES_DIR);
+         var loaded=0;                                    // mirror IN: folder -> MEMFS (folder wins)
+         try { for await (const [name,h] of sh.entries()){
+           if (h.kind!=='file' || !/\.omwsave$/i.test(name)) continue;
+           try { var buf=new Uint8Array(await (await h.getFile()).arrayBuffer());
+                 FS.writeFile(__SAVES_DIR+'/'+name, buf);
+                 try { __mirrored[name]=FS.stat(__SAVES_DIR+'/'+name).mtime.getTime(); } catch(_){}
+                 loaded++; }
+           catch(e){ append('[saves] loading '+name+' failed: '+e,'err'); }
+         } } catch(e){ append('[saves] could not read your saves folder: '+e,'err'); }
+         __folderSaves = { dir: dir, saves: sh };
+         append('[saves] '+(loaded ? ('loaded '+loaded+' save(s) from') : 'saving to')
+              + ' openmw-web-saves in your folder (on disk, not the browser)');
+         try { window.__omwSyncfs(); } catch(e){}         // also cache the loaded saves in IDBFS
+       }
+       // mirror OUT: MEMFS -> folder. Only files whose mtime changed since last mirror (so unchanged
+       // saves aren't rewritten), plus removes folder saves deleted in-game. Coalesced like syncfs.
+       async function mirrorSavesToFolder(){
+         if (!__folderSaves || __mirroring){ if(__folderSaves) __mirrorAgain=true; return; }
+         __mirroring=true;
+         var sh=__folderSaves.saves, live={};
+         try {
+           var names=[]; try { names=FS.readdir(__SAVES_DIR).filter(function(n){ return /\.omwsave$/i.test(n); }); } catch(e){}
+           for (var i=0;i<names.length;i++){
+             var n=names[i], st; try { st=FS.stat(__SAVES_DIR+'/'+n); } catch(e){ continue; }
+             live[n]=1; var mt=st.mtime.getTime();
+             if (__mirrored[n]===mt) continue;
+             try { var data=FS.readFile(__SAVES_DIR+'/'+n);
+                   var fh=await sh.getFileHandle(n,{create:true});
+                   var w=await fh.createWritable(); await w.write(data); await w.close();
+                   __mirrored[n]=mt; }
+             catch(e){ append('[saves] writing '+n+' to your folder failed: '+e,'err'); }
+           }
+           for (var d in __mirrored){ if(!live[d]){ try { await sh.removeEntry(d); } catch(e){} delete __mirrored[d]; } }
+         } catch(e){ append('[saves] mirror to folder failed: '+e,'err'); }
+         __mirroring=false;
+         if (__mirrorAgain){ __mirrorAgain=false; mirrorSavesToFolder(); }
+       }
+       window.__setupFolderSaves = setupFolderSaves;
+       window.__mirrorSaves = mirrorSavesToFolder;
+
+       // --- Network-backed saves (?src=network, optional saves worker) -----------------------
+       // Same idea as folder-backed saves, but the "disk" is a small authenticated HTTP API
+       // (see saves-worker/) instead of a FileSystemDirectoryHandle, since StreamFS's URL mode
+       // is read-only. If no saves worker was configured, saves simply stay in IDBFS (this
+       // browser only) — same as the sample-world path.
+       var __netSaves = null;
+       async function setupNetworkSaves(savesUrl, token){
+         if (!savesUrl || !token) return; // not configured — IDBFS-only, nothing to mirror
+         FS.mkdirTree(__SAVES_DIR);
+         var loaded = 0;
+         try {
+           var r = await fetch(savesUrl.replace(/\/+$/,'') + '/list', { headers: { 'X-Auth-Token': token } });
+           if (!r.ok) throw new Error('list HTTP ' + r.status);
+           var files = await r.json();
+           for (var i = 0; i < files.length; i++){
+             var name = files[i].name;
+             if (!/\.omwsave$/i.test(name)) continue;
+             var fr = await fetch(savesUrl.replace(/\/+$/,'') + '/' + encodeURIComponent(name), { headers: { 'X-Auth-Token': token } });
+             if (!fr.ok) { append('[saves] loading ' + name + ' failed: HTTP ' + fr.status, 'err'); continue; }
+             var buf = new Uint8Array(await fr.arrayBuffer());
+             FS.writeFile(__SAVES_DIR + '/' + name, buf);
+             try { __mirrored[name] = FS.stat(__SAVES_DIR + '/' + name).mtime.getTime(); } catch(_){}
+             loaded++;
+           }
+         } catch(e){ append('[saves] could not reach saves worker: ' + (e && e.message || e), 'err'); return; }
+         __netSaves = { url: savesUrl.replace(/\/+$/,''), token: token };
+         append('[saves] ' + (loaded ? ('loaded ' + loaded + ' save(s) from') : 'saving to') + ' your saves worker (not just this browser)');
+         try { window.__omwSyncfs(); } catch(e){}
+       }
+       async function mirrorSavesToNetwork(){
+         if (!__netSaves || __mirroring){ if (__netSaves) __mirrorAgain = true; return; }
+         __mirroring = true;
+         var live = {};
+         try {
+           var names = []; try { names = FS.readdir(__SAVES_DIR).filter(function(n){ return /\.omwsave$/i.test(n); }); } catch(e){}
+           for (var i = 0; i < names.length; i++){
+             var n = names[i], st; try { st = FS.stat(__SAVES_DIR + '/' + n); } catch(e){ continue; }
+             live[n] = 1; var mt = st.mtime.getTime();
+             if (__mirrored[n] === mt) continue;
+             try {
+               var data = FS.readFile(__SAVES_DIR + '/' + n);
+               var pr = await fetch(__netSaves.url + '/' + encodeURIComponent(n), {
+                 method: 'PUT',
+                 headers: { 'X-Auth-Token': __netSaves.token, 'Content-Type': 'application/octet-stream' },
+                 body: data,
+               });
+               if (!pr.ok) throw new Error('PUT HTTP ' + pr.status);
+               __mirrored[n] = mt;
+             } catch(e){ append('[saves] writing ' + n + ' to saves worker failed: ' + e, 'err'); }
+           }
+           for (var d in __mirrored){
+             if (!live[d]){
+               try { await fetch(__netSaves.url + '/' + encodeURIComponent(d), { method: 'DELETE', headers: { 'X-Auth-Token': __netSaves.token } }); } catch(e){}
+               delete __mirrored[d];
+             }
+           }
+         } catch(e){ append('[saves] mirror to saves worker failed: ' + e, 'err'); }
+         __mirroring = false;
+         if (__mirrorAgain){ __mirrorAgain = false; mirrorSavesToNetwork(); }
+       }
+       window.__setupNetworkSaves = setupNetworkSaves;
+
+       // Persist saves/config across reloads: mount IndexedDB-backed IDBFS at /userdata
+       // and load its contents before the engine starts (via a run dependency so boot waits).
+       try {
+         var IDBFS = FS.filesystems.IDBFS;
+         if (IDBFS) {
+           FS.mount(IDBFS, {}, '/userdata');
+           addRunDependency('idbfs-load');
+           FS.syncfs(true, function(err){
+             if (err) append('[idbfs load err] '+err,'err'); else append('[idbfs] loaded persistent /userdata');
+             try {
+               // Dirs must be created AFTER the mount+load (before = hidden by the mount).
+               FS.mkdirTree('/userdata/data');            // openmw.cfg data-local
+               FS.mkdirTree('/userdata/config/openmw');   // XDG user config (persistent)
+               FS.mkdirTree('/userdata/data-home/openmw'); // XDG user data: saves/screenshots
+               // Marker openmw.cfg: makes the user config dir an ACTIVE config path, so the
+               // engine both READS user settings from and SAVES them to this IDBFS dir
+               // (settings.cpp uses the last active config dir for the user settings file).
+               if (!FS.analyzePath('/userdata/config/openmw/openmw.cfg').exists)
+                 FS.writeFile('/userdata/config/openmw/openmw.cfg',
+                   '# OpenMW user config dir (persistent, IndexedDB-backed)\n');
+               // ?aa=N must beat the USER config too (the baseline write only covers first
+               // runs — saved user settings override it). Rewrite the persisted setting so
+               // e.g. ?aa=0 reliably disables MSAA. ?resetcfg=1 wipes all user settings.
+               try {
+                 var ucfg = '/userdata/config/openmw/settings.cfg';
+                 if (/[?&]resetcfg=1/.test(location.search) && FS.analyzePath(ucfg).exists) {
+                   FS.unlink(ucfg); append('[cfg] ?resetcfg=1 — user settings.cfg wiped');
+                 } else if (/[?&]aa=(\d+)/.test(location.search) && FS.analyzePath(ucfg).exists) {
+                   var want = 'antialiasing = ' + RegExp.$1;
+                   var txt = FS.readFile(ucfg, {encoding:'utf8'});
+                   if (/^antialiasing\s*=.*$/m.test(txt)) txt = txt.replace(/^antialiasing\s*=.*$/m, want);
+                   else txt = txt.replace(/^\[Video\]$/m, '[Video]\n' + want);
+                   FS.writeFile(ucfg, txt); append('[cfg] ?aa applied to user settings: ' + want);
+                 }
+               } catch(e){ append('[cfg override err] '+e,'err'); }
+               window.__omwSyncfs();
+             } catch(e){ append('[idbfs setup err] '+e,'err'); }
+             try { window.__idbfsReadyResolve(); } catch(e){}   // unblock folder-save mirror-in
+             removeRunDependency('idbfs-load');
+           });
+           // Flush game state back to IndexedDB periodically (lifecycle handlers cover exits).
+           window.__omwSync = function(){
+             // Flush in-memory settings to the config file first (Options only saves on window
+             // CLOSE — without this, changing settings then refreshing loses them), then sync.
+             try { if (Module._omw_save_settings && Module.__omwRunning !== undefined) Module._omw_save_settings(); } catch(e){}
+             window.__omwSyncfs();
+             try { mirrorSavesToFolder(); } catch(e){}    // push new/changed saves out to disk (?src=local)
+             try { mirrorSavesToNetwork(); } catch(e){}   // push new/changed saves to saves worker (?src=network)
+           };
+           setInterval(window.__omwSync, 15000);
+         } else {
+           append('[idbfs] not available — saves will NOT persist across reloads','err');
+           try { window.__idbfsReadyResolve(); } catch(e){}
+         }
+       } catch(e){ append('[idbfs mount err] '+e,'err'); try { window.__idbfsReadyResolve(); } catch(_){} }
+
+       // --- Data source selection ---
+       // ?src=local: mount the user's OWN Morrowind Data Files folder (picked in
+       // launcher.html, persisted as a FileSystemDirectoryHandle in IndexedDB). Every file
+       // is mounted as a lazy StreamFS node read from disk on demand — nothing is copied.
+       // Otherwise fall through to the sample suite (?nomw) or the server-hosted retail
+       // fetch below.
+       var __srcLocal = /[?&]src=local\b/.test(location.search);
+       if (__srcLocal) mountLocalMorrowind();
+
+       // ?src=network: mount the user's OWN Data Files folder from a URL they picked in
+       // launcher.html (their server/NAS, not ours). Uses StreamFS.mount() — the same
+       // HTTP-Range streaming path already used below for the server-hosted sample —
+       // driven by a manifest.json the user's server provides (path + byte size per file).
+       var __srcNetwork = /[?&]src=network\b/.test(location.search);
+       if (__srcNetwork) mountNetworkMorrowind();
+
+       function mountNetworkMorrowind(){
+         try { StreamFS.init(); }
+         catch(e){ append('[net] streamfs unavailable: '+e,'err');
+           fatalOverlay('Streaming unavailable', 'Your browser could not start the file streamer (needs cross-origin isolation). Try Chrome/Edge on desktop.'); return; }
+         addRunDependency('mw-network');
+         function idbGetConfig(){
+           return new Promise(function(res,rej){
+             var r = indexedDB.open('omw-launcher',1);
+             r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains('handles')) r.result.createObjectStore('handles'); };
+             r.onsuccess=function(){ try {
+               var t=r.result.transaction('handles','readonly').objectStore('handles').get('mwdata-network-url');
+               t.onsuccess=function(){ res(t.result); }; t.onerror=function(){ rej(t.error); };
+             } catch(e){ rej(e); } };
+             r.onerror=function(){ rej(r.error); };
+           });
+         }
+         function bounce(msg){
+           append('[net] '+msg,'err');
+           fatalOverlay('Set your network location again', msg + ' Returning to the launcher…', false);
+           setTimeout(function(){ location.href='launcher.html'; }, 2200);
+         }
+         (async function(){
+           var cfg;
+           try { cfg = await idbGetConfig(); } catch(e){ return bounce('Could not read the saved server URL.'); }
+           // Back-compat: older versions stored a plain string instead of {baseUrl,...}.
+           if (typeof cfg === 'string') cfg = { baseUrl: cfg };
+           if (!cfg || !cfg.baseUrl) return bounce('No network location was remembered.');
+           var base = cfg.baseUrl.replace(/\/+$/,'');
+           var list;
+           try {
+             var r = await fetch(base + '/manifest.json');
+             if (!r.ok) throw new Error('HTTP ' + r.status);
+             list = await r.json();
+             if (!Array.isArray(list)) throw new Error('manifest.json is not an array');
+           } catch(e){ return bounce('Could not load manifest.json from that server: ' + (e && e.message || e)); }
+
+           FS.mkdirTree('/mwdata');
+           var count = 0, rootFiles = new Set(), madeDirs = new Set();
+           for (const f of list){
+             var rel = f.path, size = f.size;
+             if (!rel || !(size >= 0)) continue;
+             var slash = rel.lastIndexOf('/');
+             if (slash !== -1){
+               var dirPath = rel.substring(0, slash);
+               if (!madeDirs.has(dirPath)){
+                 try { FS.mkdirTree('/mwdata/' + dirPath); } catch(e){}
+                 madeDirs.add(dirPath);
+               }
+             } else {
+               rootFiles.add(rel.toLowerCase());
+             }
+             try {
+               StreamFS.mount('/mwdata/' + rel, base + '/' + rel, size);
+               count++;
+               if ((count % 400) === 0) append('[net] mounted ' + count + ' files…');
+             } catch(e){ append('[net mount err] ' + rel + ' ' + e, 'err'); }
+           }
+           if (!rootFiles.has('morrowind.esm') || !rootFiles.has('morrowind.bsa'))
+             return bounce('Morrowind.esm / Morrowind.bsa were not found in manifest.json.');
+           append('[net] mounted ' + count + ' files (streaming over HTTP from ' + base + ')');
+
+           // Network-backed saves: wait for IDBFS to finish loading, same as the folder path.
+           try { await window.__idbfsReady; await setupNetworkSaves(cfg.savesUrl, cfg.savesToken); }
+           catch(e){ append('[saves] network-save setup skipped: '+(e&&e.message||e),'err'); }
+           if (!cfg.savesUrl) append('[saves] no saves worker configured — saves stay in this browser only (IndexedDB)');
+
+           removeRunDependency('mw-network');
+         })();
+       }
+
+       // --- Mount the user-picked Data Files folder (?src=local). Boot waits on 'mw-local'. ---
+       function mountLocalMorrowind(){
+         try { StreamFS.init(); }
+         catch(e){ append('[local] streamfs unavailable: '+e,'err');
+           fatalOverlay('Streaming unavailable', 'Your browser could not start the file streamer (needs cross-origin isolation). Try Chrome/Edge on desktop.'); return; }
+         addRunDependency('mw-local');
+         // Minimal IndexedDB read of the handle stored by launcher.html.
+         function idbGetHandle(){
+           return new Promise(function(res,rej){
+             var r = indexedDB.open('omw-launcher',1);
+             r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains('handles')) r.result.createObjectStore('handles'); };
+             r.onsuccess=function(){ try {
+               var t=r.result.transaction('handles','readonly').objectStore('handles').get('mwdata');
+               t.onsuccess=function(){ res(t.result); }; t.onerror=function(){ rej(t.error); };
+             } catch(e){ rej(e); } };
+             r.onerror=function(){ rej(r.error); };
+           });
+         }
+         function bounce(msg){
+           append('[local] '+msg,'err');
+           fatalOverlay('Pick your Morrowind folder again', msg + ' Returning to the launcher…', false);
+           // Keep 'mw-local' held so the engine stays parked at the loader (no half-boot with
+           // the wrong data) until we navigate back to the launcher.
+           setTimeout(function(){ location.href='launcher.html'; }, 2200);
+         }
+         (async function(){
+           var dir;
+           try { dir = await idbGetHandle(); } catch(e){ return bounce('Could not read the saved folder.'); }
+           if (!dir) return bounce('No folder was remembered.');
+           var perm='prompt';
+           try { perm = await dir.queryPermission({mode:'read'}); } catch(e){}
+           if (perm !== 'granted') return bounce('Read permission is no longer granted.');
+
+           FS.mkdirTree('/mwdata');
+           var count=0, rootFiles=new Map(), hasVideoBik=false;
+           async function walk(handle, prefix){
+             var entries=[];
+             for await (const ent of handle.entries()) entries.push(ent);
+             // Recurse into subdirs first so their FS dirs exist before we mount their files.
+             for (const [name,h] of entries){
+               if (h.kind==='directory'){ var rel = prefix ? prefix+'/'+name : name;
+                 try { FS.mkdirTree('/mwdata/'+rel); } catch(e){}
+                 await walk(h, rel); }
+             }
+             // Mount this dir's files, probing sizes in parallel.
+             await Promise.all(entries.filter(function(e){return e[1].kind==='file';}).map(async function(ent){
+               var name=ent[0], h=ent[1], rel = prefix ? prefix+'/'+name : name;
+               var size=0; try { size=(await h.getFile()).size; } catch(e){ append('[local] cannot read '+rel,'err'); return; }
+               try { StreamFS.mountLocal('/mwdata/'+rel, h, size); count++;
+                 if ((count % 400)===0) append('[local] mounted '+count+' files…'); }
+               catch(e){ append('[local mount err] '+rel+' '+e,'err'); return; }
+               if (!prefix) rootFiles.set(name.toLowerCase(), name);
+               if (prefix && prefix.toLowerCase()==='video' && /\.bik$/i.test(name)) hasVideoBik=true;
+             }));
+           }
+           try { append('[local] scanning your Data Files folder…'); await walk(dir, ''); }
+           catch(e){ return bounce('Failed while reading the folder: '+(e&&e.message||e)); }
+           if (!rootFiles.has('morrowind.esm') || !rootFiles.has('morrowind.bsa'))
+             return bounce('Morrowind.esm / Morrowind.bsa were not found.');
+           append('[local] mounted '+count+' files (streaming from disk)');
+           // Diagnostic: report what top-level folders actually got mounted. Retail audio/voice/video
+           // are LOOSE files (Sound/, Music/, Video/, Splash/) — NOT in the BSA — so if any of these
+           // read 0 the picked folder is missing them (or a subfolder wasn't granted/readable).
+           try {
+             var __want=['sound','music','video','splash'], __log=function(m){ append(m); console.log(m); };
+             FS.readdir('/mwdata').forEach(function(d){
+               if (d==='.'||d==='..') return;
+               var p='/mwdata/'+d; try { if (!FS.isDir(FS.stat(p).mode)) return; } catch(e){ return; }
+               var n=0; (function cnt(dir){ FS.readdir(dir).forEach(function(e){ if(e==='.'||e==='..')return;
+                 var f=dir+'/'+e; try{ FS.isDir(FS.stat(f).mode)?cnt(f):n++; }catch(_){} }); })(p);
+               var lc=d.toLowerCase(), tag=(__want.indexOf(lc)>=0)?(n?'':' ⚠ EMPTY'):'';
+               __log('[local]   '+d+'/ = '+n+' files'+tag);
+             });
+             __log('[local] intro video (.bik in Video/) '+(hasVideoBik?'FOUND':'NOT found'));
+           } catch(e){ console.log('[local] tree summary failed: '+e); }
+
+           // Build the load order. Official masters first (fixed canonical order)…
+           var masters=['morrowind.esm','tribunal.esm','bloodmoon.esm'];
+           var archives=['morrowind.bsa','tribunal.bsa','bloodmoon.bsa'];
+           var content=[], fbarch=[];
+           masters.forEach(function(m){ if(rootFiles.has(m)) content.push(rootFiles.get(m)); });
+           archives.forEach(function(a){ if(rootFiles.has(a)) fbarch.push(rootFiles.get(a)); });
+
+           // …then any USER MODS dropped in the folder: extra .esm load as masters (after the
+           // official ones), then .esp plugins; both alphabetical. Mod .bsa archives are registered
+           // too. This covers "I put some mods in Data Files"; a precise custom load order still
+           // needs a desktop mod manager. ?nomods=1 ignores them (play vanilla).
+           var official=new Set(masters.concat(archives)), modEsm=[], modEsp=[], modBsa=[];
+           if (!/[?&]nomods=1\b/.test(location.search))
+             rootFiles.forEach(function(orig, lower){
+               if (official.has(lower)) return;
+               if (/\.esm$/.test(lower)) modEsm.push(orig);
+               else if (/\.esp$/.test(lower)) modEsp.push(orig);
+               else if (/\.bsa$/.test(lower)) modBsa.push(orig);
+             });
+           var byName=function(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; };
+           modEsm.sort(byName); modEsp.sort(byName); modBsa.sort(byName);
+           modBsa.forEach(function(a){ fbarch.push(a); });
+           modEsm.forEach(function(c){ content.push(c); });
+           modEsp.forEach(function(c){ content.push(c); });
+           var mods=modEsm.concat(modEsp);
+           if (mods.length) append('[local] + '+mods.length+' mod plugin(s): '+mods.join(', '));
+
+           var wantMovies = hasVideoBik && !/[?&]novid\b/.test(location.search);
+
+           // Folder-backed saves: wait for IDBFS to finish loading (so its reconcile can't wipe the
+           // saves we load in), then wire this folder's openmw-web-saves <-> the engine. The game data
+           // mount above only needs READ; saving to disk needs the read-write grant (falls back to
+           // browser storage + a warning if the player only allowed reading).
+           try { await window.__idbfsReady; await setupFolderSaves(dir); }
+           catch(e){ append('[saves] folder-save setup skipped: '+(e&&e.message||e),'err'); }
+
+           (function waitCfg(){
+             if (FS.analyzePath('/openmw.cfg').exists){
+               var cfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n').filter(function(l){
+                 return !/^content=/.test(l) && !/^data=\/gamedata\s*$/.test(l) && !/^fallback-archive=/.test(l)
+                     && !/^fallback=Movies_/.test(l);
+               });
+               cfg.push('data=/mwdata', 'config="/userdata/config/openmw"');
+               fbarch.forEach(function(a){ cfg.push('fallback-archive='+a); });
+               content.forEach(function(c){ cfg.push('content='+c); });
+               if (wantMovies)
+                 cfg.push('fallback=Movies_Company_Logo,bethesda logo.bik',
+                          'fallback=Movies_Morrowind_Logo,mw_logo.bik',
+                          'fallback=Movies_New_Game,mw_intro.bik');
+               FS.writeFile('/openmw.cfg', cfg.join('\n'));
+               append('[local] READY -> '+content.join(' + ')+' (your files)');
+               removeRunDependency('mw-local');
+             } else { setTimeout(waitCfg, 25); }
+           })();
+         })().catch(function(e){ bounce('Unexpected error: '+(e&&e.message||e)); });
+       }
+
+       // --- Load REAL Morrowind data at runtime (esm + bsa + loose audio tar) ---
+       // Fetched SEQUENTIALLY (not Promise.all) so peak JS-heap stays low, into MEMFS under
+       // /mwdata, then the preloaded openmw.cfg is rewritten to load Morrowind. Boot waits.
+       if (!__srcLocal) try {
+         // Diagnostic: ?nomw skips the 817MB Morrowind load and boots the tiny preloaded
+         // example-suite instead — lets a light load verify the render path (S3TC/SIMD/resize).
+         if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)){
+           // The example-suite demo (village of NPCs, guards, monsters, hi-def CC0 textures
+           // + curated MW dressing) is BAKED into the preloaded /gamedata package + openmw.cfg
+           // by content/suite-enhance/*, so nothing extra is fetched at runtime.
+           append('[mw] SKIPPED (nomw) — booting example-suite demo');
+           throw {__skip:1};
+         }
+         FS.mkdirTree('/mwdata');
+         addRunDependency('mw-data');
+         // Minimal ustar extractor: writes each entry under destPrefix into MEMFS.
+         function untar(buf, destPrefix){
+           var u8 = new Uint8Array(buf), off = 0, n = 0;
+           function str(o,len){ var s=''; for(var i=0;i<len;i++){ var c=u8[o+i]; if(c===0) break; s+=String.fromCharCode(c);} return s; }
+           while (off + 512 <= u8.length){
+             var name = str(off,100);
+             if (name === ''){ off += 512; continue; } // zero/pad block
+             var prefix = str(off+345,155);
+             var full = prefix ? prefix + '/' + name : name;
+             var size = parseInt(str(off+124,12).trim(),8) || 0;
+             var type = u8[off+156];
+             off += 512;
+             // Skip macOS AppleDouble junk (._name) + __MACOSX so OpenMW doesn't try to load them.
+             var base = full.substring(full.lastIndexOf('/') + 1);
+             if (base.indexOf('._') === 0 || full.indexOf('__MACOSX') !== -1){ off += Math.ceil(size/512)*512; continue; }
+             var path = destPrefix + full;
+             if (type === 53){ try { FS.mkdirTree(path); } catch(e){} }        // '5' dir
+             else if (type === 48 || type === 0){                              // '0'/'\0' file
+               var dir = path.substring(0, path.lastIndexOf('/'));
+               try { FS.mkdirTree(dir); } catch(e){}
+               try { FS.writeFile(path, u8.subarray(off, off+size)); n++; } catch(e){}
+             }
+             off += Math.ceil(size/512) * 512;
+           }
+           return n;
+         }
+         // Cache-API-backed fetch with REAL progress: streams the body so the HUD can show
+         // per-file % and cumulative MB (previously a multi-minute blank wait). Downloads once,
+         // then persists across reloads (cache.put ignores the dev server's no-cache headers).
+         // QuotaExceeded on cache.put is non-fatal: skip caching, keep playing.
+         var __dlTotal = 0; // cumulative bytes this session (for the HUD)
+         function fetchStreaming(url){
+           return fetch(url).then(function(r){
+             if(!r.ok) throw url+' HTTP '+r.status;
+             var name = url.split('/').pop();
+             var total = parseInt(r.headers.get('Content-Length')||'0',10);
+             if (!r.body || !r.body.getReader) return r.arrayBuffer().then(function(ab){ return {resp:r, buf:ab}; });
+             var reader = r.body.getReader(), chunks = [], got = 0, lastPct = -10;
+             function pump(){
+               return reader.read().then(function(res){
+                 if (res.done){
+                   var out = new Uint8Array(got), pos = 0;
+                   for (var i=0;i<chunks.length;i++){ out.set(chunks[i], pos); pos += chunks[i].length; }
+                   __dlTotal += got;
+                   return {resp:r, buf:out.buffer};
+                 }
+                 chunks.push(res.value); got += res.value.length;
+                 var pct = total ? Math.floor(got*100/total) : 0;
+                 if (pct >= lastPct + 5){ // update every 5% to keep the log readable
+                   lastPct = pct;
+                   append('[dl] ' + name + ' ' + (total ? pct+'%' : Math.round(got/1048576)+'MB')
+                     + '  (session total ' + Math.round((__dlTotal+got)/1048576) + 'MB)');
+                 }
+                 return pump();
+               });
+             }
+             return pump();
+           });
+         }
+         function grab(url){
+           if (!self.caches) return fetchStreaming(url).then(function(x){ return x.buf; });
+           return caches.open('mwdata-v1').then(function(cache){
+             return cache.match(url).then(function(hit){
+               if (hit){ append('[mw] cache hit '+url); return hit.arrayBuffer(); }
+               return fetchStreaming(url).then(function(x){
+                 return cache.put(url, new Response(x.buf)).then(
+                   function(){ return x.buf; },
+                   function(e){
+                     append('[cache] put failed (' + (e && e.name) + ') — continuing uncached', 'err');
+                     return x.buf;
+                   });
+               });
+             });
+           });
+         }
+         function writeRaw(dest){ return function(b){ FS.writeFile(dest, new Uint8Array(b)); return b.byteLength; }; }
+         function untarInto(label){ return function(b){ var c = untar(b, '/mwdata/'); append('[mw] '+label+': extracted '+c+' files'); }; }
+         // ?stream: don't copy the BSAs into memory at all — mount them as lazy range-read
+         // files (emscripten FS.createLazyFile + the server's HTTP Range support). Only the
+         // bytes OpenMW actually touches are fetched/resident: cuts resident memory by the
+         // ~483MB of archives and removes them from the up-front download entirely.
+         var STREAM_BSA = /[?&]stream\b/.test(location.search);
+         if (STREAM_BSA){ try { StreamFS.init(); } catch(e){ append('[mw] streamfs unavailable: '+e, 'err'); STREAM_BSA = false; } }
+         function addBsa(name){
+           if (STREAM_BSA){
+             // Probe the size with a 1-byte range request, then mount the worker-backed
+             // streaming file (see streamfs.js). No archive bytes resident up-front.
+             return fetch('mwdata/' + name, { headers: { Range: 'bytes=0-0' } }).then(function(r){
+               var cr = r.headers.get('Content-Range');
+               var size = cr ? parseInt(cr.split('/')[1], 10) : NaN;
+               if (!size) throw 'no Content-Range for ' + name;
+               StreamFS.mount('/mwdata/' + name, 'mwdata/' + name, size);
+               append('[mw] ' + name + ' mounted streaming (' + Math.round(size/1048576) + 'MB on demand)');
+             }).catch(function(e){
+               append('[mw] stream mount failed for ' + name + ', falling back: ' + e, 'err');
+               return grab('mwdata/' + name).then(writeRaw('/mwdata/' + name));
+             });
+           }
+           return grab('mwdata/' + name).then(writeRaw('/mwdata/' + name));
+         }
+         append('[mw] loading Morrowind (cached after first run)…');
+         grab('mwdata/Morrowind.esm').then(writeRaw('/mwdata/Morrowind.esm'))
+         .then(function(){ append('[mw] esm ok; bsa (310MB)…'); return addBsa('Morrowind.bsa'); })
+         .then(function(){ append('[mw] bsa ok; sound+music (81MB)…'); return grab('mwdata/mwaudio.tar').then(untarInto('audio')); })
+         .then(function(){ append('[mw] voice (111MB)…'); return grab('mwdata/mwvoice.tar').then(untarInto('voice')); })
+         .then(function(){ append('[mw] splash+fonts (33MB)…'); return grab('mwdata/mwextra.tar').then(untarInto('extra')); })
+         .then(function(){ append('[mw] Tribunal (65MB)…'); return grab('mwdata/Tribunal.esm').then(writeRaw('/mwdata/Tribunal.esm')); })
+         .then(function(){ return addBsa('Tribunal.bsa'); })
+         .then(function(){ append('[mw] Bloodmoon (121MB)…'); return grab('mwdata/Bloodmoon.esm').then(writeRaw('/mwdata/Bloodmoon.esm')); })
+         .then(function(){ return addBsa('Bloodmoon.bsa'); })
+         .then(function(){ append('[mw] Bloodmoon sounds (28MB)…'); return grab('mwdata/mwbmsound.tar').then(untarInto('bm-sound')); })
+         .then(function(){
+           // Videos ON BY DEFAULT (?novid to opt out). Playback is cooperative under
+           // emscripten (WindowManager::playVideo starts the decode pthreads and returns;
+           // Engine::frame drives updateVideoPlayback each tick) — the old blocking-loop
+           // futex deadlock is fixed. The original .bik files play in-engine via the native
+           // Bink decoder (FFmpeg --enable-decoder=bink); nothing is transcoded.
+           if (/[?&]novid\b/.test(location.search)){ append('[mw] videos skipped (?novid)'); window.__noMovies = true; return; }
+           append('[mw] videos (40MB, played on the fly)…'); return grab('mwdata/mwvideo.tar').then(untarInto('video'));
+         })
+         .then(function(){
+           // Rewrite openmw.cfg once the preloaded copy is present in MEMFS. Full GOTY load order,
+           // and replace the OpenMW example-suite movie names with Morrowind's real .bik files
+           // (OpenMW decodes Bink natively — no conversion, the originals play as-is).
+           (function waitCfg(){
+             if (FS.analyzePath('/openmw.cfg').exists){
+               var cfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n').filter(function(l){
+                 return !/^content=/.test(l) && !/^data=\/gamedata\s*$/.test(l) && !/^fallback-archive=/.test(l)
+                     && !/^fallback=Movies_/.test(l);
+               });
+               cfg.push('data=/mwdata',
+                        // Make the IDBFS dir an ACTIVE config path so it becomes the engine's
+                        // user-config dir (getUserConfigPath() = last active config path). The
+                        // engine then READS user settings from and WRITES them to this persistent
+                        // dir — Options changes, keybindings, Lua storage survive reloads. The
+                        // baseline /settings.cfg (front of the chain) still applies as defaults.
+                        'config="/userdata/config/openmw"',
+                        'fallback-archive=Morrowind.bsa', 'fallback-archive=Tribunal.bsa', 'fallback-archive=Bloodmoon.bsa',
+                        'content=Morrowind.esm', 'content=Tribunal.esm', 'content=Bloodmoon.esm');
+               if (!window.__noMovies)
+                 cfg.push('fallback=Movies_Company_Logo,bethesda logo.bik',
+                          'fallback=Movies_Morrowind_Logo,mw_logo.bik',
+                          'fallback=Movies_New_Game,mw_intro.bik');
+               FS.writeFile('/openmw.cfg', cfg.join('\n'));
+               append('[mw] READY -> Morrowind GOTY (base+Tribunal+Bloodmoon, audio+voice+video)');
+               removeRunDependency('mw-data');
+             } else { setTimeout(waitCfg, 25); }
+           })();
+         }).catch(function(e){
+           // A file failed to download/unpack. Do NOT removeRunDependency here: booting now would
+           // start the engine on the still-baked example-suite openmw.cfg (data=/gamedata) — i.e. the
+           // WRONG game, and any save would write to the wrong state. Hard-stop with a clear message
+           // and keep the run dependency held so the engine never boots on the stale config.
+           append('[mw load err] '+e,'err');
+           fatalOverlay('Could not load Morrowind data',
+             'A game file failed to download or unpack (' + (e && e.message || e) + '). '
+             + 'Check your connection and reload — your saves are safe.');
+         });
+       } catch(e){ if(!(e&&e.__skip)) append('[mw setup err] '+e,'err'); }
+
+       append('[preRun] env + user dirs ready');
+     } catch(e){ append('[preRun error] '+e,'err'); }
+   }],
+   print: (t)=>{ console.log(t); append(t); },
+   printErr: (t)=>{ console.warn(t); append(t,'err'); },
+   onAbort: function(w){
+     append('ABORT: '+w,'err');
+     try { if (window.__omwSync) window.__omwSync(); } catch(e){}
+     fatalOverlay('The game hit a fatal error', String(w||'') +
+       (String(w).toLowerCase().indexOf('memory') >= 0
+        ? ' — the browser could not grow WebAssembly memory. Close other tabs/apps and reload.'
+        : ' — your saves are safe. Reloading may fix it.'));
+   },
+   setStatus: (t)=>{ if(t){ append('[status] '+t);
+     // Emscripten reports the wasm/.data preload as "Downloading data... (x/y)" — feed the bar.
+     try {
+       var m = /\((\d+)\s*\/\s*(\d+)\)/.exec(t);
+       if (window.__omwLoading){
+         if (m && +m[2] > 0) window.__omwLoading.set(Math.round(+m[1]*100/+m[2]), 'Downloading');
+         else window.__omwLoading.set(null, t.replace(/\.\.\.$/, ''));
+       }
+     } catch(e){}
+   } },
+   onRuntimeInitialized: function(){
+     // Drive the engine frame from a MessageChannel: unlike setTimeout/requestAnimationFrame,
+     // MessageChannel messages are NOT throttled when the tab is hidden/backgrounded, so the
+     // game keeps running (and stays interactive) even in the background. omw_pump_frame() is a
+     // no-op until the C++ main loop registers itself; the engine's own FrameRateLimiter paces it.
+     try {
+       var mc = new MessageChannel();
+       // FPS instrumentation: count real engine frames + per-frame wall time.
+       window.__fps = 0; window.__frameMs = 0;
+       var __frames = 0, __t0 = performance.now(), __accum = 0;
+       // SINGLE frame driver (the engine no longer registers emscripten_set_main_loop):
+       // visible tab -> next tick scheduled via requestAnimationFrame (vsync-aligned, smooth);
+       // hidden tab  -> direct postMessage (unthrottled, game keeps running in background).
+       var scheduled = false;
+       function scheduleNext(){
+         if (scheduled) return; scheduled = true;
+         // Visible: vsync-align via rAF. Hidden: pace with a timer (~30fps target; browsers throttle
+         // background timers further) instead of an immediate postMessage — an unpaced background
+         // MessageChannel loop pins a CPU core at 100% for a tab nobody is looking at.
+         if (document.hidden) setTimeout(function(){ mc.port2.postMessage(0); }, 33);
+         else requestAnimationFrame(function(){ mc.port2.postMessage(0); });
+       }
+       mc.port1.onmessage = function(){
+         scheduled = false;
+         var a = performance.now();
+         try { if (Module._omw_pump_frame) Module._omw_pump_frame(); } catch(e){}
+         var b = performance.now();
+         __frames++; __accum += (b - a);
+         // ?glcount: exact GL calls THIS frame (cumulative delta bracketed by the pump).
+         if (window.__glCalls){ var gc = window.__glCalls; window.__glPerFrame = { total: gc.total - (window.__glLast||0), draw: gc.draw - (window.__glLastDraw||0) }; window.__glLast = gc.total; window.__glLastDraw = gc.draw; }
+         var dt = b - __t0;
+         if (dt >= 1000){ window.__fps = Math.round(__frames*1000/dt); window.__frameMs = +(__accum/__frames).toFixed(2); __frames = 0; __accum = 0; __t0 = b; }
+         scheduleNext();
+       };
+       // If the tab hides while an rAF-scheduled tick is frozen, take over directly.
+       // (The stale rAF firing later causes at most one harmless extra tick.)
+       document.addEventListener('visibilitychange', function(){
+         if (document.hidden && scheduled) mc.port2.postMessage(0);
+       });
+       mc.port2.postMessage(0);
+       append('[pump] frame pump started (rAF-paced when visible)');
+     } catch(e){ append('[pump error] '+e,'err'); }
+   },
+ };
+ window.addEventListener('error', function(e){ append('window error: '+e.message,'err'); if(e.error&&e.error.stack) append('STACK:\n'+e.error.stack,'err'); showLogOnce(); });
+ // Pointer-lock re-requests are browser rate-limited ("cannot be acquired immediately after the
+ // user has exited the lock"). SDL's own requestPointerLock() promise has no .catch, so that
+ // rejection surfaces as console noise right when the game grabs the mouse (e.g. new-game start).
+ // Expected + self-healing (the pointerdown helper re-requests on the next click) — silence it.
+ window.addEventListener('unhandledrejection', function(e){
+   // Filter the benign, self-healing pointer-lock rejection FIRST (SDL re-requests on the next
+   // click). e.preventDefault() only suppresses the browser's own console logging, so this must be
+   // the ONLY unhandledrejection handler or the filtered case still gets logged/opens the debug log.
+   if (String(e.reason && e.reason.message || e.reason).indexOf('Pointer lock') !== -1) { e.preventDefault(); return; }
+   append('unhandled rejection: '+(e.reason && e.reason.message || e.reason),'err');
+   showLogOnce();
+ });
+</script>
+<script src="streamfs.js"></script>
+<script>
+  // Load the version-stamped engine loader from the versioned dir; its wasm/data follow via
+  // Module.locateFile. (streamfs.js above is unversioned + loaded first — StreamFS is used in preRun.)
+  (function(){
+    var s = document.createElement('script');
+    s.src = __ENGINE_DIR + 'openmw.js';
+    s.onerror = function(){ if (typeof fatalOverlay === 'function') fatalOverlay('Engine failed to load',
+      'Could not load the game engine (' + __ENGINE_DIR + 'openmw.js). Reload to try again.'); };
+    document.body.appendChild(s);
+  })();
+</script>
+</body></html>

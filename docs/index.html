@@ -1,0 +1,597 @@
+<!doctype html><html lang="en"><head><script src="./coi-serviceworker.js"></script><!-- Copyright (C) 2025-2026 Virtastic - https://virtastic.app | SPDX-License-Identifier: GPL-3.0-or-later | part of openmw-web --><meta charset="utf-8">
+<title>OpenMW-Web</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<style>
+ :root{
+   /* Volcanic Vvardenfell: ash + Dwemer bronze + a low Red Mountain ember */
+   --ash:#0c0a09; --panel:#16110d; --panel-2:#1e1711; --line:#3a2e20;
+   --ink:#ece0c6; --muted:#a5987e; --faint:#7c705c;
+   --bronze:#8a6838; --bronze-hi:#c69a52; --gold:#d3a84e; --gold-hi:#eecb78;
+   --ember:#c65a2e; --err:#e0836a; --ok:#a9c48a;
+ }
+ *{box-sizing:border-box}
+ html,body{margin:0; min-height:100%}
+ body{
+   background:var(--ash); color:var(--ink);
+   font:16px/1.6 "Optima","Gill Sans","Gill Sans MT",-apple-system,"Segoe UI",Roboto,sans-serif;
+   -webkit-font-smoothing:antialiased; padding:clamp(66px,8vh,92px) 22px 48px;
+   display:flex; justify-content:center;
+ }
+ /* Fixed top bar: Virtastic home (left) + social links (right). Transparent bar; only the links
+    catch clicks so it never blocks content that scrolls under it. */
+ .topbar{position:fixed; top:0; left:0; right:0; z-index:30; pointer-events:none;
+   display:flex; align-items:center; justify-content:space-between; padding:13px 22px}
+ .topbar > *{pointer-events:auto}
+ .topbar a{display:inline-flex; align-items:center; text-decoration:none; color:var(--bronze-hi);
+   transition:color .16s ease}
+ .topbar a:hover{color:var(--gold-hi)}
+ .topbar a:focus-visible{outline:2px solid var(--gold); outline-offset:3px; border-radius:4px}
+ .topbar .home{gap:9px; font:600 12px/1 "Optima","Gill Sans",-apple-system,sans-serif;
+   letter-spacing:.17em; text-transform:uppercase}
+ .topbar .home svg{width:20px; height:20px; fill:currentColor}
+ .topbar .socials{display:flex; align-items:center; gap:16px}
+ .topbar .socials svg{width:18px; height:18px; fill:currentColor; display:block}
+ @media (max-width:520px){ .topbar{padding:11px 15px} .topbar .home .label{display:none} .topbar .socials{gap:13px} }
+ /* Red Mountain glow low on the horizon - the one atmospheric flourish. */
+ body::before{
+   content:''; position:fixed; inset:0; z-index:-2; pointer-events:none;
+   background:
+     radial-gradient(150% 72% at 50% 132%, rgba(198,90,46,.30), rgba(198,90,46,.05) 34%, transparent 60%),
+     radial-gradient(90% 60% at 50% 134%, rgba(233,180,90,.16), transparent 56%);
+   animation:ember 9s ease-in-out infinite;
+ }
+ /* Faint ashfall grain to kill the flat-digital look. */
+ body::after{
+   content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05; mix-blend-mode:overlay;
+   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+ }
+ @keyframes ember{0%,100%{opacity:.82}50%{opacity:1}}
+
+ .wrap{width:100%; max-width:940px; text-align:center}
+
+ /* --- Masthead --- */
+ .eyebrow{font-size:11.5px; letter-spacing:.26em; text-transform:uppercase; font-weight:600;
+   color:var(--bronze-hi); margin:0 0 18px}
+ h1{margin:0; font-family:"Hoefler Text","Baskerville","Palatino Linotype",Palatino,Georgia,serif;
+   font-weight:600; font-size:clamp(40px,6.6vw,66px); line-height:1.02; letter-spacing:.005em;
+   color:var(--ink); text-shadow:0 1px 0 rgba(0,0,0,.5), 0 0 34px rgba(211,168,78,.10)}
+ .deck{margin:20px auto 0; max-width:56ch; color:var(--muted); font-size:16.5px}
+
+ /* Engraved divider */
+ .rule{display:flex; align-items:center; gap:16px; max-width:560px; margin:30px auto 42px}
+ .rule::before,.rule::after{content:''; height:1px; flex:1;
+   background:linear-gradient(90deg,transparent,var(--bronze) 60%,transparent)}
+ .rule::after{background:linear-gradient(90deg,transparent,var(--bronze) 40%,transparent)}
+ .diamond{width:7px; height:7px; transform:rotate(45deg); border:1px solid var(--gold); flex:none}
+
+ /* --- Choice cards, styled as inscribed artifact plaques --- */
+ .cards{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+ @media (max-width:720px){ .cards{grid-template-columns:1fr} }
+ .card{
+   position:relative; padding:34px 30px 30px;
+   background:linear-gradient(160deg,var(--panel-2),var(--panel));
+   border:1px solid rgba(138,104,56,.38); border-radius:7px;
+   display:flex; flex-direction:column; align-items:center; gap:14px;
+   transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+ }
+ /* Corner brackets - the signature. Kindle from bronze to gold on hover/focus. */
+ .card::after{
+   content:''; position:absolute; inset:13px; pointer-events:none; opacity:.7;
+   --c:var(--bronze); transition:opacity .18s ease;
+   background:
+     linear-gradient(var(--c),var(--c)) left top/17px 1.5px no-repeat,
+     linear-gradient(var(--c),var(--c)) left top/1.5px 17px no-repeat,
+     linear-gradient(var(--c),var(--c)) right top/17px 1.5px no-repeat,
+     linear-gradient(var(--c),var(--c)) right top/1.5px 17px no-repeat,
+     linear-gradient(var(--c),var(--c)) left bottom/17px 1.5px no-repeat,
+     linear-gradient(var(--c),var(--c)) left bottom/1.5px 17px no-repeat,
+     linear-gradient(var(--c),var(--c)) right bottom/17px 1.5px no-repeat,
+     linear-gradient(var(--c),var(--c)) right bottom/1.5px 17px no-repeat;
+ }
+ .card.actionable{cursor:pointer}
+ .card.actionable:hover{transform:translateY(-3px); border-color:rgba(211,168,78,.55);
+   box-shadow:0 18px 40px rgba(0,0,0,.45)}
+ .card.actionable:hover::after{--c:var(--gold-hi); opacity:1}
+ .card.disabled{opacity:.5}
+ .card:focus-visible{outline:2px solid var(--gold); outline-offset:3px}
+
+ .glyph{color:var(--bronze-hi); width:46px; height:46px; transition:color .18s ease}
+ .card.actionable:hover .glyph{color:var(--gold-hi)}
+ .glyph svg{width:100%; height:100%; display:block}
+ .kicker{font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--faint)}
+ .card h2{margin:0; font-family:"Hoefler Text","Baskerville","Palatino Linotype",Palatino,Georgia,serif;
+   font-weight:600; font-size:23px; letter-spacing:.01em; color:var(--ink)}
+ .card p{margin:0 auto; color:var(--muted); font-size:14.5px; line-height:1.55; max-width:34ch}
+ .card p.lead{flex:1}
+ .card .micro{font-size:12px; color:var(--faint); margin-top:-2px}
+ .card .micro b{color:var(--muted)}
+ .card b{color:var(--ink); font-weight:600}
+
+ /* Per-card "?" help icon (top-right). Sits above the tile's own click; opens a detail modal. */
+ /* Sit just INSIDE the corner bracket (the ::after frame is inset 13px with 17px arms), not over it. */
+ .help-btn{position:absolute; top:19px; right:19px; z-index:3; width:24px; height:24px;
+   display:flex; align-items:center; justify-content:center; border-radius:50%;
+   border:1px solid var(--bronze); background:rgba(8,6,3,.5); color:var(--bronze-hi);
+   font:600 13px/1 Georgia,"Times New Roman",serif; cursor:pointer;
+   transition:color .16s ease, border-color .16s ease, background .16s ease}
+ .help-btn:hover{color:var(--gold-hi); border-color:var(--gold-hi); background:rgba(211,168,78,.14)}
+ .help-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+
+ /* Help modal (deep docs per card). */
+ .modal-bd{position:fixed; inset:0; z-index:60; display:none; padding:24px;
+   align-items:flex-start; justify-content:center; overflow-y:auto;
+   background:rgba(6,5,3,.74); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px)}
+ .modal-bd.show{display:flex}
+ .modal{position:relative; max-width:580px; width:100%; margin:auto;
+   background:linear-gradient(160deg,var(--panel-2),var(--panel));
+   border:1px solid rgba(138,104,56,.5); border-radius:9px; padding:36px 38px 32px;
+   box-shadow:0 30px 90px rgba(0,0,0,.62); animation:pop .18s ease}
+ @keyframes pop{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+ .modal .m-kicker{font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--faint)}
+ .modal h3{margin:5px 0 0; font-family:"Hoefler Text","Baskerville",Georgia,serif; font-weight:600;
+   font-size:25px; letter-spacing:.01em; color:var(--ink)}
+ .modal h4{margin:22px 0 7px; font:600 11px/1 "Optima","Gill Sans",-apple-system,sans-serif;
+   letter-spacing:.17em; text-transform:uppercase; color:var(--gold)}
+ .modal p{margin:0 0 10px; color:var(--muted); font-size:14px; line-height:1.64}
+ .modal b{color:var(--ink); font-weight:600}
+ .modal a{color:var(--gold)} .modal a:hover{color:var(--gold-hi)}
+ .modal code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--ink);
+   background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:3px; padding:1px 6px}
+ .modal ul{margin:0 0 10px; padding-left:19px; color:var(--muted); font-size:14px; line-height:1.6}
+ .modal li{margin:4px 0} .modal li b{color:var(--ink)}
+ .modal .m-close{position:absolute; top:12px; right:15px; width:30px; height:30px; border:none;
+   background:none; color:var(--faint); font:300 26px/1 -apple-system,sans-serif; cursor:pointer;
+   transition:color .15s ease}
+ .modal .m-close:hover{color:var(--gold-hi)}
+ .modal .m-hr{height:1px; margin:22px 0 0; background:linear-gradient(90deg,transparent,rgba(138,104,56,.4),transparent)}
+
+ /* Buttons (used only by the return-visit "Continue" plaque). */
+ .btn{display:inline-flex; align-items:center; gap:8px;
+   font:600 12.5px/1 "Optima","Gill Sans",-apple-system,"Segoe UI",sans-serif;
+   letter-spacing:.12em; text-transform:uppercase; padding:12px 20px; border-radius:4px;
+   cursor:pointer; transition:background .16s ease, color .16s ease, border-color .16s ease; border:1px solid}
+ .btn .arw{font-size:14px; transform:translateY(-.5px)}
+ .btn-ghost{background:transparent; color:var(--gold); border-color:var(--bronze)}
+ .btn-ghost:hover{border-color:var(--gold); color:var(--gold-hi); background:rgba(211,168,78,.10)}
+ .btn:focus-visible{outline:2px solid var(--gold); outline-offset:3px}
+
+ /* Action cue - the whole tile is clickable, so this is a text prompt, not a button. */
+ .go{align-self:center; margin-top:10px; display:inline-flex; align-items:center; gap:8px;
+   font:600 12.5px/1 "Optima","Gill Sans",-apple-system,"Segoe UI",sans-serif;
+   letter-spacing:.12em; text-transform:uppercase; color:var(--gold); transition:color .16s ease, gap .16s ease}
+ .go .arw{font-size:14px; transform:translateY(-.5px)}
+ .card.actionable:hover .go{color:var(--gold-hi); gap:12px}
+ /* Keep the cue gold even when the tile is disabled (e.g. no folder-picker API). */
+ .card.disabled .go{color:var(--gold)}
+
+ .note{margin-top:4px; font-size:13px; min-height:18px; color:var(--muted)}
+ .note.err{color:var(--err)} .note.ok{color:var(--ok)} .note.muted{color:var(--muted)}
+
+ /* --- Return-visit plaque --- */
+ .continue{display:none; align-items:center; justify-content:space-between; gap:16px;
+   margin:0 0 24px; padding:15px 20px; background:linear-gradient(160deg,var(--panel-2),var(--panel));
+   border:1px solid rgba(211,168,78,.45); border-radius:6px; text-align:left}
+ .continue.show{display:flex}
+ .continue .txt{font-size:14px; color:var(--muted)}
+ .continue .txt b{color:var(--gold); font-weight:600}
+
+ /* --- Footer --- */
+ footer{margin:44px auto 0; padding-top:22px; border-top:1px solid rgba(138,104,56,.22);
+   color:var(--faint); font-size:12.5px; line-height:1.7; max-width:64ch}
+ footer a{color:var(--bronze-hi); text-decoration:none; border-bottom:1px solid rgba(138,104,56,.5)}
+ footer a:hover{color:var(--gold)}
+
+ /* --- Entrance --- */
+ @keyframes rise{from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:none}}
+ .reveal{opacity:0; animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards}
+ .d1{animation-delay:.05s} .d2{animation-delay:.14s} .d3{animation-delay:.26s} .d4{animation-delay:.34s} .d5{animation-delay:.46s}
+ @media (prefers-reduced-motion:reduce){
+   *,body::before{animation:none!important}
+   .reveal{opacity:1; transform:none}
+ }
+</style></head>
+<body>
+<header class="topbar">
+  <a class="home" href="https://virtastic.app" target="_blank" rel="noopener" aria-label="Virtastic home">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    <span class="label">Virtastic</span>
+  </a>
+  <nav class="socials" aria-label="Virtastic on social media">
+    <a href="https://github.com/Virtastic" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>
+    <a href="https://discord.gg/PzFfDkbSue" target="_blank" rel="noopener" aria-label="Discord" title="Discord"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg></a>
+    <a href="https://www.linkedin.com/company/virtastic" target="_blank" rel="noopener" aria-label="LinkedIn" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+    <a href="https://www.patreon.com/virtastic" target="_blank" rel="noopener" aria-label="Patreon" title="Patreon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M0 .48v23.04h4.22V.48zm15.385 0c-4.764 0-8.641 3.88-8.641 8.65 0 4.755 3.877 8.623 8.641 8.623 4.75 0 8.615-3.868 8.615-8.623C24 4.36 20.136.48 15.385.48z"/></svg></a>
+    <a href="https://www.reddit.com/r/virtastic" target="_blank" rel="noopener" aria-label="Reddit" title="Reddit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg></a>
+    <a href="https://www.youtube.com/@Virtastic-Apps" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+    <a href="https://ko-fi.com/virtastic" target="_blank" rel="noopener" aria-label="Ko-fi" title="Ko-fi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/></svg></a>
+  </nav>
+</header>
+<div class="wrap">
+  <p class="eyebrow reveal d1">openmw-web</p>
+  <h1 class="reveal d1">Morrowind in your browser</h1>
+  <p class="deck reveal d2">Run the free sample world, or point the engine at your own copy of
+    Morrowind. Everything runs on your machine. Nothing is uploaded.</p>
+  <div class="rule reveal d2"><span class="diamond"></span></div>
+
+  <!-- Return-visit fast path: shown when a previously-picked folder is remembered. -->
+  <div class="continue reveal" id="continue">
+    <div class="txt">Remembered install: <b id="continue-name">Data Files</b></div>
+    <button class="btn btn-ghost" id="continue-btn">Continue <span class="arw">▸</span></button>
+  </div>
+
+  <div class="cards">
+    <div class="card actionable reveal d3" id="card-sample" role="button" tabindex="0">
+      <button class="help-btn" id="help-sample" type="button" aria-label="About the example world">?</button>
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <circle cx="24" cy="24" r="17"/>
+          <circle cx="24" cy="24" r="2.2" fill="currentColor" stroke="none"/>
+          <path d="M24 7 27 24 24 41 21 24Z"/>
+          <path d="M7 24 24 21 41 24 24 27Z"/>
+        </svg>
+      </div>
+      <div class="kicker">Free sample</div>
+      <h2>The example world</h2>
+      <p class="lead">A small demo island that ships with OpenMW: a town of NPCs, guards and roaming
+         creatures. No copy of Morrowind required.</p>
+      <div class="go">Start the demo <span class="arw">▸</span></div>
+    </div>
+
+    <div class="card actionable reveal d4" id="card-local" role="button" tabindex="0">
+      <button class="help-btn" id="help-local" type="button" aria-label="How to bring your own Morrowind">?</button>
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <rect x="9" y="12" width="30" height="8" rx="1.5"/>
+          <rect x="9" y="22" width="30" height="8" rx="1.5"/>
+          <rect x="9" y="32" width="24" height="7" rx="1.5"/>
+          <line x1="14" y1="12" x2="14" y2="20"/>
+          <line x1="14" y1="22" x2="14" y2="30"/>
+        </svg>
+      </div>
+      <div class="kicker">Your copy</div>
+      <h2>Bring your own Morrowind</h2>
+      <p class="lead">Point to the <b>Data Files</b> folder from a legal install. Files stream straight
+         from your disk on demand, with no multi-gigabyte upload or copy. <b>Tribunal</b>, <b>Bloodmoon</b>
+         and any <b>mods</b> (.esp/.esm/.bsa) in the folder are detected and loaded automatically.</p>
+      <p class="micro"><b>Windows + Steam or a Program&nbsp;Files install?</b> The browser can't open
+         system folders, so first <b>copy your <code>Data&nbsp;Files</code> folder to Documents or
+         Desktop</b> and pick that. Same in Chrome and Edge.</p>
+      <div class="note" id="local-note"></div>
+      <div class="go" id="local-go">Choose Data Files <span class="arw">▸</span></div>
+    </div>
+
+    <div class="card actionable reveal d5" id="card-network" role="button" tabindex="0">
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <circle cx="24" cy="24" r="15"/>
+          <line x1="9" y1="24" x2="39" y2="24"/>
+          <path d="M24 9c5 5 5 25 0 30M24 9c-5 5-5 25 0 30"/>
+        </svg>
+      </div>
+      <div class="kicker">Your copy, your server</div>
+      <h2>Use a network location</h2>
+      <p class="lead">Point to a <b>Data Files</b> folder served from your own server or NAS (a legal
+         install you host yourself). Files stream over HTTP on demand, same as the local option —
+         nothing is bundled or hosted by us.</p>
+      <p class="micro">Your server needs a <code>manifest.json</code> (path + byte size per file),
+         CORS enabled, and HTTP Range support. See <code>SELF_HOSTING.md</code> for the generator script.</p>
+      <div class="note" id="network-note"></div>
+      <div class="go" id="network-go">Enter server URL <span class="arw">▸</span></div>
+    </div>
+  </div>
+
+  <footer class="reveal d5">
+    Morrowind game data is not included or distributed here. Supply your own legally-obtained copy.
+    openmw-web is based on the <a href="https://openmw.org/" target="_blank" rel="noopener">OpenMW</a>
+    engine, effectively rebuilt in WebAssembly to run in the browser, and is released under the GPLv3.
+    Loading your own files needs a Chromium browser (Chrome, Edge or Brave) on desktop.
+    <br><br>
+    WASM port &copy; 2025&ndash;2026 <a href="https://virtastic.app" target="_blank" rel="noopener">Virtastic</a>
+    &middot; <a href="https://github.com/Virtastic/openmw-web" target="_blank" rel="noopener">Source code &amp; releases</a>
+    &middot; <a href="https://github.com/Virtastic/openmw-web/issues" target="_blank" rel="noopener">Report a bug</a>
+  </footer>
+</div>
+
+<!-- Help modal (populated per card by JS) -->
+<div class="modal-bd" id="modal-bd" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <button class="m-close" id="modal-close" type="button" aria-label="Close">&times;</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+ 'use strict';
+ const $ = (id) => document.getElementById(id);
+ const hasFSA = typeof window.showDirectoryPicker === 'function';
+
+ // --- Help modals: deep, docs-style detail per card, opened by the "?" icons. ---
+ const HELP = {
+   sample: `
+     <div class="m-kicker">Free sample &middot; no download of the game</div>
+     <h3 id="modal-title">The example world</h3>
+     <h4>What it is</h4>
+     <p>A small, self-contained demo world that ships <b>with the OpenMW engine itself</b> — freely
+        distributable, not Bethesda content. It exists so you can try the engine in your browser
+        <b>without owning Morrowind</b>.</p>
+     <h4>What you'll see</h4>
+     <p>A little island town populated with NPCs, town guards and roaming creatures that actually
+        fight — enough to show off rendering, lighting, physics, AI and combat running live on your
+        machine. It's a tech demo, not a full quest.</p>
+     <h4>Controls (OpenMW defaults)</h4>
+     <ul>
+       <li><b>Move</b> — W A S D &middot; <b>Look</b> — mouse &middot; <b>Jump</b> — Space</li>
+       <li><b>Attack</b> — hold left mouse &middot; <b>Interact / pick up</b> — left click</li>
+       <li><b>Inventory</b> — I &middot; <b>Menu / back</b> — Esc &middot; <b>Console</b> — backtick <code>\`</code></li>
+     </ul>
+     <h4>Privacy &amp; performance</h4>
+     <p>Everything runs locally in your browser — nothing is uploaded. First load fetches the engine
+        (~50&nbsp;MB, cached afterwards). Best on a Chromium browser (Chrome, Edge, Brave) on desktop.</p>
+     <div class="m-hr"></div>
+     <p style="margin-top:16px">Just press <b>Start the demo</b> — no setup needed.</p>`,
+   local: `
+     <div class="m-kicker">Your copy &middot; nothing is uploaded</div>
+     <h3 id="modal-title">Bring your own Morrowind</h3>
+     <p>Own Morrowind? Point the browser at your installed copy and it plays in-engine, streaming
+        files straight from your disk — <b>no upload, no multi-gigabyte copy</b>. Here's the whole flow.</p>
+
+     <h4>1 · Find your Data&nbsp;Files folder</h4>
+     <p>It's inside your Morrowind install:</p>
+     <ul>
+       <li><b>Steam</b>: <code>...\\steamapps\\common\\Morrowind\\Data Files</code><br>
+           (Steam → right-click Morrowind → Manage → Browse local files)</li>
+       <li><b>GOG</b>: <code>C:\\GOG Games\\Morrowind\\Data Files</code></li>
+       <li><b>Disc / other</b>: wherever you installed it, the <code>Data Files</code> subfolder.</li>
+     </ul>
+     <p>Tip: you can also just pick the <b>Morrowind</b> folder itself, and it finds
+        <code>Data Files</code> inside.</p>
+
+     <h4>2 · Windows: copy it somewhere the browser can open</h4>
+     <p>Browsers refuse to open folders inside a protected system location, which on Windows includes
+        <code>Program&nbsp;Files</code> and <code>Program&nbsp;Files&nbsp;(x86)</code>. <b>Steam's default
+        library lives there</b> (<code>C:\\Program Files (x86)\\Steam\\</code>), so a default Steam copy
+        of Morrowind gets blocked with <i>"can't open this folder because it contains system files."</i>
+        This is a browser rule, so it is the same in Chrome and Edge; switching browsers does not help.</p>
+     <p><b>The fix:</b> copy your whole <code>Data&nbsp;Files</code> folder to a normal location such as
+        <b>Documents</b>, <b>Desktop</b>, or another drive, then point the picker at that copy. GOG installs
+        under <code>C:\\GOG Games\\</code> are already fine and don't need copying. Once the game is running,
+        your saves are written next to that copy, so keep it around.</p>
+
+     <h4>3 · Let the browser open it</h4>
+     <p>Click <b>Choose Data Files</b>, select the folder, and when the browser asks to <b>edit</b> the
+        folder choose <b>Edit files</b>. Nothing leaves your machine; this lets the engine read your
+        game assets on demand and write your saves back to the folder (see below). Your pick is
+        remembered for next time.</p>
+
+     <h4>4 · Make sure it's a complete copy</h4>
+     <p>A full install has loose <code>Sound</code>, <code>Music</code> and <code>Video</code> folders
+        <b>inside Data Files</b> (they are <b>not</b> stored in <code>Morrowind.bsa</code>). If they're
+        missing, the game still runs but with <b>no sound, voices, music or intro video</b> — so we
+        check and warn you before starting rather than leaving you confused. A normal Steam/GOG
+        install has them.</p>
+
+     <h4>Your saves live on disk</h4>
+     <p>Games you save are written to an <code>openmw-web-saves</code> folder <b>inside the folder you
+        picked</b> — real files on your drive, <b>not</b> in the browser. Clearing your browser history
+        or cache won't touch them, they're there next time you play, and you can back them up or copy
+        them like any other file. (This is why Chrome asks to <b>edit</b> the folder, not just view it.)</p>
+
+     <h4>Expansions &amp; mods</h4>
+     <p><b>Tribunal</b> and <b>Bloodmoon</b> are detected and loaded automatically. Any mod
+        <code>.esp</code>/<code>.esm</code>/<code>.bsa</code> files you've dropped into the folder are
+        picked up too (alphabetical load order).</p>
+
+     <h4>Requirements &amp; privacy</h4>
+     <ul>
+       <li><b>Chromium browser on desktop</b> (Chrome, Edge, Brave) — this uses the File System Access
+           API, which Firefox and Safari don't support.</li>
+       <li><b>Nothing is uploaded.</b> Files stream from your disk as the game needs them. Your pick is
+           remembered for next time as a revocable browser permission — no copy is stored on any server.</li>
+     </ul>
+
+     <h4>If something's off</h4>
+     <ul>
+       <li><b>"Can't open this folder because it contains system files"</b> — your game is in a
+           location the browser refuses to open. Windows blocks <code>Program&nbsp;Files</code> and
+           <code>Program&nbsp;Files&nbsp;(x86)</code>, and <b>Steam's default library lives there</b>
+           (<code>C:\\Program Files (x86)\\Steam\\</code>). This is the same in Chrome and Edge, so
+           switching browsers won't help. <b>Fix:</b> copy the <code>Data&nbsp;Files</code> folder to
+           your <b>Documents</b> or <b>Desktop</b> (or any non-system folder, e.g. another drive) and
+           pick it there.</li>
+       <li><b>"Doesn't look like a Data Files folder"</b> — pick the folder that contains
+           <code>Morrowind.esm</code> and <code>Morrowind.bsa</code>.</li>
+       <li><b>No sound / no intro</b> — your copy is missing the loose <code>Sound</code>/<code>Video</code> folders.</li>
+       <li><b>Permission denied</b> — reopen the picker and choose <b>View files</b>.</li>
+     </ul>`
+ };
+ (function(){
+   const bd=$('modal-bd'), body=$('modal-body');
+   function open(key){ body.innerHTML = HELP[key]; bd.classList.add('show'); $('modal-close').focus(); }
+   function close(){ bd.classList.remove('show'); }
+   // The "?" buttons live inside clickable cards — stop the event so the card's start/pick handler
+   // doesn't also fire (on both click and keyboard activation).
+   [['help-sample','sample'],['help-local','local']].forEach(([id,key])=>{
+     const b=$(id); if(!b) return;
+     b.addEventListener('click', e=>{ e.stopPropagation(); open(key); });
+     b.addEventListener('keydown', e=>{ e.stopPropagation(); });
+   });
+   $('modal-close').addEventListener('click', close);
+   bd.addEventListener('click', e=>{ if(e.target===bd) close(); });   // backdrop click
+   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && bd.classList.contains('show')) close(); });
+ })();
+
+ // --- tiny IndexedDB handle store (shared shape with index.html?src=local) ---
+ const DB='omw-launcher', STORE='handles', KEY='mwdata';
+ function idbOpen(){ return new Promise((res,rej)=>{
+   const r=indexedDB.open(DB,1);
+   r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
+   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+ }); }
+ function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{
+   const t=db.transaction(STORE,'readonly').objectStore(STORE).get(key);
+   t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error);
+ })); }
+ function idbSet(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{
+   const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(val,key);
+   tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+ })); }
+
+ // --- sample game ---
+ function playSample(){ location.href='play.html?nomw'; }
+ $('card-sample').addEventListener('click', playSample);
+ $('card-sample').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); playSample(); } });
+
+ // --- own-data helpers ---
+ const note=(msg,cls)=>{ const n=$('local-note'); n.textContent=msg||''; n.className='note '+(cls||'muted'); };
+
+ // Users often pick the install root, not "Data Files" - descend one level if present.
+ async function resolveDataDir(dir){
+   for await (const [name,h] of dir.entries())
+     if (h.kind==='directory' && name.toLowerCase()==='data files') return h;
+   return dir;
+ }
+ // Returns null if the base game is missing, else the detected content set (expansions are
+ // optional — index.html auto-adds Tribunal/Bloodmoon to the load order when present).
+ async function scanMorrowind(dir){
+   const files=new Set(), dirs=new Set();
+   for await (const [name,h] of dir.entries()){
+     if (h.kind==='file') files.add(name.toLowerCase());
+     else if (h.kind==='directory') dirs.add(name.toLowerCase());
+   }
+   if (!(files.has('morrowind.esm') && files.has('morrowind.bsa'))) return null;
+   // Sound/Music/Video are LOOSE folders in a retail install — they are NOT inside Morrowind.bsa.
+   // A trimmed/partial copy still boots but is silently mute with no intro, which is baffling, so
+   // report them and warn before starting rather than letting the player discover it in-game.
+   return {
+     tribunal:  files.has('tribunal.esm')  && files.has('tribunal.bsa'),
+     bloodmoon: files.has('bloodmoon.esm') && files.has('bloodmoon.bsa'),
+     sound: dirs.has('sound'), music: dirs.has('music'), video: dirs.has('video'),
+   };
+ }
+
+ // Set once the folder is validated + remembered but the player still needs to confirm starting
+ // with missing assets — a second click on the card then starts anyway.
+ let confirmStart = false;
+ async function pickLocal(){
+   if (confirmStart){ location.href='play.html?src=local'; return; }   // "Start anyway"
+   if (!hasFSA){ note('Your browser has no folder-picker (File System Access API). Use Chrome, Edge or Brave on desktop.','err'); return; }
+   try {
+     const picked = await window.showDirectoryPicker({ id:'morrowind', mode:'readwrite' });
+     note('Checking folder…');
+     const dir = await resolveDataDir(picked);
+     const scan = await scanMorrowind(dir);
+     if (!scan){
+       note('That doesn’t look like a Morrowind Data Files folder — it must contain Morrowind.esm and Morrowind.bsa. Pick the folder shown above (Tribunal and Bloodmoon are optional and picked up automatically).','err');
+       return;
+     }
+     // Grant read permission while we still hold the user gesture, then remember the handle.
+     if ((await dir.requestPermission({ mode:'readwrite' })) !== 'granted'){
+       note('Edit access was declined. It’s needed so your saved games can be written to the folder — reopen the picker and choose “Edit files”.','err');
+       return;
+     }
+     await idbSet(KEY, dir);
+     const exps=[scan.tribunal&&'Tribunal', scan.bloodmoon&&'Bloodmoon'].filter(Boolean);
+     const found = 'Found Morrowind'+(exps.length?' + '+exps.join(' + '):' (no expansions detected)');
+     // Warn about missing LOOSE asset folders instead of booting into a silently mute game.
+     const missing=[ !scan.sound&&'Sound', !scan.music&&'Music', !scan.video&&'Video' ].filter(Boolean);
+     if (missing.length){
+       const lacks=[ !scan.sound&&'sound effects and voices', !scan.music&&'music', !scan.video&&'intro videos' ].filter(Boolean);
+       confirmStart = true;
+       $('local-go').innerHTML = 'Start anyway <span class="arw">▸</span>';
+       note(found+', but no '+missing.join('/')+' folder'+(missing.length>1?'s':'')+' — the game will run without '
+            +lacks.join(' or ')+'. Those live loose in Data Files (not inside the .bsa), so this copy looks incomplete. Click again to start anyway.','err');
+       return;
+     }
+     note(found+'. Starting…','ok');
+     location.href='play.html?src=local';
+   } catch(e){
+     if (e && e.name==='AbortError') return; // user cancelled the picker
+     // Chromium blocks picking folders inside system locations (Program Files, Windows, …).
+     // Steam's default library lives under C:\Program Files (x86)\Steam\, so it trips this.
+     if (e && (e.name==='SecurityError' || /system files|blocklist/i.test((e && e.message)||''))){
+       note('That folder is in a location the browser won’t open (Windows blocks Program Files, including Steam’s default C:\\Program Files (x86)\\Steam\\ folder). This is the same in Chrome and Edge. Copy your Data Files folder to Documents or Desktop and pick it there.','err');
+       return;
+     }
+     note('Could not open that folder: '+(e && e.message || e),'err');
+   }
+ }
+ $('card-local').addEventListener('click', pickLocal);
+ $('card-local').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pickLocal(); } });
+
+ if (!hasFSA){
+   const card=$('card-local');
+   card.classList.remove('actionable'); card.classList.add('disabled');
+   note('Needs a Chromium browser (Chrome/Edge/Brave) on desktop.','muted');
+ }
+
+ // --- network-location helpers (own server/NAS, same trust model as "bring your own") ---
+ const NET_KEY='mwdata-network-url';
+ const noteNet=(msg,cls)=>{ const n=$('network-note'); n.textContent=msg||''; n.className='note '+(cls||'muted'); };
+
+ async function validateManifest(base){
+   const manifestUrl = base.replace(/\/+$/,'') + '/manifest.json';
+   const r = await fetch(manifestUrl);
+   if (!r.ok) throw new Error('manifest.json not reachable (HTTP '+r.status+'). Check the URL, CORS, and that the file exists.');
+   const list = await r.json();
+   if (!Array.isArray(list)) throw new Error('manifest.json must be a JSON array of {path, size}.');
+   const names = new Set(list.map(f => (f.path||'').toLowerCase()));
+   if (!names.has('morrowind.esm') || !names.has('morrowind.bsa'))
+     throw new Error('manifest.json is missing Morrowind.esm / Morrowind.bsa entries.');
+   return list;
+ }
+
+ let netConfirmStart = false, netBaseUrl = '', netSavesUrl = '', netSavesToken = '';
+ async function pickNetwork(){
+   if (netConfirmStart){ location.href='play.html?src=network'; return; }
+   const entered = prompt('Base URL of your Data Files folder (e.g. https://my-nas.example.com/morrowind):', netBaseUrl || 'https://');
+   if (!entered) return;
+   netBaseUrl = entered.trim();
+   noteNet('Checking manifest…');
+   try {
+     const list = await validateManifest(netBaseUrl);
+     const exps = [ list.some(f=>f.path.toLowerCase()==='tribunal.esm') && 'Tribunal',
+                    list.some(f=>f.path.toLowerCase()==='bloodmoon.esm') && 'Bloodmoon' ].filter(Boolean);
+
+     // Optional: a saves worker so saves persist off-browser (e.g. the Cloudflare Worker in
+     // saves-worker/). Leave blank to skip — saves then stay in this browser's IndexedDB only.
+     const savesEntered = prompt(
+       'Optional: URL of your saves worker, so saves aren\u2019t stuck in this browser only (leave blank to skip):',
+       netSavesUrl);
+     netSavesUrl = (savesEntered || '').trim();
+     if (netSavesUrl){
+       const tokenEntered = prompt('Auth token for that saves worker (the AUTH_TOKEN secret you set):', netSavesToken);
+       netSavesToken = (tokenEntered || '').trim();
+       if (!netSavesToken){ noteNet('A saves worker URL was given without a token — skipping saves worker.','err'); netSavesUrl=''; }
+     }
+
+     await idbSet(NET_KEY, { baseUrl: netBaseUrl, savesUrl: netSavesUrl, savesToken: netSavesToken });
+     noteNet('Found Morrowind'+(exps.length?' + '+exps.join(' + '):' (no expansions detected)')+' ('+list.length+' files). Starting…','ok');
+     location.href='play.html?src=network';
+   } catch(e){
+     noteNet('Could not use that location: '+(e && e.message || e), 'err');
+   }
+ }
+ $('card-network').addEventListener('click', pickNetwork);
+ $('card-network').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pickNetwork(); } });
+ idbGet(NET_KEY).then(v => { if (v){ netBaseUrl = v.baseUrl||''; netSavesUrl = v.savesUrl||''; netSavesToken = v.savesToken||''; } }).catch(()=>{});
+
+ // --- return-visit fast path ---
+ (async function(){
+   if (!hasFSA) return;
+   let handle; try { handle = await idbGet(KEY); } catch(e){ return; }
+   if (!handle) return;
+   let perm='prompt';
+   try { perm = await handle.queryPermission({ mode:'readwrite' }); } catch(e){ return; }
+   $('continue-name').textContent = handle.name || 'your Data Files';
+   $('continue').classList.add('show');
+   $('continue-btn').addEventListener('click', async ()=>{
+     try {
+       if (perm!=='granted') perm = await handle.requestPermission({ mode:'readwrite' });
+       if (perm!=='granted'){ note('Edit access was declined — it’s needed to save your games to the folder. Choose “Edit files”.','err'); return; }
+       location.href='play.html?src=local';
+     } catch(e){ note('Could not reopen that folder. Pick it again.','err'); }
+   });
+ })();
+</script>
+</body></html>
