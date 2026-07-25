@@ -693,7 +693,7 @@
  // so it's fetched from an external host instead (e.g. the same R2 bucket used for Data Files).
  // That host needs CORS allowed for this page's origin. Leave blank to serve .data from __ENGINE_DIR
  // as normal (e.g. when self-hosting somewhere that can hold the file, like a VPS).
- var __DATA_HOST = "https://pub-7abcfb48e1b145deaa6ac82cd0af7db9.r2.dev";
+ var __DATA_HOST = "https://pub-4f7f343a47874650a3e4c80e107a6df7.r2.dev";
  var Module = {
    // openmw.wasm AND openmw.data both resolve through locateFile → load them from the versioned dir,
    // except .data which is redirected to __DATA_HOST above when set.
@@ -1205,7 +1205,7 @@
            } catch(e){ return bounce('Could not load manifest.json from that server: ' + (e && e.message || e)); }
 
            FS.mkdirTree('/mwdata');
-           var count = 0, rootFiles = new Set(), madeDirs = new Set();
+           var count = 0, rootFiles = new Map(), madeDirs = new Set(), hasVideoBik = false;
            for (const f of list){
              var rel = f.path, size = f.size;
              if (!rel || !(size >= 0)) continue;
@@ -1216,8 +1216,9 @@
                  try { FS.mkdirTree('/mwdata/' + dirPath); } catch(e){}
                  madeDirs.add(dirPath);
                }
+               if (dirPath.toLowerCase() === 'video' && /\.bik$/i.test(rel)) hasVideoBik = true;
              } else {
-               rootFiles.add(rel.toLowerCase());
+               rootFiles.set(rel.toLowerCase(), rel);
              }
              try {
                StreamFS.mount('/mwdata/' + rel, base + '/' + rel, size);
@@ -1229,12 +1230,53 @@
              return bounce('Morrowind.esm / Morrowind.bsa were not found in manifest.json.');
            append('[net] mounted ' + count + ' files (streaming over HTTP from ' + base + ')');
 
+           // Build the load order — same official-masters-first + auto-detected user-mods scheme
+           // as the local-folder path (see mountLocalMorrowind). ?nomods=1 ignores extra .esm/.esp.
+           var masters=['morrowind.esm','tribunal.esm','bloodmoon.esm'];
+           var archives=['morrowind.bsa','tribunal.bsa','bloodmoon.bsa'];
+           var content=[], fbarch=[];
+           masters.forEach(function(m){ if(rootFiles.has(m)) content.push(rootFiles.get(m)); });
+           archives.forEach(function(a){ if(rootFiles.has(a)) fbarch.push(rootFiles.get(a)); });
+           var official=new Set(masters.concat(archives)), modEsm=[], modEsp=[], modBsa=[];
+           if (!/[?&]nomods=1\b/.test(location.search))
+             rootFiles.forEach(function(orig, lower){
+               if (official.has(lower)) return;
+               if (/\.esm$/.test(lower)) modEsm.push(orig);
+               else if (/\.esp$/.test(lower)) modEsp.push(orig);
+               else if (/\.bsa$/.test(lower)) modBsa.push(orig);
+             });
+           var byName=function(a,b){ return a.toLowerCase()<b.toLowerCase()?-1:1; };
+           modEsm.sort(byName); modEsp.sort(byName); modBsa.sort(byName);
+           modBsa.forEach(function(a){ fbarch.push(a); });
+           modEsm.forEach(function(c){ content.push(c); });
+           modEsp.forEach(function(c){ content.push(c); });
+           var mods=modEsm.concat(modEsp);
+           if (mods.length) append('[net] + '+mods.length+' mod plugin(s): '+mods.join(', '));
+           var wantMovies = hasVideoBik && !/[?&]novid\b/.test(location.search);
+
            // Network-backed saves: wait for IDBFS to finish loading, same as the folder path.
            try { await window.__idbfsReady; await setupNetworkSaves(cfg.savesUrl, cfg.savesToken); }
            catch(e){ append('[saves] network-save setup skipped: '+(e&&e.message||e),'err'); }
            if (!cfg.savesUrl) append('[saves] no saves worker configured — saves stay in this browser only (IndexedDB)');
 
-           removeRunDependency('mw-network');
+           (function waitCfg(){
+             if (FS.analyzePath('/openmw.cfg').exists){
+               var ocfg = FS.readFile('/openmw.cfg', {encoding:'utf8'}).split('\n').filter(function(l){
+                 return !/^content=/.test(l) && !/^data=\/gamedata\s*$/.test(l) && !/^fallback-archive=/.test(l)
+                     && !/^fallback=Movies_/.test(l);
+               });
+               ocfg.push('data=/mwdata', 'config="/userdata/config/openmw"');
+               fbarch.forEach(function(a){ ocfg.push('fallback-archive='+a); });
+               content.forEach(function(c){ ocfg.push('content='+c); });
+               if (wantMovies)
+                 ocfg.push('fallback=Movies_Company_Logo,bethesda logo.bik',
+                           'fallback=Movies_Morrowind_Logo,mw_logo.bik',
+                           'fallback=Movies_New_Game,mw_intro.bik');
+               FS.writeFile('/openmw.cfg', ocfg.join('\n'));
+               append('[net] READY -> '+content.join(' + ')+' (streamed from '+base+')');
+               removeRunDependency('mw-network');
+             } else { setTimeout(waitCfg, 25); }
+           })();
          })();
        }
 
