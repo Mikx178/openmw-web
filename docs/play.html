@@ -689,9 +689,18 @@
  // "null function" crash). Unstamped (local dev / a raw git checkout) → falls back to flat root paths.
  var __ENGINE_VER = "__ENGINE_VERSION__";
  var __ENGINE_DIR = (__ENGINE_VER.charAt(0) === "_") ? "" : ("e/" + __ENGINE_VER + "/");
+ // openmw.data is too large for a plain GitHub Pages repo (>100MB, no Git LFS support on Pages),
+ // so it's fetched from an external host instead (e.g. the same R2 bucket used for Data Files).
+ // That host needs CORS allowed for this page's origin. Leave blank to serve .data from __ENGINE_DIR
+ // as normal (e.g. when self-hosting somewhere that can hold the file, like a VPS).
+ var __DATA_HOST = "https://pub-7abcfb48e1b145deaa6ac82cd0af7db9.r2.dev";
  var Module = {
-   // openmw.wasm AND openmw.data both resolve through locateFile → load them from the versioned dir.
-   locateFile: function(path){ return __ENGINE_DIR + path; },
+   // openmw.wasm AND openmw.data both resolve through locateFile → load them from the versioned dir,
+   // except .data which is redirected to __DATA_HOST above when set.
+   locateFile: function(path){
+     if (__DATA_HOST && /\.data$/.test(path)) return __DATA_HOST.replace(/\/+$/,'') + '/' + path;
+     return __ENGINE_DIR + path;
+   },
    canvas: document.getElementById('canvas'),
    __omwSkipIntro: /[?&]skipintro=1/.test(location.search),
    // ?start=<cell> deep-links straight into a cell as a fresh default character. Dev/QA aid — only
