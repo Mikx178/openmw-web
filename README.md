@@ -26,7 +26,7 @@ cross-compiled with Emscripten so the whole engine runs client-side in a desktop
 browser. There are no plugins and no streaming service. The engine runs locally and
 reads game data from your machine.
 
-The `openmw/` tree tracks upstream
+aThe `openmw/` tree tracks upstream
 [`OpenMW/openmw`](https://github.com/OpenMW/openmw) at commit
 `bc1d9c97a3881bb961a0b74e6e49bbba772b86a1` (recorded in
 [`.openmw-base-commit.txt`](.openmw-base-commit.txt)), plus local changes for the
