@@ -693,7 +693,7 @@
  // so it's fetched from an external host instead (e.g. the same R2 bucket used for Data Files).
  // That host needs CORS allowed for this page's origin. Leave blank to serve .data from __ENGINE_DIR
  // as normal (e.g. when self-hosting somewhere that can hold the file, like a VPS).
- var __DATA_HOST = "https://pub-7abcfb48e1b145deaa6ac82cd0af7db9.r2.dev";
+ var __DATA_HOST = "https://pub-4f7f343a47874650a3e4c80e107a6df7.r2.dev";
  var Module = {
    // openmw.wasm AND openmw.data both resolve through locateFile → load them from the versioned dir,
    // except .data which is redirected to __DATA_HOST above when set.
@@ -1374,7 +1374,7 @@
        // --- Load REAL Morrowind data at runtime (esm + bsa + loose audio tar) ---
        // Fetched SEQUENTIALLY (not Promise.all) so peak JS-heap stays low, into MEMFS under
        // /mwdata, then the preloaded openmw.cfg is rewritten to load Morrowind. Boot waits.
-       if (!__srcLocal && !__srcNetwork) try {
+       if (!__srcLocal) try {
          // Diagnostic: ?nomw skips the 817MB Morrowind load and boots the tiny preloaded
          // example-suite instead — lets a light load verify the render path (S3TC/SIMD/resize).
          if (window.__FORCE_NOMW || /[?&]nomw\b/.test(location.search)){
