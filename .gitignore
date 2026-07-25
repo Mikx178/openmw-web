@@ -57,3 +57,11 @@ __pycache__/
 
 # Local multiplayer server (Node; not part of the web client)
 server/
+
+!docs/openmw.wasm
+!docs/openmw.data
+!docs/openmw.js
+
+!docs/openmw.wasm.br
+!docs/openmw.data.br
+!docs/openmw.js.br
