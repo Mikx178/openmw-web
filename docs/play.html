@@ -781,6 +781,12 @@
            'resolution x = ' + rW + '\n' +
            'resolution y = ' + rH + '\n' +
            'window mode = 2\n' +                   // 2 = windowed (canvas); CSS scales it to fill
+           // Frame cap: without this, the engine renders as fast as the tab is scheduled (up to
+           // the monitor's refresh rate via rAF), which on faster-than-60Hz displays can be
+           // rough (GPU-bound stutter, fans, battery). 60 is a sane default; ?fps=N (or 0 to
+           // disable the cap) overrides it. A user's own saved settings.cfg value (if the
+           // Options menu exposes one) overrides this baseline layer as usual.
+           'framerate limit = ' + ((/[?&]fps=(\d+)/.exec(location.search)||[])[1] || '60') + '\n' +
            // Default brightness: [Video] gamma drives the PP 'adjustments' uGamma every frame
            // (PostProcessor::update), and the Options "Gamma" slider controls it live. 1.2 lifts
            // shadows/midtones so dim areas are readable without washing out daylight; a user's
