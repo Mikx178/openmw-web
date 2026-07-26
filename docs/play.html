@@ -238,7 +238,8 @@
      else if (/^\[dl\]/.test(t))                        set(null, 'Downloading', t.replace(/^\[dl\]\s*/, ''));
      else if (/^\[local\] scanning/.test(t))            set(null, 'Loading');
      else if ((m = /^\[local\] mounted (\d+) files/.exec(t))) set(null, 'Loading', m[1] + ' files');
-     else if (/^\[(local|mw)\] READY/.test(t))          set(null, 'Entering the world');
+     else if (/^\[net\] mounted \d+ files/.test(t))      set(null, 'Loading', t.replace(/^\[net\]\s*/, ''));
+     else if (/^\[(local|mw|net)\] READY/.test(t))       set(null, 'Entering the world');
      else if (/SKIPPED \(nomw\)/.test(t))               set(null, 'Loading');
      else if (/^\[mw\] loading Morrowind/.test(t))      set(null, 'Downloading');
    }
@@ -1040,8 +1041,11 @@
        // is read-only. If no saves worker was configured, saves simply stay in IDBFS (this
        // browser only) — same as the sample-world path.
        var __netSaves = null;
-       async function setupNetworkSaves(savesUrl, token){
+       async function setupNetworkSaves(savesUrl, token, profile){
          if (!savesUrl || !token) return; // not configured — IDBFS-only, nothing to mirror
+         // A profile segment keeps different players' saves apart on a shared worker/token —
+         // see saves-worker/src/worker.js routes (/<profile>/list, /<profile>/<file>).
+         savesUrl = savesUrl.replace(/\/+$/,'') + '/' + encodeURIComponent(profile || 'player');
          FS.mkdirTree(__SAVES_DIR);
          var loaded = 0;
          try {
@@ -1060,7 +1064,7 @@
            }
          } catch(e){ append('[saves] could not reach saves worker: ' + (e && e.message || e), 'err'); return; }
          __netSaves = { url: savesUrl.replace(/\/+$/,''), token: token };
-         append('[saves] ' + (loaded ? ('loaded ' + loaded + ' save(s) from') : 'saving to') + ' your saves worker (not just this browser)');
+         append('[saves] ' + (loaded ? ('loaded ' + loaded + ' save(s) from') : 'saving to') + ' your saves worker as "' + (profile||'player') + '" (not just this browser)');
          try { window.__omwSyncfs(); } catch(e){}
        }
        async function mirrorSavesToNetwork(){
@@ -1172,6 +1176,24 @@
          try { StreamFS.init(); }
          catch(e){ append('[net] streamfs unavailable: '+e,'err');
            fatalOverlay('Streaming unavailable', 'Your browser could not start the file streamer (needs cross-origin isolation). Try Chrome/Edge on desktop.'); return; }
+
+         // Live "downloaded so far" indicator — files stream in lazily as needed (no fixed
+         // total), so this is a running counter, not a % of a known size. Shown on the loading
+         // screen, then as a small always-visible badge once you're in the world (streaming
+         // keeps happening as you explore new areas).
+         var badge = document.createElement('div');
+         badge.id = 'net-dl-badge';
+         badge.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:40;'
+           + 'font:11px/1.4 ui-monospace,Menlo,monospace;color:#cbbfa6;background:rgba(10,10,14,.55);'
+           + 'padding:3px 8px;border-radius:4px;pointer-events:none;letter-spacing:.02em';
+         document.body.appendChild(badge);
+         var dlTimer = setInterval(function(){
+           var mb = (StreamFS.getStats().bytesFetched / 1048576);
+           var txt = 'Downloaded ' + mb.toFixed(1) + ' MB';
+           badge.textContent = txt;
+           try { if (window.__omwLoading) window.__omwLoading.set(null, null, txt); } catch(e){}
+         }, 500);
+
          addRunDependency('mw-network');
          function idbGetConfig(){
            return new Promise(function(res,rej){
@@ -1255,7 +1277,7 @@
            var wantMovies = hasVideoBik && !/[?&]novid\b/.test(location.search);
 
            // Network-backed saves: wait for IDBFS to finish loading, same as the folder path.
-           try { await window.__idbfsReady; await setupNetworkSaves(cfg.savesUrl, cfg.savesToken); }
+           try { await window.__idbfsReady; await setupNetworkSaves(cfg.savesUrl, cfg.savesToken, cfg.profile); }
            catch(e){ append('[saves] network-save setup skipped: '+(e&&e.message||e),'err'); }
            if (!cfg.savesUrl) append('[saves] no saves worker configured — saves stay in this browser only (IndexedDB)');
 

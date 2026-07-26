@@ -541,7 +541,7 @@
    return list;
  }
 
- let netConfirmStart = false, netBaseUrl = '', netSavesUrl = '', netSavesToken = '';
+ let netConfirmStart = false, netBaseUrl = '', netSavesUrl = '', netSavesToken = '', netProfile = '';
  async function pickNetwork(){
    if (netConfirmStart){ location.href='play.html?src=network'; return; }
    const entered = prompt('Base URL of your Data Files folder (e.g. https://my-nas.example.com/morrowind):', netBaseUrl || 'https://');
@@ -563,9 +563,14 @@
        const tokenEntered = prompt('Auth token for that saves worker (the AUTH_TOKEN secret you set):', netSavesToken);
        netSavesToken = (tokenEntered || '').trim();
        if (!netSavesToken){ noteNet('A saves worker URL was given without a token — skipping saves worker.','err'); netSavesUrl=''; }
+       else {
+         // A profile name keeps different people's saves apart on the same shared worker/token.
+         const profileEntered = prompt('Your player name (so your saves stay separate from anyone else using this same worker):', netProfile || '');
+         netProfile = (profileEntered || '').trim().replace(/[^a-z0-9_\- ]/gi,'').slice(0,40) || 'player';
+       }
      }
 
-     await idbSet(NET_KEY, { baseUrl: netBaseUrl, savesUrl: netSavesUrl, savesToken: netSavesToken });
+     await idbSet(NET_KEY, { baseUrl: netBaseUrl, savesUrl: netSavesUrl, savesToken: netSavesToken, profile: netProfile });
      noteNet('Found Morrowind'+(exps.length?' + '+exps.join(' + '):' (no expansions detected)')+' ('+list.length+' files). Starting…','ok');
      location.href='play.html?src=network';
    } catch(e){
@@ -574,24 +579,36 @@
  }
  $('card-network').addEventListener('click', pickNetwork);
  $('card-network').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pickNetwork(); } });
- idbGet(NET_KEY).then(v => { if (v){ netBaseUrl = v.baseUrl||''; netSavesUrl = v.savesUrl||''; netSavesToken = v.savesToken||''; } }).catch(()=>{});
+ idbGet(NET_KEY).then(v => { if (v){ netBaseUrl = v.baseUrl||''; netSavesUrl = v.savesUrl||''; netSavesToken = v.savesToken||''; netProfile = v.profile||''; } }).catch(()=>{});
 
- // --- return-visit fast path ---
+ // --- return-visit fast path (local folder OR remembered network location) ---
  (async function(){
-   if (!hasFSA) return;
-   let handle; try { handle = await idbGet(KEY); } catch(e){ return; }
-   if (!handle) return;
-   let perm='prompt';
-   try { perm = await handle.queryPermission({ mode:'readwrite' }); } catch(e){ return; }
-   $('continue-name').textContent = handle.name || 'your Data Files';
-   $('continue').classList.add('show');
-   $('continue-btn').addEventListener('click', async ()=>{
-     try {
-       if (perm!=='granted') perm = await handle.requestPermission({ mode:'readwrite' });
-       if (perm!=='granted'){ note('Edit access was declined — it’s needed to save your games to the folder. Choose “Edit files”.','err'); return; }
-       location.href='play.html?src=local';
-     } catch(e){ note('Could not reopen that folder. Pick it again.','err'); }
-   });
+   // Local folder takes priority if both happen to be remembered.
+   if (hasFSA){
+     let handle; try { handle = await idbGet(KEY); } catch(e){ handle = null; }
+     if (handle){
+       let perm='prompt';
+       try { perm = await handle.queryPermission({ mode:'readwrite' }); } catch(e){ return; }
+       $('continue-name').textContent = handle.name || 'your Data Files';
+       $('continue').classList.add('show');
+       $('continue-btn').addEventListener('click', async ()=>{
+         try {
+           if (perm!=='granted') perm = await handle.requestPermission({ mode:'readwrite' });
+           if (perm!=='granted'){ note('Edit access was declined — it’s needed to save your games to the folder. Choose “Edit files”.','err'); return; }
+           location.href='play.html?src=local';
+         } catch(e){ note('Could not reopen that folder. Pick it again.','err'); }
+       });
+       return;
+     }
+   }
+   let cfg; try { cfg = await idbGet(NET_KEY); } catch(e){ cfg = null; }
+   if (cfg && typeof cfg === 'object' && cfg.baseUrl){
+     netConfirmStart = true; // pickNetwork() now just navigates instead of re-prompting
+     let label; try { label = new URL(cfg.baseUrl).host; } catch(e){ label = cfg.baseUrl; }
+     $('continue-name').textContent = label;
+     $('continue').classList.add('show');
+     $('continue-btn').addEventListener('click', ()=>{ location.href='play.html?src=network'; });
+   }
  })();
 </script>
 </body></html>
